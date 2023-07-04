@@ -175,6 +175,28 @@ func (p *Packer) UnpackString(required bool) string {
 	return str
 }
 
+func (p *Packer) PackStringSlice(slice []string) {
+	p.PackInt(len(slice))
+	for _, str := range slice {
+		p.PackString(str)
+	}
+}
+
+func (p *Packer) UnpackStringSlice(required bool) []string {
+	length := p.UnpackInt(required)
+	if p.Err() != nil {
+		return nil
+	}
+	slice := make([]string, length)
+	for i := 0; i < length; i++ {
+		slice[i] = p.UnpackString(required)
+		if p.Err() != nil {
+			return nil
+		}
+	}
+	return slice
+}
+
 // Empty is called after parsing a byte array to ensure there is nothing left
 // to parse.
 func (p *Packer) Empty() bool {

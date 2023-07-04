@@ -5,7 +5,6 @@ go 1.20
 require (
 	github.com/ava-labs/avalanchego v1.10.1
 	github.com/celestiaorg/go-cnc v0.4.1
-	github.com/celestiaorg/go-cnc v0.4.1
 	github.com/cockroachdb/pebble v0.0.0-20230224221607-fccb83b60d5c
 	github.com/golang/mock v1.6.0
 	github.com/gorilla/rpc v1.2.0
