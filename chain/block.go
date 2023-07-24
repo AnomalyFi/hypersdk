@@ -7,8 +7,8 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"time"
 	"reflect"
+	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/choices"
@@ -342,7 +342,6 @@ func (b *StatelessBlock) verify(ctx context.Context, stateReady bool) error {
 		}
 		b.state = state
 	}
-	
 
 	// At any point after this, we may attempt to verify the block. We should be
 	// sure we are prepared to do so.
@@ -353,15 +352,16 @@ func (b *StatelessBlock) verify(ctx context.Context, stateReady bool) error {
 }
 
 func preVerifyWarpMessage(msg *warp.Message, chainID ids.ID, r Rules) (uint64, uint64, error) {
+	//TODO changed this so I can send a loop one
 	if msg.DestinationChainID != chainID && msg.DestinationChainID != ids.Empty {
 		return 0, 0, ErrInvalidChainID
 	}
-	if msg.SourceChainID == chainID {
-		return 0, 0, ErrInvalidChainID
-	}
-	if msg.SourceChainID == msg.DestinationChainID {
-		return 0, 0, ErrInvalidChainID
-	}
+	// if msg.SourceChainID == chainID {
+	// 	return 0, 0, ErrInvalidChainID
+	// }
+	// if msg.SourceChainID == msg.DestinationChainID {
+	// 	return 0, 0, ErrInvalidChainID
+	// }
 	allowed, num, denom := r.GetWarpConfig(msg.SourceChainID)
 	if !allowed {
 		return 0, 0, ErrDisabledChainID
@@ -712,7 +712,6 @@ func (b *StatelessBlock) Height() uint64 { return b.StatefulBlock.Hght }
 func (b *StatelessBlock) Timestamp() time.Time { return b.t }
 
 // State is used to verify txs in the mempool. It should never be written to.
-//
 func (b *StatelessBlock) State() (Database, error) {
 	if b.st == choices.Accepted {
 		return b.vm.State()
