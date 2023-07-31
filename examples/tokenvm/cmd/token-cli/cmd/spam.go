@@ -334,7 +334,7 @@ var runSpamCmd = &cobra.Command{
 								To:    recipient,
 								Asset: ids.Empty,
 								Value: uint64(v), // ensure txs are unique
-							}, factory, unitPrice)
+							}, factory, unitPrice, false)
 							if err != nil {
 								hutils.Outf("{{orange}}failed to generate:{{/}} %v\n", err)
 								continue
