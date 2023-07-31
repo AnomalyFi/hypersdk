@@ -85,7 +85,7 @@ var transferCmd = &cobra.Command{
 			To:    recipient,
 			Asset: assetID,
 			Value: amount,
-		}, factory)
+		}, factory, false)
 		if err != nil {
 			return err
 		}
@@ -138,7 +138,7 @@ var createAssetCmd = &cobra.Command{
 		}
 		submit, tx, _, err := cli.GenerateTransaction(ctx, parser, nil, &actions.CreateAsset{
 			Metadata: []byte(metadata),
-		}, factory)
+		}, factory, false)
 		if err != nil {
 			return err
 		}
@@ -197,7 +197,7 @@ var sequencerMsgCmd = &cobra.Command{
 			Data:        []byte{0x00, 0x01, 0x02},
 			ChainId:     []byte{0x00},
 			FromAddress: recipient,
-		}, factory)
+		}, factory, false)
 		if err != nil {
 			return err
 		}
@@ -279,7 +279,7 @@ var mintAssetCmd = &cobra.Command{
 			Asset: assetID,
 			To:    recipient,
 			Value: amount,
-		}, factory)
+		}, factory, false)
 		if err != nil {
 			return err
 		}
@@ -330,7 +330,7 @@ var closeOrderCmd = &cobra.Command{
 		submit, tx, _, err := cli.GenerateTransaction(ctx, parser, nil, &actions.CloseOrder{
 			Order: orderID,
 			Out:   outAssetID,
-		}, factory)
+		}, factory, false)
 		if err != nil {
 			return err
 		}
@@ -433,7 +433,7 @@ var createOrderCmd = &cobra.Command{
 			Out:     outAssetID,
 			OutTick: outTick,
 			Supply:  supply,
-		}, factory)
+		}, factory, false)
 		if err != nil {
 			return err
 		}
@@ -564,7 +564,7 @@ var fillOrderCmd = &cobra.Command{
 			In:    inAssetID,
 			Out:   outAssetID,
 			Value: value,
-		}, factory)
+		}, factory, false)
 		if err != nil {
 			return err
 		}
@@ -895,7 +895,7 @@ var exportAssetCmd = &cobra.Command{
 			SwapOut:     swapOut,
 			SwapExpiry:  swapExpiry,
 			Destination: destination,
-		}, factory)
+		}, factory, false)
 		if err != nil {
 			return err
 		}

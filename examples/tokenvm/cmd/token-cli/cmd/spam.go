@@ -15,8 +15,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/AnomalyFi/hypersdk/crypto"
 	"github.com/AnomalyFi/hypersdk/examples/tokenvm/actions"
 	"github.com/AnomalyFi/hypersdk/examples/tokenvm/auth"
@@ -24,6 +22,8 @@ import (
 	"github.com/AnomalyFi/hypersdk/examples/tokenvm/utils"
 	"github.com/AnomalyFi/hypersdk/rpc"
 	hutils "github.com/AnomalyFi/hypersdk/utils"
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 )
@@ -159,7 +159,7 @@ var runSpamCmd = &cobra.Command{
 				To:    pk.PublicKey(),
 				Asset: ids.Empty,
 				Value: distAmount,
-			}, factory)
+			}, factory, false)
 			if err != nil {
 				return err
 			}
@@ -412,7 +412,7 @@ var runSpamCmd = &cobra.Command{
 				To:    key.PublicKey(),
 				Asset: ids.Empty,
 				Value: returnAmt,
-			}, auth.NewED25519Factory(accounts[i]))
+			}, auth.NewED25519Factory(accounts[i]), false)
 			if err != nil {
 				return err
 			}

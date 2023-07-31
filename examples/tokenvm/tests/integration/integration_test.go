@@ -336,6 +336,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 					Value: 100_000, // must be more than StateLockup
 				},
 				factory,
+				false,
 			)
 			transferTxRoot = transferTx
 			gomega.Ω(err).Should(gomega.BeNil())
@@ -448,6 +449,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 					Value: 101,
 				},
 				factory,
+				false,
 			)
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
@@ -477,6 +479,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 					Value: 200,
 				},
 				factory,
+				false,
 			)
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
@@ -491,6 +494,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 					Value: 201,
 				},
 				factory,
+				false,
 			)
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
@@ -520,6 +524,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 					Value: 203,
 				},
 				factory,
+				false,
 			)
 			gomega.Ω(err).Should(gomega.BeNil())
 			gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
@@ -615,6 +620,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			nil,
 			transfer,
 			factory,
+			false,
 		)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
@@ -668,6 +674,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			nil,
 			transfer,
 			factory,
+			false,
 		)
 		gomega.Ω(err).Should(gomega.BeNil())
 
@@ -713,6 +720,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				Value: 10,
 			},
 			factory,
+			false,
 		)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
@@ -740,6 +748,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				Metadata: nil,
 			},
 			factory,
+			false,
 		)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
@@ -805,6 +814,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				Metadata: asset1,
 			},
 			factory,
+			false,
 		)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
@@ -843,6 +853,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				Value: 15,
 			},
 			factory,
+			false,
 		)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
@@ -885,6 +896,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				Value: 10,
 			},
 			factory2,
+			false,
 		)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
@@ -920,6 +932,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				Value: 5,
 			},
 			factory2,
+			false,
 		)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
@@ -959,6 +972,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				Value: 10,
 			},
 			factory,
+			false,
 		)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
@@ -1028,6 +1042,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				Value: consts.MaxUint64,
 			},
 			factory,
+			false,
 		)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
@@ -1071,6 +1086,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				Owner:    crypto.EmptyPublicKey,
 			},
 			factory,
+			false,
 		)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
@@ -1112,6 +1128,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				Owner:    rsender,
 			},
 			factory,
+			false,
 		)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
@@ -1172,6 +1189,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				Metadata: asset2,
 			},
 			factory,
+			false,
 		)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
@@ -1191,6 +1209,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				Value: 10,
 			},
 			factory,
+			false,
 		)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
@@ -1215,6 +1234,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				Metadata: asset3,
 			},
 			factory2,
+			false,
 		)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
@@ -1234,6 +1254,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				Value: 10,
 			},
 			factory2,
+			false,
 		)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
@@ -1262,6 +1283,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				Supply:  4,
 			},
 			factory,
+			false,
 		)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
@@ -1300,6 +1322,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				Supply:  5, // put half of balance
 			},
 			factory2,
+			false,
 		)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
@@ -1327,6 +1350,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				Supply:  5, // put half of balance
 			},
 			factory2,
+			false,
 		)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
@@ -1365,6 +1389,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				Supply:  5, // put half of balance
 			},
 			factory,
+			false,
 		)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
@@ -1398,6 +1423,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				Value: 10, // rate of this order is 4 asset2 = 1 asset3
 			},
 			factory,
+			false,
 		)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
@@ -1431,6 +1457,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				Value: 20, // rate of this order is 4 asset2 = 1 asset3
 			},
 			factory,
+			false,
 		)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
@@ -1464,6 +1491,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				Value: 4, // rate of this order is 4 asset2 = 1 asset3
 			},
 			factory,
+			false,
 		)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
@@ -1508,6 +1536,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				Out:   asset3ID,
 			},
 			factory,
+			false,
 		)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
@@ -1536,6 +1565,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				Out:   asset3ID,
 			},
 			factory2,
+			false,
 		)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
@@ -1578,6 +1608,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				Supply:  1,
 			},
 			factory,
+			false,
 		)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
@@ -1622,6 +1653,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				Value: 4,
 			},
 			factory2,
+			false,
 		)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
@@ -1802,6 +1834,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			wm,
 			&actions.ImportAsset{},
 			factory,
+			false,
 		)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
@@ -1843,6 +1876,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				Destination: dest,
 			},
 			factory,
+			false,
 		)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
@@ -1886,6 +1920,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 				Destination: ids.GenerateTestID(),
 			},
 			factory,
+			false,
 		)
 		gomega.Ω(err).Should(gomega.BeNil())
 		gomega.Ω(submit(context.Background())).Should(gomega.BeNil())
