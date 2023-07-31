@@ -692,7 +692,7 @@ func performImport(
 	}
 	submit, tx, _, err := dcli.GenerateTransaction(ctx, parser, msg, &actions.ImportAsset{
 		Fill: fill,
-	}, factory)
+	}, factory, false)
 	if err != nil {
 		return err
 	}
@@ -738,7 +738,7 @@ func submitDummy(
 			submit, tx, _, err := cli.GenerateTransaction(ctx, parser, nil, &actions.Transfer{
 				To:    dest,
 				Value: txsSent + 1, // prevent duplicate txs
-			}, factory)
+			}, factory, false)
 			if err != nil {
 				return err
 			}

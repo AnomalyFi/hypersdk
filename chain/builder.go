@@ -168,7 +168,7 @@ func BuildBlock(
 				return cont, restore, removeAcct, nil
 			}
 
-			// Verify warp message, if it exists
+			// Verify warp message and warp block, if it exists
 			//
 			// We don't drop invalid warp messages because we must collect fees for
 			// the work the sender made us do (otherwise this would be a DoS).
@@ -176,6 +176,8 @@ func BuildBlock(
 			// We wait as long as possible to verify the signature to ensure we don't
 			// spend unnecessary time on an invalid tx.
 			var warpErr error
+			var verifyError error
+
 			if next.WarpMessage != nil {
 				num, denom, err := preVerifyWarpMessage(next.WarpMessage, vm.ChainID(), r)
 				if err == nil {
@@ -193,6 +195,41 @@ func BuildBlock(
 						zap.Error(warpErr),
 					)
 				}
+				if next.VerifyBlock {
+					block, err := UnmarshalWarpBlock(next.WarpMessage.UnsignedMessage.Payload)
+
+					parent, err := b.vm.GetStatelessBlock(ctx, block.Prnt)
+					if err != nil {
+						log.Warn("could not get parent", zap.Stringer("id", block.Prnt), zap.Error(err))
+						verifyError = err
+					}
+
+					if b.Timestamp().Unix() < parent.Timestamp().Unix() {
+						log.Warn("Too young of parent", zap.Error(ErrTimestampTooEarly))
+						verifyError = err
+					}
+
+					blockRoot, err := b.vm.GetStatelessBlock(ctx, block.StateRoot)
+					if err != nil {
+						log.Debug("could not get block", zap.Stringer("id", block.StateRoot), zap.Error(err))
+						verifyError = err
+					}
+
+					if b.Timestamp().Unix() < blockRoot.Timestamp().Unix() {
+						log.Warn("Too young of parent", zap.Error(ErrTimestampTooEarly))
+						verifyError = err
+					}
+
+					if verifyError != nil {
+						log.Warn(
+							"block verification failed",
+							zap.Stringer("txID", next.ID()),
+							zap.Error(verifyError),
+						)
+					}
+
+				}
+
 			}
 
 			// If execution works, keep moving forward with new state
@@ -203,7 +240,7 @@ func BuildBlock(
 				sm,
 				ts,
 				nextTime,
-				next.WarpMessage != nil && warpErr == nil,
+				next.WarpMessage != nil && warpErr == nil && verifyError == nil,
 			)
 			if err != nil {
 				// This error should only be raised by the handler, not the
@@ -218,7 +255,7 @@ func BuildBlock(
 			surplusFee += (next.Base.UnitPrice - b.UnitPrice) * result.Units
 			results = append(results, result)
 			if next.WarpMessage != nil {
-				if warpErr == nil {
+				if warpErr == nil && verifyError == nil {
 					// Add a bit if the warp message was verified
 					b.WarpResults.Add(uint(warpCount))
 				}

@@ -54,14 +54,17 @@ type StatefulBlock struct {
 	WarpResults   set.Bits64 `json:"warpResults"`
 }
 
-// warpJob is used to signal to a listner that a *warp.Message has been
+// warpJob is used to signal to a listener that a *warp.Message has been
 // verified.
 type warpJob struct {
-	msg          *warp.Message
-	signers      int
-	verifiedChan chan bool
-	verified     bool
-	warpNum      int
+	msg               *warp.Message
+	signers           int
+	verifiedChan      chan bool
+	verified          bool
+	requiresBlock     bool
+	verifiedRootsChan chan bool
+	verifiedRoots     bool
+	warpNum           int
 }
 
 func NewGenesisBlock(root ids.ID, minUnit uint64, minBlock uint64) *StatefulBlock {
@@ -88,10 +91,11 @@ type StatelessBlock struct {
 	bytes  []byte
 	txsSet set.Set[ids.ID]
 
-	warpMessages map[ids.ID]*warpJob
-	containsWarp bool // this allows us to avoid allocating a map when we build
-	bctx         *block.Context
-	vdrState     validators.State
+	warpMessages   map[ids.ID]*warpJob
+	containsWarp   bool // this allows us to avoid allocating a map when we build
+	containsVerify bool // this allows us to avoid allocating a map when we build
+	bctx           *block.Context
+	vdrState       validators.State
 
 	results []*Result
 
@@ -152,6 +156,7 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) error {
 	_, sspan := b.vm.Tracer().Start(ctx, "StatelessBlock.verifySignatures")
 	b.txsSet = set.NewSet[ids.ID](len(b.Txs))
 	b.warpMessages = map[ids.ID]*warpJob{}
+	// b.verifyMessages = map[ids.ID]*verifyJob{}
 	for _, tx := range b.Txs {
 		b.sigJob.Go(tx.AuthAsyncVerify())
 		if b.txsSet.Contains(tx.ID()) {
@@ -173,13 +178,19 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) error {
 			if err != nil {
 				return err
 			}
+			if tx.VerifyBlock {
+				b.containsVerify = true
+			}
 			b.warpMessages[tx.ID()] = &warpJob{
-				msg:          tx.WarpMessage,
-				signers:      signers,
-				verifiedChan: make(chan bool, 1),
-				warpNum:      len(b.warpMessages),
+				msg:               tx.WarpMessage,
+				signers:           signers,
+				requiresBlock:     b.containsVerify,
+				verifiedChan:      make(chan bool, 1),
+				verifiedRootsChan: make(chan bool, 1),
+				warpNum:           len(b.warpMessages),
 			}
 			b.containsWarp = true
+
 		}
 	}
 	b.sigJob.Done(func() { sspan.End() })
@@ -261,6 +272,9 @@ func (b *StatelessBlock) initializeBuilt(
 		b.txsSet.Add(tx.ID())
 		if tx.WarpMessage != nil {
 			b.containsWarp = true
+		}
+		if tx.VerifyBlock {
+			b.containsVerify = true
 		}
 	}
 	return nil
@@ -379,6 +393,7 @@ func (b *StatelessBlock) verifyWarpMessage(ctx context.Context, r Rules, msg *wa
 			Warn("unable to verify warp message", zap.Stringer("warpID", warpID), zap.Error(err))
 		return false
 	}
+
 	if err := msg.Signature.Verify(
 		ctx,
 		&msg.UnsignedMessage,
@@ -391,6 +406,60 @@ func (b *StatelessBlock) verifyWarpMessage(ctx context.Context, r Rules, msg *wa
 			Warn("unable to verify warp message", zap.Stringer("warpID", warpID), zap.Error(err))
 		return false
 	}
+	return true
+}
+
+// TODO need to test
+// verifyWarpBlock will attempt to verify a given warp block
+func (b *StatelessBlock) verifyWarpBlock(ctx context.Context, r Rules, msg *warp.Message) bool {
+	var (
+		log = b.vm.Logger()
+	)
+	warpID := utils.ToID(msg.Payload)
+	num, denom, err := preVerifyWarpMessage(msg, b.vm.ChainID(), r)
+	if err != nil {
+		b.vm.Logger().
+			Warn("unable to verify warp message", zap.Stringer("warpID", warpID), zap.Error(err))
+		return false
+	}
+
+	if err := msg.Signature.Verify(
+		ctx,
+		&msg.UnsignedMessage,
+		b.vdrState,
+		b.bctx.PChainHeight,
+		num,
+		denom,
+	); err != nil {
+		b.vm.Logger().
+			Warn("unable to verify warp message", zap.Stringer("warpID", warpID), zap.Error(err))
+		return false
+	}
+
+	block, err := UnmarshalWarpBlock(msg.UnsignedMessage.Payload)
+
+	parent, err := b.vm.GetStatelessBlock(ctx, block.Prnt)
+	if err != nil {
+		log.Warn("could not get parent", zap.Stringer("id", block.Prnt), zap.Error(err))
+		return false
+	}
+
+	if b.Timestamp().Unix() < parent.Timestamp().Unix() {
+		log.Warn("Too young of parent", zap.Error(ErrTimestampTooEarly))
+		return false
+	}
+
+	blockRoot, err := b.vm.GetStatelessBlock(ctx, block.StateRoot)
+	if err != nil {
+		log.Debug("could not get block", zap.Stringer("id", block.StateRoot), zap.Error(err))
+		return false
+	}
+
+	if b.Timestamp().Unix() < blockRoot.Timestamp().Unix() {
+		log.Warn("Too young of parent", zap.Error(ErrTimestampTooEarly))
+		return false
+	}
+
 	return true
 }
 
@@ -483,6 +552,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 		}
 		_, sspan := b.vm.Tracer().Start(ctx, "StatelessBlock.verifyWarpMessages")
 		b.vdrState = b.vm.ValidatorState()
+		//TODO NEW WARP VERIFY here is where I can define a new way to verify Blocks
 		go func() {
 			defer sspan.End()
 			// We don't use [b.vm.Workers] here because we need the warp verification
@@ -498,6 +568,14 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 				if b.vm.IsBootstrapped() && !invalidWarpResult {
 					start := time.Now()
 					verified := b.verifyWarpMessage(ctx, r, msg.msg)
+					if msg.requiresBlock {
+						verifiedBlockRoots := b.verifyWarpBlock(ctx, r, msg.msg)
+						msg.verifiedRootsChan <- verifiedBlockRoots
+						msg.verifiedRoots = verifiedBlockRoots
+						if blockVerified != verifiedBlockRoots {
+							invalidWarpResult = true
+						}
+					}
 					msg.verifiedChan <- verified
 					msg.verified = verified
 					log.Info(
@@ -518,6 +596,9 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 					// block) to avoid doing extra work.
 					msg.verifiedChan <- blockVerified
 					msg.verified = blockVerified
+					//TODO might need to fix this to verify
+					msg.verifiedRootsChan <- blockVerified
+					msg.verifiedRoots = blockVerified
 				}
 			}
 		}()

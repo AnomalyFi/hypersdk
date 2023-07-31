@@ -26,10 +26,12 @@ var (
 	_ mempool.Item = (*Transaction)(nil)
 )
 
+// TODO need a special kind of message for NVB or some boolean variable to indicate it
 type Transaction struct {
 	Base        *Base         `json:"base"`
 	WarpMessage *warp.Message `json:"warpMessage"`
 	Action      Action        `json:"action"`
+	VerifyBlock bool          `json:"verifyBlock"`
 	Auth        Auth          `json:"auth"`
 
 	digest         []byte
@@ -50,11 +52,12 @@ type WarpResult struct {
 	VerifyErr error
 }
 
-func NewTx(base *Base, wm *warp.Message, act Action) *Transaction {
+func NewTx(base *Base, wm *warp.Message, act Action, verifyBlock bool) *Transaction {
 	return &Transaction{
 		Base:        base,
 		WarpMessage: wm,
 		Action:      act,
+		VerifyBlock: verifyBlock,
 	}
 }
 
@@ -361,6 +364,7 @@ func (t *Transaction) Marshal(
 	}
 	p.PackBytes(warpBytes)
 	p.PackByte(actionByte)
+	p.PackBool(t.VerifyBlock)
 	t.Action.Marshal(p)
 	p.PackByte(authByte)
 	t.Auth.Marshal(p)
@@ -452,6 +456,8 @@ func UnmarshalTx(
 	if err != nil {
 		return nil, fmt.Errorf("%w: could not unmarshal action", err)
 	}
+	verifyBlock := p.UnpackBool()
+
 	digest := p.Offset()
 	authType := p.UnpackByte()
 	unmarshalAuth, authWarp, ok := authRegistry.LookupIndex(authType)
@@ -475,6 +481,7 @@ func UnmarshalTx(
 	tx.Action = action
 	tx.WarpMessage = warpMessage
 	tx.Auth = auth
+	tx.VerifyBlock = verifyBlock
 	if err := p.Err(); err != nil {
 		return nil, p.Err()
 	}
