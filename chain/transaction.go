@@ -77,6 +77,7 @@ func (t *Transaction) Digest(
 	if t.WarpMessage != nil {
 		warpBytes = t.WarpMessage.Bytes()
 	}
+	p.PackBool(t.VerifyBlock)
 	p.PackBytes(warpBytes)
 	p.PackByte(actionByte)
 	t.Action.Marshal(p)
@@ -362,9 +363,9 @@ func (t *Transaction) Marshal(
 			return ErrWarpMessageNotInitialized
 		}
 	}
+	p.PackBool(t.VerifyBlock)
 	p.PackBytes(warpBytes)
 	p.PackByte(actionByte)
-	p.PackBool(t.VerifyBlock)
 	t.Action.Marshal(p)
 	p.PackByte(authByte)
 	t.Auth.Marshal(p)
@@ -425,6 +426,9 @@ func UnmarshalTx(
 	if err != nil {
 		return nil, fmt.Errorf("%w: could not unmarshal base", err)
 	}
+
+	verifyBlock := p.UnpackBool()
+
 	var warpBytes []byte
 	p.UnpackBytes(MaxWarpMessageSize, false, &warpBytes)
 	var warpMessage *warp.Message
@@ -456,7 +460,6 @@ func UnmarshalTx(
 	if err != nil {
 		return nil, fmt.Errorf("%w: could not unmarshal action", err)
 	}
-	verifyBlock := p.UnpackBool()
 
 	digest := p.Offset()
 	authType := p.UnpackByte()
