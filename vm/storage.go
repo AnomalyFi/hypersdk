@@ -69,7 +69,7 @@ func (vm *VM) SetLastAccepted(block *chain.StatelessBlock) error {
 func (vm *VM) HasLastAccepted() (bool, error) {
 	return vm.vmDB.Has(lastAccepted)
 }
-
+//TODO here is where it gets the last block
 func (vm *VM) GetLastAccepted() (ids.ID, error) {
 	v, err := vm.vmDB.Get(lastAccepted)
 	if errors.Is(err, database.ErrNotFound) {
@@ -80,7 +80,7 @@ func (vm *VM) GetLastAccepted() (ids.ID, error) {
 	}
 	return ids.ToID(v)
 }
-
+//TODO this may help
 func (vm *VM) GetDiskBlock(bid ids.ID) (*chain.StatefulBlock, error) {
 	b, err := vm.vmDB.Get(PrefixBlockIDKey(bid))
 	if err != nil {

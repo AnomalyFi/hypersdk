@@ -4,7 +4,6 @@ go 1.20
 
 require (
 	github.com/ava-labs/avalanchego v1.10.1
-	github.com/celestiaorg/go-cnc v0.4.1
 	github.com/cockroachdb/pebble v0.0.0-20230224221607-fccb83b60d5c
 	github.com/golang/mock v1.6.0
 	github.com/gorilla/rpc v1.2.0
@@ -35,7 +34,6 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/go-logr/logr v1.2.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
-	github.com/go-resty/resty/v2 v2.7.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/golang/snappy v0.0.4 // indirect

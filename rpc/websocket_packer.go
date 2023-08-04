@@ -6,10 +6,10 @@ package rpc
 import (
 	"errors"
 
-	"github.com/ava-labs/avalanchego/ids"
 	"github.com/AnomalyFi/hypersdk/chain"
 	"github.com/AnomalyFi/hypersdk/codec"
 	"github.com/AnomalyFi/hypersdk/consts"
+	"github.com/ava-labs/avalanchego/ids"
 )
 
 const (
@@ -19,6 +19,7 @@ const (
 
 func PackBlockMessage(b *chain.StatelessBlock) ([]byte, error) {
 	p := codec.NewWriter(consts.MaxInt)
+	p.PackID(b.ID())
 	p.PackBytes(b.Bytes())
 	results, err := chain.MarshalResults(b.Results())
 	if err != nil {
@@ -31,24 +32,27 @@ func PackBlockMessage(b *chain.StatelessBlock) ([]byte, error) {
 func UnpackBlockMessage(
 	msg []byte,
 	parser chain.Parser,
-) (*chain.StatefulBlock, []*chain.Result, error) {
+) (*chain.StatefulBlock, []*chain.Result, *ids.ID, error) {
 	p := codec.NewReader(msg, consts.MaxInt)
+
+	var realId ids.ID
+	p.UnpackID(false, &realId)
 	var blkMsg []byte
 	p.UnpackBytes(-1, true, &blkMsg)
 	blk, err := chain.UnmarshalBlock(blkMsg, parser)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	var resultsMsg []byte
 	p.UnpackBytes(-1, true, &resultsMsg)
 	results, err := chain.UnmarshalResults(resultsMsg)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	if !p.Empty() {
-		return nil, nil, chain.ErrInvalidObject
+		return nil, nil, nil, chain.ErrInvalidObject
 	}
-	return blk, results, p.Err()
+	return blk, results, &realId, p.Err()
 }
 
 // Could be a better place for these methods

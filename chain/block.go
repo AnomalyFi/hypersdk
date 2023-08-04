@@ -262,6 +262,7 @@ func (b *StatelessBlock) initializeBuilt(
 	if err != nil {
 		return err
 	}
+	//? This is why the block on the WS is a Stateful Block
 	b.bytes = blk
 	b.id = utils.ToID(b.bytes)
 	b.state = state
@@ -386,11 +387,17 @@ func preVerifyWarpMessage(msg *warp.Message, chainID ids.ID, r Rules) (uint64, u
 // verifyWarpMessage will attempt to verify a given warp message provided by an
 // Action.
 func (b *StatelessBlock) verifyWarpMessage(ctx context.Context, r Rules, msg *warp.Message) bool {
-	warpID := utils.ToID(msg.Payload)
-	num, denom, err := preVerifyWarpMessage(msg, b.vm.ChainID(), r)
-	if err != nil {
+	// warpID := utils.ToID(msg.Payload)
+	// num, denom, err := preVerifyWarpMessage(msg, b.vm.ChainID(), r)
+	// if err != nil {
+	// 	b.vm.Logger().
+	// 		Warn("unable to verify warp message", zap.Stringer("warpID", warpID), zap.Error(err))
+	// 	return false
+	// }
+	allowed, num, denom := r.GetWarpConfig(msg.SourceChainID)
+	if !allowed {
 		b.vm.Logger().
-			Warn("unable to verify warp message", zap.Stringer("warpID", warpID), zap.Error(err))
+			Warn("unable to verify warp message", zap.Stringer("warpID", msg.ID()), zap.Error(ErrDisabledChainID))
 		return false
 	}
 
@@ -403,7 +410,7 @@ func (b *StatelessBlock) verifyWarpMessage(ctx context.Context, r Rules, msg *wa
 		denom,
 	); err != nil {
 		b.vm.Logger().
-			Warn("unable to verify warp message", zap.Stringer("warpID", warpID), zap.Error(err))
+			Warn("unable to verify warp message", zap.Stringer("warpID", msg.ID()), zap.Error(ErrDisabledChainID))
 		return false
 	}
 	return true
@@ -411,56 +418,52 @@ func (b *StatelessBlock) verifyWarpMessage(ctx context.Context, r Rules, msg *wa
 
 // TODO need to test
 // verifyWarpBlock will attempt to verify a given warp block
-func (b *StatelessBlock) verifyWarpBlock(ctx context.Context, r Rules, msg *warp.Message) bool {
-	var (
-		log = b.vm.Logger()
-	)
-	warpID := utils.ToID(msg.Payload)
-	num, denom, err := preVerifyWarpMessage(msg, b.vm.ChainID(), r)
-	if err != nil {
-		b.vm.Logger().
-			Warn("unable to verify warp message", zap.Stringer("warpID", warpID), zap.Error(err))
-		return false
-	}
-
-	if err := msg.Signature.Verify(
-		ctx,
-		&msg.UnsignedMessage,
-		b.vdrState,
-		b.bctx.PChainHeight,
-		num,
-		denom,
-	); err != nil {
-		b.vm.Logger().
-			Warn("unable to verify warp message", zap.Stringer("warpID", warpID), zap.Error(err))
-		return false
-	}
-
+func (b *StatelessBlock) verifyWarpBlock(ctx context.Context, r Rules, msg *warp.Message) (bool, error) {
 	block, err := UnmarshalWarpBlock(msg.UnsignedMessage.Payload)
 
-	parent, err := b.vm.GetStatelessBlock(ctx, block.Prnt)
+	// //TODO it is failing right here
+	// parent, err := b.vm.GetStatelessBlock(ctx, block.Prnt)
+	// if err != nil {
+	// 	b.vm.Logger().Warn("could not get parent", zap.Stringer("id", block.Prnt), zap.Error(err))
+	// 	return false, err
+	// }
+
+	// if b.Timestamp().Unix() < parent.Timestamp().Unix() {
+	// 	b.vm.Logger().Warn("Too young of parent", zap.Error(ErrTimestampTooEarly))
+	// 	return false, ErrTimestampTooEarly
+	// }
+
+	// blockRoot, err := b.vm.GetStatelessBlock(ctx, block.StateRoot)
+	// if err != nil {
+	// 	b.vm.Logger().Debug("could not get block", zap.Stringer("id", block.StateRoot), zap.Error(err))
+	// 	return false, err
+	// }
+
+	// if b.Timestamp().Unix() < blockRoot.Timestamp().Unix() {
+	// 	b.vm.Logger().Warn("Too young of parent", zap.Error(ErrTimestampTooEarly))
+	// 	return false, err
+	// }
+	//TODO it is failing right here
+
+	parentWarpBlock, err := b.vm.GetStatelessBlock(ctx, block.Prnt)
 	if err != nil {
-		log.Warn("could not get parent", zap.Stringer("id", block.Prnt), zap.Error(err))
-		return false
+		b.vm.Logger().Warn("could not get parent", zap.Stringer("id", block.Prnt), zap.Error(err))
+		return false, err
+	} else {
+		blockRoot, err := b.vm.GetStatelessBlock(ctx, block.StateRoot)
+		if err != nil {
+			b.vm.Logger().Debug("could not get block", zap.Stringer("id", block.StateRoot), zap.Error(err))
+			return false, err
+		} else {
+			if blockRoot.Timestamp().Unix() < parentWarpBlock.Timestamp().Unix() {
+				b.vm.Logger().Warn("Too young of block", zap.Error(ErrTimestampTooEarly))
+				return false, err
+			}
+		}
 	}
 
-	if b.Timestamp().Unix() < parent.Timestamp().Unix() {
-		log.Warn("Too young of parent", zap.Error(ErrTimestampTooEarly))
-		return false
-	}
-
-	blockRoot, err := b.vm.GetStatelessBlock(ctx, block.StateRoot)
-	if err != nil {
-		log.Debug("could not get block", zap.Stringer("id", block.StateRoot), zap.Error(err))
-		return false
-	}
-
-	if b.Timestamp().Unix() < blockRoot.Timestamp().Unix() {
-		log.Warn("Too young of parent", zap.Error(ErrTimestampTooEarly))
-		return false
-	}
-
-	return true
+	
+	return true, nil
 }
 
 // Must handle re-reverification...
@@ -491,12 +494,16 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 		return nil, ErrBlockTooBig
 	}
 
+	log.Warn("Here is what the Parent's ID IS. This should match a previous one", zap.Stringer("id", b.Prnt))
+
+
 	// Verify parent is verified and available
 	parent, err := b.vm.GetStatelessBlock(ctx, b.Prnt)
 	if err != nil {
 		log.Debug("could not get parent", zap.Stringer("id", b.Prnt))
 		return nil, err
 	}
+
 	if b.Timestamp().Unix() < parent.Timestamp().Unix() {
 		return nil, ErrTimestampTooEarly
 	}
@@ -568,8 +575,10 @@ func (b *StatelessBlock) innerVerify(ctx context.Context) (merkledb.TrieView, er
 				if b.vm.IsBootstrapped() && !invalidWarpResult {
 					start := time.Now()
 					verified := b.verifyWarpMessage(ctx, r, msg.msg)
-					if msg.requiresBlock {
-						verifiedBlockRoots := b.verifyWarpBlock(ctx, r, msg.msg)
+					if msg.requiresBlock && verified {
+						fmt.Println("WE GOT INSIDE BLOCK")
+						//TODO might need to do something with this error
+						verifiedBlockRoots, _ := b.verifyWarpBlock(ctx, r, msg.msg)
 						msg.verifiedRootsChan <- verifiedBlockRoots
 						msg.verifiedRoots = verifiedBlockRoots
 						if blockVerified != verifiedBlockRoots {

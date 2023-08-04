@@ -666,6 +666,7 @@ func (vm *VM) Submit(
 	verifySig bool,
 	txs []*chain.Transaction,
 ) (errs []error) {
+	//TODO this is where the submission is happening
 	ctx, span := vm.tracer.Start(ctx, "VM.Submit")
 	defer span.End()
 	vm.metrics.txsSubmitted.Add(float64(len(txs)))

@@ -37,8 +37,8 @@ func (w *WarpBlock) Marshal() ([]byte, error) {
 func UnmarshalWarpBlock(b []byte) (*WarpBlock, error) {
 	var transfer WarpBlock
 	p := codec.NewReader(b, WarpBlockSize)
-	transfer.Hght = p.UnpackUint64(true)
 	transfer.Tmstmp = p.UnpackInt64(true)
+	transfer.Hght = p.UnpackUint64(true)
 	p.UnpackID(false, &transfer.Prnt)
 	p.UnpackID(false, &transfer.StateRoot)
 	p.UnpackID(false, &transfer.TxID)

@@ -6,6 +6,7 @@ package chain
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/trace"
@@ -113,6 +114,7 @@ func (p *Processor) Execute(
 		var warpVerified bool
 		var blockVerified = true
 		warpMsg, ok := p.blk.warpMessages[tx.ID()]
+		//TODO it is failing right before here
 		if ok {
 			select {
 			case warpVerified = <-warpMsg.verifiedChan:
@@ -120,6 +122,7 @@ func (p *Processor) Execute(
 				return 0, 0, nil, 0, 0, ctx.Err()
 			}
 		}
+		fmt.Println("We are inside processor")
 		if ok && tx.VerifyBlock {
 			select {
 			case blockVerified = <-warpMsg.verifiedRootsChan:

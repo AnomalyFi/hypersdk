@@ -94,6 +94,7 @@ func BuildBlock(
 		start    = time.Now()
 		lockWait time.Duration
 	)
+	//TODO this could be broken
 	mempoolErr := mempool.Build(
 		ctx,
 		func(fctx context.Context, next *Transaction) (cont bool, restore bool, removeAcct bool, err error) {
@@ -195,29 +196,27 @@ func BuildBlock(
 						zap.Error(warpErr),
 					)
 				}
-				if next.VerifyBlock {
+				if next.VerifyBlock && warpErr == nil {
+					fmt.Println("WE GOT INSIDE Builder")
 					block, err := UnmarshalWarpBlock(next.WarpMessage.UnsignedMessage.Payload)
 
-					parent, err := b.vm.GetStatelessBlock(ctx, block.Prnt)
+					//TODO panic: runtime error: invalid memory address or nil pointer dereference.
+					// We cant get this block and then we compare it to the parent which causes issues
+					parentWarpBlock, err := vm.GetStatelessBlock(ctx, block.Prnt)
 					if err != nil {
 						log.Warn("could not get parent", zap.Stringer("id", block.Prnt), zap.Error(err))
 						verifyError = err
-					}
-
-					if b.Timestamp().Unix() < parent.Timestamp().Unix() {
-						log.Warn("Too young of parent", zap.Error(ErrTimestampTooEarly))
-						verifyError = err
-					}
-
-					blockRoot, err := b.vm.GetStatelessBlock(ctx, block.StateRoot)
-					if err != nil {
-						log.Debug("could not get block", zap.Stringer("id", block.StateRoot), zap.Error(err))
-						verifyError = err
-					}
-
-					if b.Timestamp().Unix() < blockRoot.Timestamp().Unix() {
-						log.Warn("Too young of parent", zap.Error(ErrTimestampTooEarly))
-						verifyError = err
+					} else {
+						blockRoot, err := vm.GetStatelessBlock(ctx, block.StateRoot)
+						if err != nil {
+							log.Debug("could not get block", zap.Stringer("id", block.StateRoot), zap.Error(err))
+							verifyError = err
+						} else {
+							if blockRoot.Timestamp().Unix() < parentWarpBlock.Timestamp().Unix() {
+								log.Warn("Too young of block", zap.Error(ErrTimestampTooEarly))
+								verifyError = ErrTimestampTooEarly
+							}
+						}
 					}
 
 					if verifyError != nil {

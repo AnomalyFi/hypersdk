@@ -169,6 +169,7 @@ func (vm *VM) processAcceptedBlocks() {
 		}
 
 		// Sign and store any warp messages (regardless if validator now, may become one)
+		//TODO do I need to be verifying warp block here too?
 		results := b.Results()
 		for i, tx := range b.Txs {
 			result := results[i]
