@@ -329,21 +329,34 @@ func (cli *JSONRPCClient) GenerateAggregateWarpSignature(
 		if err != nil {
 			return nil, 0, 0, err
 		}
+
+		pk, err := bls.PublicKeyFromBytes(vdr.PublicKeyBytes)
+
+		g1Bytes := pk.Serialize()
+
+		fmt.Printf("Validator Public Key Serialized %s:\t %v \n", i, g1Bytes)
+
 		signers.Add(i)
 		signatureWeight += vdr.Weight
 		orderedSignatures = append(orderedSignatures, blsSig)
 	}
+
 	aggSignature, err := bls.AggregateSignatures(orderedSignatures)
+
 	if err != nil {
 		return nil, 0, 0, fmt.Errorf("%w: failed to aggregate signatures", err)
 	}
 	aggSignatureBytes := bls.SignatureToBytes(aggSignature)
+
+	fmt.Printf("Aggregated Signature:\t %v \n", aggSignatureBytes)
+
 	signature := &warp.BitSetSignature{
 		Signers: signers.Bytes(),
 	}
 	copy(signature.Signature[:], aggSignatureBytes)
 
-	//TODO this is what im testing
+	//TODO this is what im testing. I need to change the printing for the bytes because they are not matching with the g1Bytes which is bad.
+	// If I dont change this it wont work correctly when I plug into gnark. Or I can just do the conversion in GNARK
 	pk, err := bls.PublicKeyFromBytes(signatures[0].PublicKey)
 
 	var g1 bls12381.G1Affine
@@ -362,9 +375,17 @@ func (cli *JSONRPCClient) GenerateAggregateWarpSignature(
 		panic("bytes(gnark.G1) != bytes(blst.G1)")
 	}
 
-	//TODO the test goes from the above todo to here
+	//This will always be untrue because of the way 	g1Bytes := pk.Serialize() works
+	// if !bytes.Equal(signatures[0].PublicKey, g1Bytes) {
+	// 	fmt.Printf("Public Key From Bytes Serialized:\t %v \n", g1Bytes)
+	// }
+
+	fmt.Printf("Message Bytes:\t %v \n", unsignedMessage.Bytes())
 
 	bls.Verify(pk, aggSignature, unsignedMessage.Bytes())
+
+	//TODO the test goes from the above todo to here
+	//TODO need to do this for every public key but only once for the aggregated signature and that will be a G2Affine
 
 	message, err := warp.NewMessage(unsignedMessage, signature)
 	if err != nil {
