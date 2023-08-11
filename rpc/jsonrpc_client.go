@@ -4,6 +4,7 @@
 package rpc
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"strings"
@@ -17,6 +18,8 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"golang.org/x/exp/maps"
+
+	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 
 	"github.com/AnomalyFi/hypersdk/chain"
 	"github.com/AnomalyFi/hypersdk/requester"
@@ -306,6 +309,7 @@ func (cli *JSONRPCClient) GenerateAggregateWarpSignature(
 
 	// Generate map of bls.PublicKey => Signature
 	signatureMap := map[ids.ID][]byte{}
+
 	for _, signature := range signatures {
 		// Convert to hash for easy comparison (could just as easily store the raw
 		// public key but that would involve a number of memory copies)
@@ -338,6 +342,30 @@ func (cli *JSONRPCClient) GenerateAggregateWarpSignature(
 		Signers: signers.Bytes(),
 	}
 	copy(signature.Signature[:], aggSignatureBytes)
+
+	//TODO this is what im testing
+	pk, err := bls.PublicKeyFromBytes(signatures[0].PublicKey)
+
+	var g1 bls12381.G1Affine
+
+	g1Bytes := pk.Serialize()
+
+	err = g1.Unmarshal(g1Bytes)
+
+	if err != nil {
+		return nil, 0, 0, fmt.Errorf("%w: failed to generate warp message", err)
+	}
+
+	cpBytes := g1.Marshal()
+
+	if !bytes.Equal(cpBytes, g1Bytes) {
+		panic("bytes(gnark.G1) != bytes(blst.G1)")
+	}
+
+	//TODO the test goes from the above todo to here
+
+	bls.Verify(pk, aggSignature, unsignedMessage.Bytes())
+
 	message, err := warp.NewMessage(unsignedMessage, signature)
 	if err != nil {
 		return nil, 0, 0, fmt.Errorf("%w: failed to generate warp message", err)
