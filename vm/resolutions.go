@@ -210,7 +210,14 @@ func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock) {
 		// verified before they are persisted.
 		vm.warpManager.GatherSignatures(context.TODO(), tx.ID(), result.WarpMessage.Bytes())
 	}
-
+	pHeight, err := vm.snowCtx.ValidatorState.GetCurrentHeight(context.Background())
+	if err != nil {
+		vm.Fatal("unable to get p chain height", zap.Error(err))
+	}
+	// commit/sign block hash root -> store & propagate like warp messages, so we can use hypersdk code for the most part of relayers
+	if err := vm.StoreBlockCommitHash(b.Height(), pHeight, b.StateRoot); err != nil {
+		vm.Fatal("unable to store block commit hash", zap.Error(err))
+	}
 	// Update server
 	if err := vm.webSocketServer.AcceptBlock(b); err != nil {
 		vm.Fatal("unable to accept block in websocket server", zap.Error(err))
@@ -335,6 +342,10 @@ func (vm *VM) CurrentValidators(
 	ctx context.Context,
 ) (map[ids.NodeID]*validators.GetValidatorOutput, map[string]struct{}) {
 	return vm.proposerMonitor.Validators(ctx)
+}
+
+func (vm *VM) GetOrchestrator(ctx context.Context, blockHeight, pHeight uint64) ([]ids.NodeID, error) {
+	return vm.proposerMonitor.GetOrchestrator(ctx, blockHeight, pHeight)
 }
 
 func (vm *VM) GatherSignatures(ctx context.Context, txID ids.ID, msg []byte) {

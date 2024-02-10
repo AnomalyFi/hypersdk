@@ -13,8 +13,9 @@ import (
 )
 
 const (
-	BlockMode byte = 0
-	TxMode    byte = 1
+	BlockMode           byte = 0
+	TxMode              byte = 1
+	BlockCommitHashMode byte = 2
 )
 
 func PackBlockMessage(b *chain.StatelessBlock) ([]byte, error) {
@@ -107,4 +108,25 @@ func UnpackTxMessage(msg []byte) (ids.ID, error, *chain.Result, error) {
 		return ids.Empty, nil, nil, chain.ErrInvalidObject
 	}
 	return txID, nil, result, p.Err()
+}
+
+func PackBlockCommitHashMessage(height uint64, pHeight uint64, msg []byte, id ids.ID) ([]byte, error) {
+	size := codec.BytesLen(msg) + 2*consts.Uint64Len
+	p := codec.NewWriter(size, consts.MaxInt)
+	p.PackUint64(height)
+	p.PackUint64(pHeight)
+	p.PackBytes(msg)
+	p.PackID(id)
+	return p.Bytes(), p.Err()
+}
+
+func UnPackBlockCommitHashMessage(msg []byte) (uint64, uint64, []byte, ids.ID, error) {
+	p := codec.NewReader(msg, consts.MaxInt)
+	height := p.UnpackUint64(true)
+	pHeight := p.UnpackUint64(true)
+	var signedMsg []byte
+	p.UnpackBytes(-1, true, &signedMsg)
+	id := ids.ID{}
+	p.UnpackID(true, &id)
+	return height, pHeight, signedMsg, id, p.Err()
 }

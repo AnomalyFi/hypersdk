@@ -135,7 +135,7 @@ func (cli *JSONRPCClient) GetWarpSignatures(
 		return nil, nil, nil, err
 	}
 	// Ensure message is initialized
-	if err := resp.Message.Initialize(); err != nil {
+	if err := resp.Message.Initialize(); err != nil && txID[0] != blockCommitHashPrefix {
 		return nil, nil, nil, err
 	}
 	m := map[ids.NodeID]*validators.GetValidatorOutput{}
@@ -152,6 +152,9 @@ func (cli *JSONRPCClient) GetWarpSignatures(
 			vout.PublicKey = pk
 		}
 		m[vdr.NodeID] = vout
+	}
+	if txID[1] == blockCommitHashPrefix {
+		return nil, m, resp.Signatures, nil
 	}
 	return resp.Message, m, resp.Signatures, nil
 }
@@ -247,9 +250,9 @@ func Wait(ctx context.Context, check func(ctx context.Context) (bool, error)) er
 	return ctx.Err()
 }
 
-// getCanonicalValidatorSet returns the validator set of [subnetID] in a canonical ordering.
+// GetCanonicalValidatorSet returns the validator set of [subnetID] in a canonical ordering.
 // Also returns the total weight on [subnetID].
-func getCanonicalValidatorSet(
+func GetCanonicalValidatorSet(
 	_ context.Context,
 	vdrSet map[ids.NodeID]*validators.GetValidatorOutput,
 ) ([]*warp.Validator, uint64, error) {
@@ -299,7 +302,7 @@ func (cli *JSONRPCClient) GenerateAggregateWarpSignature(
 	}
 
 	// Get canonical validator ordering to generate signature bit set
-	canonicalValidators, weight, err := getCanonicalValidatorSet(ctx, validators)
+	canonicalValidators, weight, err := GetCanonicalValidatorSet(ctx, validators)
 	if err != nil {
 		return nil, 0, 0, fmt.Errorf("%w: failed to get canonical validator set", err)
 	}
@@ -355,7 +358,7 @@ func (cli *JSONRPCClient) GatherWarpSignatureEVMInfo(
 	}
 
 	// Get canonical validator ordering to generate signature bit set
-	canonicalValidators, weight, err := getCanonicalValidatorSet(ctx, validators)
+	canonicalValidators, weight, err := GetCanonicalValidatorSet(ctx, validators)
 	if err != nil {
 		return nil, nil, nil, 0, fmt.Errorf("%w: failed to get canonical validator set", err)
 	}
@@ -369,4 +372,15 @@ func (cli *JSONRPCClient) GatherWarpSignatureEVMInfo(
 	}
 
 	return unsignedMessage, signatureMap, canonicalValidators, weight, nil
+}
+
+func (cli *JSONRPCClient) GetOrchestrator(ctx context.Context) ([]ids.NodeID, error) {
+	resp := new(GetOrchestratorReply)
+	err := cli.requester.SendRequest(
+		ctx,
+		"getOrchestrator",
+		nil,
+		resp,
+	)
+	return resp.Orchestrators, err
 }
