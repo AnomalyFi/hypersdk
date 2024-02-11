@@ -144,11 +144,11 @@ func (p *ProposerMonitor) GetOrchestrator(
 	ctx context.Context,
 	blockHeight,
 	pChainHeight uint64,
-) ([]ids.NodeID, error) {
+) (*[]ids.NodeID, error) {
 
 	nodeID, err := p.proposer.Proposers(ctx, blockHeight, pChainHeight)
 	if err != nil {
 		return nil, err
 	}
-	return nodeID, nil
+	return &nodeID, nil
 }
