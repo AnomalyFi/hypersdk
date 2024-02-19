@@ -58,6 +58,9 @@ type VM interface {
 	IsRepeat(context.Context, []*Transaction, set.Bits, bool) set.Bits
 	GetTargetBuildDuration() time.Duration
 
+	GetStoreBlockResultsOnDisk() bool
+	StoreBlockResultsOnDisk(*StatelessBlock) error
+
 	Verified(context.Context, *StatelessBlock)
 	Rejected(context.Context, *StatelessBlock)
 	Accepted(context.Context, *StatelessBlock)

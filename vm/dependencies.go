@@ -38,6 +38,7 @@ type Config interface {
 	GetMempoolExemptPayers() [][]byte
 	GetVerifySignatures() bool
 	GetStreamingBacklogSize() int
+	GetStoreBlockResultsOnDisk() bool
 	GetStateHistoryLength() int        // how many roots back of data to keep to serve state queries
 	GetStateEvictionBatchSize() int    // how many bytes to evict at once
 	GetIntermediateNodeCacheSize() int // how many bytes to keep in intermediate cache

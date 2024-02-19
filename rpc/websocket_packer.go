@@ -32,6 +32,23 @@ func PackBlockMessage(b *chain.StatelessBlock) ([]byte, error) {
 	return p.Bytes(), p.Err()
 }
 
+func PackBlockMessageForBackwardStream(b *chain.StatefulBlock, results []*chain.Result, feeBytes []byte) ([]byte, error) {
+	size := b.Size() + consts.IntLen + codec.CummSize(results) + chain.DimensionsLen
+	p := codec.NewWriter(size, consts.MaxInt)
+	blkBytes, err := b.Marshal()
+	if err != nil {
+		return nil, err
+	}
+	p.PackBytes(blkBytes)
+	mresults, err := chain.MarshalResults(results)
+	if err != nil {
+		return nil, err
+	}
+	p.PackBytes(mresults)
+	p.PackFixedBytes(feeBytes)
+	return p.Bytes(), p.Err()
+}
+
 func UnpackBlockMessage(
 	msg []byte,
 	parser chain.Parser,

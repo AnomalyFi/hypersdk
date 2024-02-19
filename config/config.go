@@ -43,6 +43,7 @@ func (c *Config) GetAcceptedBlockWindow() int   { return 768 }
 func (c *Config) GetStateSyncMinBlocks() uint64 { return 768 }
 func (c *Config) GetAcceptorSize() int          { return 1024 }
 
+func (c *Config) GetStoreBlockResultsOnDisk() bool { return true }
 func (c *Config) GetContinuousProfilerConfig() *profiler.Config {
 	return &profiler.Config{Enabled: false}
 }
