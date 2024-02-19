@@ -764,10 +764,12 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 	proofJson, err := json.Marshal(b.NMTProofs)
 	if err != nil {
 		b.vm.Logger().Debug("check if proofs are received", zap.String("proof", string(proofJson)))
+		return ErrProofsNotReceived
 	}
 	txMappingJson, err := json.Marshal(b.NMTNamespaceToTxIndexes)
 	if err != nil {
 		b.vm.Logger().Debug("check if transactions mapping received", zap.String("txMapping", string(txMappingJson)))
+		return ErrTxNSMappingNotReceived
 	}
 
 	nmtTree := nmt.New(sha256.New())
@@ -1282,8 +1284,10 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
 	// unknown how much to allocate in advance
 	proofsBytes := make([]byte, 0, 1024)
 	p.UnpackBytes(consts.MaxNMTProofBytes, false, &proofsBytes)
+	fmt.Printf("proof: %s\n", string(proofsBytes))
 	err := json.Unmarshal(proofsBytes, &proofs)
 	if err != nil {
+		fmt.Println("unable to json.unmarshal proofs")
 		return nil, err
 	}
 	txNSMappingBytes := make([]byte, 0, 256)
@@ -1291,6 +1295,7 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
 	p.UnpackBytes(consts.MaxNSTxMappingBytes, false, &txNSMappingBytes)
 	err = json.Unmarshal(txNSMappingBytes, &txNsMapping)
 	if err != nil {
+		fmt.Println("unable to json.unmarshal tx to ns mapping")
 		return nil, err
 	}
 

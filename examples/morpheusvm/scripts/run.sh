@@ -25,6 +25,7 @@ STATESYNC_DELAY=${STATESYNC_DELAY:-0}
 MIN_BLOCK_GAP=${MIN_BLOCK_GAP:-100}
 STORE_TXS=${STORE_TXS:-false}
 UNLIMITED_USAGE=${UNLIMITED_USAGE:-false}
+STORE_BLOCK_RESULTS_ON_DISK=${STORE_BLOCK_RESULTS_ON_DISK:-true}
 if [[ ${MODE} != "run" ]]; then
   LOGLEVEL=debug
   STATESYNC_DELAY=100000000 # 100ms
@@ -51,6 +52,7 @@ echo MIN_BLOCK_GAP \(ms\): ${MIN_BLOCK_GAP}
 echo STORE_TXS: ${STORE_TXS}
 echo WINDOW_TARGET_UNITS: ${WINDOW_TARGET_UNITS}
 echo MAX_BLOCK_UNITS: ${MAX_BLOCK_UNITS}
+echo STORE_BLOCK_RESULTS_ON_DISK: ${STORE_BLOCK_RESULTS_ON_DISK}
 
 ############################
 # build avalanchego
@@ -151,7 +153,8 @@ cat <<EOF > ${TMPDIR}/morpheusvm.config
   "streamingBacklogSize": 10000000,
   "logLevel": "${LOGLEVEL}",
   "continuousProfilerDir":"${TMPDIR}/morpheusvm-e2e-profiles/*",
-  "stateSyncServerDelay": ${STATESYNC_DELAY}
+  "stateSyncServerDelay": ${STATESYNC_DELAY},
+  "storeBlockResultsOnDisk": ${STORE_BLOCK_RESULTS_ON_DISK}
 }
 EOF
 mkdir -p ${TMPDIR}/morpheusvm-e2e-profiles

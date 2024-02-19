@@ -40,7 +40,8 @@ type Config struct {
 	ContinuousProfilerDir string `json:"continuousProfilerDir"` // "*" is replaced with rand int
 
 	// Streaming settings
-	StreamingBacklogSize int `json:"streamingBacklogSize"`
+	StreamingBacklogSize    int  `json:"streamingBacklogSize"`
+	StoreBlockResultsOnDisk bool `json:"storeBlockResultsOnDisk"`
 
 	// Mempool
 	MempoolSize         int      `json:"mempoolSize"`
@@ -92,6 +93,7 @@ func (c *Config) setDefault() {
 	c.MempoolPayerSize = c.Config.GetMempoolPayerSize()
 	c.StateSyncServerDelay = c.Config.GetStateSyncServerDelay()
 	c.StreamingBacklogSize = c.Config.GetStreamingBacklogSize()
+	c.StoreBlockResultsOnDisk = c.Config.GetStoreBlockResultsOnDisk()
 	c.VerifySignatures = c.Config.GetVerifySignatures()
 	c.StoreTransactions = defaultStoreTransactions
 }
@@ -113,6 +115,8 @@ func (c *Config) GetTraceConfig() *trace.Config {
 }
 func (c *Config) GetStateSyncServerDelay() time.Duration { return c.StateSyncServerDelay }
 func (c *Config) GetStreamingBacklogSize() int           { return c.StreamingBacklogSize }
+func (c *Config) GetStoreBlockResultsOnDisk() bool       { return c.StoreBlockResultsOnDisk }
+
 func (c *Config) GetContinuousProfilerConfig() *profiler.Config {
 	if len(c.ContinuousProfilerDir) == 0 {
 		return &profiler.Config{Enabled: false}

@@ -191,7 +191,7 @@ func (h *Handler) PrintChainInfo() error {
 	return nil
 }
 
-func (h *Handler) WatchChain(hideTxs bool, getParser func(string, uint32, ids.ID) (chain.Parser, error), handleTx func(*chain.Transaction, *chain.Result)) error {
+func (h *Handler) WatchChain(hideTxs bool, pastBlocks bool, startBlock uint64, getParser func(string, uint32, ids.ID) (chain.Parser, error), handleTx func(*chain.Transaction, *chain.Result)) error {
 	ctx := context.Background()
 	chainID, uris, err := h.PromptChain("select chainID", nil)
 	if err != nil {
@@ -215,8 +215,15 @@ func (h *Handler) WatchChain(hideTxs bool, getParser func(string, uint32, ids.ID
 		return err
 	}
 	defer scli.Close()
-	if err := scli.RegisterBlocks(); err != nil {
-		return err
+	if pastBlocks {
+		utils.Outf("{{green}}listening blocks from block at height %d\n", startBlock)
+		if err := scli.RegisterBlocksFrom(startBlock); err != nil {
+			return err
+		}
+	} else {
+		if err := scli.RegisterBlocks(); err != nil {
+			return err
+		}
 	}
 	utils.Outf("{{green}}watching for new blocks on %s 👀{{/}}\n", chainID)
 	var (
@@ -228,6 +235,7 @@ func (h *Handler) WatchChain(hideTxs bool, getParser func(string, uint32, ids.ID
 	for ctx.Err() == nil {
 		blk, results, prices, realId, err := scli.ListenBlock(ctx, parser)
 		if err != nil {
+			utils.Outf("{{red}}unable to listen block: %s\n", err.Error())
 			return err
 		}
 		consumed := chain.Dimensions{}

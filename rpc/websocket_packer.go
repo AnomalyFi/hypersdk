@@ -35,6 +35,11 @@ func PackBlockMessage(b *chain.StatelessBlock) ([]byte, error) {
 func PackBlockMessageForBackwardStream(b *chain.StatefulBlock, results []*chain.Result, feeBytes []byte) ([]byte, error) {
 	size := b.Size() + consts.IntLen + codec.CummSize(results) + chain.DimensionsLen
 	p := codec.NewWriter(size, consts.MaxInt)
+	blkID, err := b.ID()
+	if err != nil {
+		return nil, err
+	}
+	p.PackID(blkID)
 	blkBytes, err := b.Marshal()
 	if err != nil {
 		return nil, err
