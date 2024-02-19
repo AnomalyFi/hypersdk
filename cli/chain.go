@@ -5,6 +5,7 @@ package cli
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"math"
 	"os"
@@ -241,6 +242,7 @@ func (h *Handler) WatchChain(hideTxs bool, getParser func(string, uint32, ids.ID
 		if start.IsZero() {
 			start = now
 		}
+		nmtRootStr := base64.StdEncoding.EncodeToString(blk.NMTRoot)
 		if lastBlock != 0 {
 			since := now.Unix() - lastBlock
 			newWindow, err := window.Roll(tpsWindow, int(since))
@@ -252,11 +254,12 @@ func (h *Handler) WatchChain(hideTxs bool, getParser func(string, uint32, ids.ID
 			runningDuration := time.Since(start)
 			tpsDivisor := math.Min(window.WindowSize, runningDuration.Seconds())
 			utils.Outf(
-				"{{green}}height:{{/}}%d l1head:{{/}}%s {{green}}txs:{{/}}%d {{green}}root:{{/}}%s {{green}}blockId:{{/}}%s {{green}}size:{{/}}%.2fKB {{green}}units consumed:{{/}} [%s] {{green}}unit prices:{{/}} [%s] [{{green}}TPS:{{/}}%.2f {{green}}latency:{{/}}%dms {{green}}gap:{{/}}%dms]\n",
+				"{{green}}height:{{/}}%d l1head:{{/}}%s {{green}}txs:{{/}}%d {{green}}root:{{/}}%s {{green}}nmtRoot:{{/}}%s {{green}}blockId:{{/}}%s {{green}}size:{{/}}%.2fKB {{green}}units consumed:{{/}} [%s] {{green}}unit prices:{{/}} [%s] [{{green}}TPS:{{/}}%.2f {{green}}latency:{{/}}%dms {{green}}gap:{{/}}%dms]\n",
 				blk.Hght,
 				blk.L1Head,
 				len(blk.Txs),
 				blk.StateRoot,
+				nmtRootStr,
 				realId,
 				float64(blk.Size())/units.KiB,
 				ParseDimensions(consumed),
@@ -267,11 +270,12 @@ func (h *Handler) WatchChain(hideTxs bool, getParser func(string, uint32, ids.ID
 			)
 		} else {
 			utils.Outf(
-				"{{green}}height:{{/}}%d l1head:{{/}}%s {{green}}txs:{{/}}%d {{green}}root:{{/}}%s {{green}}blockId:{{/}}%s {{green}}size:{{/}}%.2fKB {{green}}units consumed:{{/}} [%s] {{green}}unit prices:{{/}} [%s]\n",
+				"{{green}}height:{{/}}%d l1head:{{/}}%s {{green}}txs:{{/}}%d {{green}}root:{{/}}%s {{green}}root:{{/}}%s {{green}}blockId:{{/}}%s {{green}}size:{{/}}%.2fKB {{green}}units consumed:{{/}} [%s] {{green}}unit prices:{{/}} [%s]\n",
 				blk.Hght,
 				blk.L1Head,
 				len(blk.Txs),
 				blk.StateRoot,
+				nmtRootStr,
 				realId,
 				float64(blk.Size())/units.KiB,
 				ParseDimensions(consumed),
