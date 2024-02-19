@@ -192,6 +192,8 @@ type Action interface {
 	// of any warp message is [MaxOutgoingWarpChunks].
 	OutputsWarpMessage() bool
 
+	NMTNamespace() []byte
+
 	// StateKeys is a full enumeration of all database keys that could be touched during execution
 	// of an [Action]. This is used to prefetch state and will be used to parallelize execution (making
 	// an execution tree is trivial).

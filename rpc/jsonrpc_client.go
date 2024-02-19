@@ -77,7 +77,7 @@ func (cli *JSONRPCClient) Network(ctx context.Context) (uint32, ids.ID, ids.ID, 
 	return resp.NetworkID, resp.SubnetID, resp.ChainID, nil
 }
 
-func (cli *JSONRPCClient) Accepted(ctx context.Context) (ids.ID, uint64, int64, error) {
+func (cli *JSONRPCClient) Accepted(ctx context.Context) (string, uint64, int64, error) {
 	resp := new(LastAcceptedReply)
 	err := cli.requester.SendRequest(
 		ctx,

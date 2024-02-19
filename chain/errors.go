@@ -64,6 +64,11 @@ var (
 	ErrTooManyWarpMessages       = errors.New("too many warp messages")
 	ErrWarpResultMismatch        = errors.New("warp result mismatch")
 
+	// NMT
+	ErrPushingElementInNMTTree = errors.New("unable to push element to nmt tree")
+	ErrComputingNMTRoot        = errors.New("unable to compute nmt root")
+	ErrNMTRootNotEqual         = errors.New("NMT root is not equal")
+
 	// Misc
 	ErrNotImplemented         = errors.New("not implemented")
 	ErrBlockNotProcessed      = errors.New("block is not processed")
