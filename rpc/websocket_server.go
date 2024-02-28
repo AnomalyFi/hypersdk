@@ -164,23 +164,24 @@ func (w *WebSocketServer) MessageCallback(vm VM) pubsub.Callback {
 				}
 				has, err := vm.HasDiskBlock(blockNumber)
 				if err != nil || !has {
-					w.logger.Error("Could not find block on disk")
+					w.logger.Error("Could not find block on disk", zap.Uint64("height", blockNumber))
 					return
 				} else {
 					for i := blockNumber; i < currentBlockHeight; i++ {
 						blk, err := vm.GetDiskBlock(i)
 						if err != nil {
-							w.logger.Error("Something went wrong, couldnot find block on disk")
+							w.logger.Error("Couldnot find block on disk", zap.Uint64("height", i))
 							return
 						}
 						blkResults, err := vm.GetDiskBlockResults(ctx, i)
 						if err != nil {
-							w.logger.Error("Something went wrong, couldnot find block results on disk")
+							w.logger.Error("Couldnot find block results on disk", zap.Uint64("height", i))
 							return
 						}
 						feeBytes, err := vm.GetDiskFeeManager(ctx, i)
 						if err != nil {
 							w.logger.Error("Something went wrong, couldnot find block results on disk")
+							w.logger.Error("Couldnot get feeBytes on disk", zap.Uint64("height", i))
 							return
 						}
 						bytes, err := PackBlockMessageForBackwardStream(blk, blkResults, feeBytes)
@@ -188,7 +189,7 @@ func (w *WebSocketServer) MessageCallback(vm VM) pubsub.Callback {
 							return
 						}
 						if !c.Send(append([]byte{BlockMode}, bytes...)) {
-							log.Verbo("dropping message to subscribed connection due to too many pending messages")
+							w.logger.Error("dropping message to subscribed connection due to too many pending messages")
 						}
 						if i == currentBlockHeight-1 { // ensure to stream all blocks
 							currentBlockHeight = vm.LastAcceptedBlock().Height()
