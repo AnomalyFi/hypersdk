@@ -53,6 +53,8 @@ type Config interface {
 	GetProcessingBuildSkip() int
 	GetTargetGossipDuration() time.Duration
 	GetBlockCompactionFrequency() int
+	GetETHL1RPC() string
+	GetETHL1WS() string
 }
 
 type Genesis interface {

@@ -48,6 +48,7 @@ import (
 	hutils "github.com/AnomalyFi/hypersdk/utils"
 	"github.com/AnomalyFi/hypersdk/workers"
 
+	"github.com/ethereum/go-ethereum/ethclient"
 	ethrpc "github.com/ethereum/go-ethereum/rpc"
 )
 
@@ -327,6 +328,16 @@ func (vm *VM) Initialize(
 		}
 		snowCtx.Log.Info("genesis state created", zap.Stringer("root", root))
 
+		ethl1_rpc := vm.config.GetETHL1RPC()
+		eth_cli, err := ethclient.Dial(ethl1_rpc)
+		if err != nil {
+			return fmt.Errorf("failed to conenct to the Ethereum client: %v", err)
+		}
+		header, err := eth_cli.HeaderByNumber(ctx, nil)
+		if err != nil {
+			return fmt.Errorf("failed to retrieve the latest block number: %v", err)
+		}
+
 		// Create genesis block
 		genesisBlk, err := chain.ParseStatefulBlock(
 			ctx,
@@ -335,6 +346,9 @@ func (vm *VM) Initialize(
 			choices.Accepted,
 			vm,
 		)
+		// assign L1 Head number
+		genesisBlk.L1Head = header.Number.Int64()
+
 		if err != nil {
 			snowCtx.Log.Error("unable to init genesis block", zap.Error(err))
 			return err
@@ -1157,7 +1171,8 @@ func (vm *VM) Fatal(msg string, fields ...zap.Field) {
 
 func (vm *VM) ETHL1HeadSubscribe() {
 	// Start the Ethereum L1 head subscription.
-	client, _ := ethrpc.Dial("ws://0.0.0.0:8546")
+	ethws_url := vm.config.GetETHL1WS()
+	client, _ := ethrpc.Dial(ethws_url)
 	//subch := make(chan ETHBlock)
 
 	// Ensure that subch receives the latest block.

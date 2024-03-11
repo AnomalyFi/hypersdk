@@ -35,7 +35,6 @@ import (
 	"github.com/AnomalyFi/hypersdk/workers"
 
 	ethhex "github.com/ethereum/go-ethereum/common/hexutil"
-	ethclient "github.com/ethereum/go-ethereum/ethclient"
 )
 
 var (
@@ -106,24 +105,24 @@ func NewGenesisBlock(root ids.ID) *StatefulBlock {
 	//num := (ethhex.Big)(*b)
 	//TODO need to add in Ethereum Block here
 
-	ethereumNodeURL := "http://localhost:8545"
+	// ethereumNodeURL := "http://localhost:8545"
 
-	// Create an RPC client
-	//client, err := ethrpc.Dial(ethereumNodeURL)
-	client, err := ethclient.Dial(ethereumNodeURL)
+	// // Create an RPC client
+	// //client, err := ethrpc.Dial(ethereumNodeURL)
+	// client, err := ethclient.Dial(ethereumNodeURL)
 
-	if err != nil {
-		fmt.Errorf("Failed to connect to the Ethereum client: %v", err)
-	}
+	// if err != nil {
+	// 	fmt.Errorf("Failed to connect to the Ethereum client: %v", err)
+	// }
 
-	header, err := client.HeaderByNumber(context.Background(), nil)
+	// header, err := client.HeaderByNumber(context.Background(), nil)
 
-	if err != nil {
-		fmt.Errorf("Failed to retrieve the latest block number: %v", err)
-	}
+	// if err != nil {
+	// 	fmt.Errorf("Failed to retrieve the latest block number: %v", err)
+	// }
 
 	return &StatefulBlock{
-		L1Head: header.Number.Int64(),
+		// L1Head: header.Number.Int64(),
 		// We set the genesis block timestamp to be after the ProposerVM fork activation.
 		//
 		// This prevents an issue (when using millisecond timestamps) during ProposerVM activation
