@@ -162,10 +162,10 @@ func (vm *VM) StoreBlockResultsOnDisk(blk *chain.StatelessBlock) error {
 	}
 	expiryHeight := blk.Height() - uint64(vm.config.GetAcceptedBlockWindow())
 	if expiryHeight > 0 && expiryHeight < blk.Height() {
-		if err := batch.Delete(PrefixBlockResultsKey(blk.Height())); err != nil {
+		if err := batch.Delete(PrefixBlockResultsKey(expiryHeight)); err != nil {
 			return err
 		}
-		if err := batch.Delete(PrefixFeeManagerKey(blk.Height())); err != nil {
+		if err := batch.Delete(PrefixFeeManagerKey(expiryHeight)); err != nil {
 			return err
 		}
 	}
