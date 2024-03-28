@@ -154,6 +154,8 @@ func (w *WebSocketServer) MessageCallback(vm VM) pubsub.Callback {
 		// implementations
 		switch msgBytes[0] {
 		case BlockMode:
+			w.blockListeners.Add(c)
+			log.Debug("added block listener")
 			// streaming at certain point
 			if len(msgBytes) > 1 {
 				currentBlockHeight := vm.LastAcceptedBlock().Height()
@@ -167,7 +169,7 @@ func (w *WebSocketServer) MessageCallback(vm VM) pubsub.Callback {
 					w.logger.Error("Could not find block on disk", zap.Uint64("height", blockNumber))
 					return
 				} else {
-					for i := blockNumber; i < currentBlockHeight; i++ {
+					for i := blockNumber; i <= currentBlockHeight; i++ {
 						blk, err := vm.GetDiskBlock(i)
 						if err != nil {
 							w.logger.Error("Couldnot find block on disk", zap.Uint64("height", i))
@@ -191,15 +193,13 @@ func (w *WebSocketServer) MessageCallback(vm VM) pubsub.Callback {
 						if !c.Send(append([]byte{BlockMode}, bytes...)) {
 							w.logger.Error("dropping message to subscribed connection due to too many pending messages")
 						}
-						if i == currentBlockHeight-1 { // ensure to stream all blocks
-							currentBlockHeight = vm.LastAcceptedBlock().Height()
-						}
+						// if i == currentBlockHeight-1 { // ensure to stream all blocks
+						// 	currentBlockHeight = vm.LastAcceptedBlock().Height()
+						// }
 					}
 				}
 
 			}
-			w.blockListeners.Add(c)
-			log.Debug("added block listener")
 		case TxMode:
 			msgBytes = msgBytes[1:]
 			// Unmarshal TX

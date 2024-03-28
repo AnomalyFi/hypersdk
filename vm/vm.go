@@ -1203,7 +1203,7 @@ func (vm *VM) ETHL1HeadSubscribe() {
 				continue
 			}
 			vm.L1Head = block.Number.ToInt()
-			fmt.Println("latest block:", block.Number)
+			vm.Logger().Debug("latest eth-l1 block: ", zap.Uint64("block number", block.Number.ToInt().Uint64()))
 			vm.mu.Unlock()
 		}
 	}()
