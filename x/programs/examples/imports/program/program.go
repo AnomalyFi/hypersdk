@@ -12,13 +12,13 @@ import (
 	"github.com/bytecodealliance/wasmtime-go/v14"
 	"go.uber.org/zap"
 
-	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/x/programs/engine"
-	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
-	"github.com/ava-labs/hypersdk/x/programs/host"
-	"github.com/ava-labs/hypersdk/x/programs/program"
-	"github.com/ava-labs/hypersdk/x/programs/runtime"
+	"github.com/AnomalyFi/hypersdk/consts"
+	"github.com/AnomalyFi/hypersdk/state"
+	"github.com/AnomalyFi/hypersdk/x/programs/engine"
+	"github.com/AnomalyFi/hypersdk/x/programs/examples/storage"
+	"github.com/AnomalyFi/hypersdk/x/programs/host"
+	"github.com/AnomalyFi/hypersdk/x/programs/program"
+	"github.com/AnomalyFi/hypersdk/x/programs/runtime"
 )
 
 var _ host.Import = (*Import)(nil)

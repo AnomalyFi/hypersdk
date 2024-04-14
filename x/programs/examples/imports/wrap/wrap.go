@@ -8,9 +8,9 @@ import (
 
 	"github.com/bytecodealliance/wasmtime-go/v14"
 
-	"github.com/ava-labs/hypersdk/x/programs/host"
-	"github.com/ava-labs/hypersdk/x/programs/program"
-	"github.com/ava-labs/hypersdk/x/programs/program/types"
+	"github.com/AnomalyFi/hypersdk/x/programs/host"
+	"github.com/AnomalyFi/hypersdk/x/programs/program"
+	"github.com/AnomalyFi/hypersdk/x/programs/program/types"
 )
 
 // New returns a new import wrap helper.

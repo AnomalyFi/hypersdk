@@ -13,18 +13,18 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	"github.com/ava-labs/hypersdk/x/programs/engine"
-	"github.com/ava-labs/hypersdk/x/programs/examples/imports/pstate"
-	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
-	"github.com/ava-labs/hypersdk/x/programs/host"
-	"github.com/ava-labs/hypersdk/x/programs/program"
-	"github.com/ava-labs/hypersdk/x/programs/runtime"
-	"github.com/ava-labs/hypersdk/x/programs/tests"
+	"github.com/AnomalyFi/hypersdk/x/programs/engine"
+	"github.com/AnomalyFi/hypersdk/x/programs/examples/imports/pstate"
+	"github.com/AnomalyFi/hypersdk/x/programs/examples/storage"
+	"github.com/AnomalyFi/hypersdk/x/programs/host"
+	"github.com/AnomalyFi/hypersdk/x/programs/program"
+	"github.com/AnomalyFi/hypersdk/x/programs/runtime"
+	"github.com/AnomalyFi/hypersdk/x/programs/tests"
 
-	iprogram "github.com/ava-labs/hypersdk/x/programs/examples/imports/program"
+	iprogram "github.com/AnomalyFi/hypersdk/x/programs/examples/imports/program"
 )
 
-// go test -v -timeout 30s -run ^TestCounterProgram$ github.com/ava-labs/hypersdk/x/programs/examples
+// go test -v -timeout 30s -run ^TestCounterProgram$ github.com/AnomalyFi/hypersdk/x/programs/examples
 func TestCounterProgram(t *testing.T) {
 	require := require.New(t)
 	db := newTestDB()

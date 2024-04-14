@@ -8,8 +8,8 @@ import (
 
 	"github.com/bytecodealliance/wasmtime-go/v14"
 
-	"github.com/ava-labs/hypersdk/x/programs/engine"
-	"github.com/ava-labs/hypersdk/x/programs/program"
+	"github.com/AnomalyFi/hypersdk/x/programs/engine"
+	"github.com/AnomalyFi/hypersdk/x/programs/program"
 )
 
 var _ program.Instance = (*Instance)(nil)

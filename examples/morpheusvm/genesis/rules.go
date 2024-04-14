@@ -4,10 +4,10 @@
 package genesis
 
 import (
+	"github.com/AnomalyFi/hypersdk/chain"
+	"github.com/AnomalyFi/hypersdk/examples/morpheusvm/storage"
+	"github.com/AnomalyFi/hypersdk/fees"
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/examples/morpheusvm/storage"
-	"github.com/ava-labs/hypersdk/fees"
 )
 
 var _ chain.Rules = (*Rules)(nil)

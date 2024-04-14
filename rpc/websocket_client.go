@@ -14,10 +14,10 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/gorilla/websocket"
 
-	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/fees"
-	"github.com/ava-labs/hypersdk/pubsub"
-	"github.com/ava-labs/hypersdk/utils"
+	"github.com/AnomalyFi/hypersdk/chain"
+	"github.com/AnomalyFi/hypersdk/fees"
+	"github.com/AnomalyFi/hypersdk/pubsub"
+	"github.com/AnomalyFi/hypersdk/utils"
 )
 
 type WebSocketClient struct {

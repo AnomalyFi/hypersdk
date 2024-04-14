@@ -26,19 +26,19 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 
-	"github.com/ava-labs/hypersdk/builder"
-	"github.com/ava-labs/hypersdk/cache"
-	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/emap"
-	"github.com/ava-labs/hypersdk/fees"
-	"github.com/ava-labs/hypersdk/gossiper"
-	"github.com/ava-labs/hypersdk/mempool"
-	"github.com/ava-labs/hypersdk/network"
-	"github.com/ava-labs/hypersdk/rpc"
-	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/trace"
-	"github.com/ava-labs/hypersdk/utils"
-	"github.com/ava-labs/hypersdk/workers"
+	"github.com/AnomalyFi/hypersdk/builder"
+	"github.com/AnomalyFi/hypersdk/cache"
+	"github.com/AnomalyFi/hypersdk/chain"
+	"github.com/AnomalyFi/hypersdk/emap"
+	"github.com/AnomalyFi/hypersdk/fees"
+	"github.com/AnomalyFi/hypersdk/gossiper"
+	"github.com/AnomalyFi/hypersdk/mempool"
+	"github.com/AnomalyFi/hypersdk/network"
+	"github.com/AnomalyFi/hypersdk/rpc"
+	"github.com/AnomalyFi/hypersdk/state"
+	"github.com/AnomalyFi/hypersdk/trace"
+	"github.com/AnomalyFi/hypersdk/utils"
+	"github.com/AnomalyFi/hypersdk/workers"
 
 	avametrics "github.com/ava-labs/avalanchego/api/metrics"
 	avacache "github.com/ava-labs/avalanchego/cache"
@@ -501,7 +501,7 @@ func (vm *VM) SetState(_ context.Context, state snow.State) error {
 
 			// TODO: add a config to FATAL here if could not state sync (likely won't be
 			// able to recover in networks where no one has the full state, bypass
-			// still starts sync): https://github.com/ava-labs/hypersdk/issues/438
+			// still starts sync): https://github.com/AnomalyFi/hypersdk/issues/438
 		}
 
 		// Backfill seen transactions, if any. This will exit as soon as we reach

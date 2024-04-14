@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// go test -v -benchmem -run=^$ -bench ^BenchmarkNewStore$ github.com/ava-labs/hypersdk/x/programs/engine -memprofile benchvset.mem -cpuprofile benchvset.cpu
+// go test -v -benchmem -run=^$ -bench ^BenchmarkNewStore$ github.com/AnomalyFi/hypersdk/x/programs/engine -memprofile benchvset.mem -cpuprofile benchvset.cpu
 func BenchmarkNewStore(b *testing.B) {
 	eng := New(NewConfig())
 	b.ResetTimer()

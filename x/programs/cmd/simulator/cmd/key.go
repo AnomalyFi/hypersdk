@@ -9,11 +9,11 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/AnomalyFi/hypersdk/crypto/ed25519"
+	"github.com/AnomalyFi/hypersdk/state"
 	"github.com/ava-labs/avalanchego/utils/logging"
-	"github.com/ava-labs/hypersdk/crypto/ed25519"
-	"github.com/ava-labs/hypersdk/state"
 
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/storage"
+	"github.com/AnomalyFi/hypersdk/x/programs/cmd/simulator/vm/storage"
 )
 
 func newKeyCmd(log logging.Logger, db *state.SimpleMutable) *cobra.Command {

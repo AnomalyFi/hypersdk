@@ -20,9 +20,9 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"go.uber.org/zap"
 
-	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/keys"
+	"github.com/AnomalyFi/hypersdk/chain"
+	"github.com/AnomalyFi/hypersdk/consts"
+	"github.com/AnomalyFi/hypersdk/keys"
 )
 
 // compactionOffset is used to randomize the height that we compact
@@ -35,7 +35,7 @@ func init() {
 }
 
 const (
-	blockPrefix         = 0x0 // TODO: move to flat files (https://github.com/ava-labs/hypersdk/issues/553)
+	blockPrefix         = 0x0 // TODO: move to flat files (https://github.com/AnomalyFi/hypersdk/issues/553)
 	blockIDHeightPrefix = 0x1 // ID -> Height
 	blockHeightIDPrefix = 0x2 // Height -> ID (don't always need full block from disk)
 	warpSignaturePrefix = 0x3

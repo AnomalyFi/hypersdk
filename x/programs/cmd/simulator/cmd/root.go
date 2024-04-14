@@ -21,11 +21,11 @@ import (
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/utils/logging"
 
-	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/vm"
+	"github.com/AnomalyFi/hypersdk/state"
+	"github.com/AnomalyFi/hypersdk/vm"
 
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/controller"
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/genesis"
+	"github.com/AnomalyFi/hypersdk/x/programs/cmd/simulator/vm/controller"
+	"github.com/AnomalyFi/hypersdk/x/programs/cmd/simulator/vm/genesis"
 )
 
 const (

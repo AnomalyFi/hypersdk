@@ -10,10 +10,10 @@ import (
 
 	_ "embed"
 
-	"github.com/ava-labs/hypersdk/x/programs/tests"
+	"github.com/AnomalyFi/hypersdk/x/programs/tests"
 )
 
-// go test -v -benchmem -run=^$ -bench ^BenchmarkCompileModule$ github.com/ava-labs/hypersdk/x/programs/engine -memprofile benchvset.mem -cpuprofile benchvset.cpu
+// go test -v -benchmem -run=^$ -bench ^BenchmarkCompileModule$ github.com/AnomalyFi/hypersdk/x/programs/engine -memprofile benchvset.mem -cpuprofile benchvset.cpu
 func BenchmarkCompileModule(b *testing.B) {
 	wasmBytes := tests.ReadFixture(b, "../tests/fixture/token.wasm")
 	require := require.New(b)

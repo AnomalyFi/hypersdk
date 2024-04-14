@@ -15,9 +15,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/actions"
+	"github.com/AnomalyFi/hypersdk/x/programs/cmd/simulator/vm/actions"
 
-	"github.com/ava-labs/hypersdk/x/programs/program"
+	"github.com/AnomalyFi/hypersdk/x/programs/program"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
@@ -25,9 +25,9 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 
-	"github.com/ava-labs/hypersdk/state"
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/storage"
-	"github.com/ava-labs/hypersdk/x/programs/cmd/simulator/vm/utils"
+	"github.com/AnomalyFi/hypersdk/state"
+	"github.com/AnomalyFi/hypersdk/x/programs/cmd/simulator/vm/storage"
+	"github.com/AnomalyFi/hypersdk/x/programs/cmd/simulator/vm/utils"
 )
 
 type runCmd struct {

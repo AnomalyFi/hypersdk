@@ -10,8 +10,8 @@ import (
 	"github.com/bytecodealliance/wasmtime-go/v14"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ava-labs/hypersdk/x/programs/engine"
-	"github.com/ava-labs/hypersdk/x/programs/program"
+	"github.com/AnomalyFi/hypersdk/x/programs/engine"
+	"github.com/AnomalyFi/hypersdk/x/programs/program"
 )
 
 func TestLinkMissingImport(t *testing.T) {
@@ -90,7 +90,7 @@ func TestLinkImport(t *testing.T) {
 	}
 }
 
-// go test -v -benchmem -run=^$ -bench ^BenchmarkInstantiate$ github.com/ava-labs/hypersdk/x/programs/host -memprofile benchvset.mem -cpuprofile benchvset.cpu
+// go test -v -benchmem -run=^$ -bench ^BenchmarkInstantiate$ github.com/AnomalyFi/hypersdk/x/programs/host -memprofile benchvset.mem -cpuprofile benchvset.cpu
 func BenchmarkInstantiate(b *testing.B) {
 	require := require.New(b)
 	imports := NewImportsBuilder()

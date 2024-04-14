@@ -3,7 +3,7 @@
 
 package host
 
-import "github.com/ava-labs/hypersdk/x/programs/program"
+import "github.com/AnomalyFi/hypersdk/x/programs/program"
 
 type Import interface {
 	// Name returns the name of this import module.

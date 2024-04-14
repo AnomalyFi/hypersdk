@@ -10,9 +10,9 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/bytecodealliance/wasmtime-go/v14"
 
-	"github.com/ava-labs/hypersdk/x/programs/engine"
-	"github.com/ava-labs/hypersdk/x/programs/host"
-	"github.com/ava-labs/hypersdk/x/programs/program"
+	"github.com/AnomalyFi/hypersdk/x/programs/engine"
+	"github.com/AnomalyFi/hypersdk/x/programs/host"
+	"github.com/AnomalyFi/hypersdk/x/programs/program"
 )
 
 var _ Runtime = &WasmRuntime{}

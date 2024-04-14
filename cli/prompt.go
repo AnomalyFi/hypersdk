@@ -12,9 +12,9 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/manifoldco/promptui"
 
-	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/fees"
-	"github.com/ava-labs/hypersdk/utils"
+	"github.com/AnomalyFi/hypersdk/codec"
+	"github.com/AnomalyFi/hypersdk/fees"
+	"github.com/AnomalyFi/hypersdk/utils"
 )
 
 func (h *Handler) PromptAddress(label string) (codec.Address, error) {

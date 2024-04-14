@@ -11,9 +11,9 @@ import (
 	"github.com/bytecodealliance/wasmtime-go/v14"
 	"go.uber.org/zap"
 
-	"github.com/ava-labs/hypersdk/x/programs/engine"
-	"github.com/ava-labs/hypersdk/x/programs/program"
-	"github.com/ava-labs/hypersdk/x/programs/program/types"
+	"github.com/AnomalyFi/hypersdk/x/programs/engine"
+	"github.com/AnomalyFi/hypersdk/x/programs/program"
+	"github.com/AnomalyFi/hypersdk/x/programs/program/types"
 )
 
 var ErrMissingImportModule = errors.New("failed to find import module")

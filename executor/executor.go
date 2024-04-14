@@ -8,7 +8,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/utils/set"
 
-	"github.com/ava-labs/hypersdk/state"
+	"github.com/AnomalyFi/hypersdk/state"
 )
 
 const defaultSetSize = 8
@@ -109,7 +109,7 @@ func (e *Executor) createWorker() {
 // overlapping [conflicts] are executed.
 // TODO: Handle read-only/write-only keys (currently the executor
 // treats everything still as ReadWrite, see issue below)
-// https://github.com/ava-labs/hypersdk/issues/709
+// https://github.com/AnomalyFi/hypersdk/issues/709
 func (e *Executor) Run(conflicts state.Keys, f func() error) {
 	e.l.Lock()
 	defer e.l.Unlock()

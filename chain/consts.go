@@ -8,7 +8,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/utils/units"
 
-	"github.com/ava-labs/hypersdk/keys"
+	"github.com/AnomalyFi/hypersdk/keys"
 )
 
 const (

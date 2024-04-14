@@ -6,7 +6,7 @@ package host
 import (
 	"github.com/bytecodealliance/wasmtime-go/v14"
 
-	"github.com/ava-labs/hypersdk/x/programs/engine"
+	"github.com/AnomalyFi/hypersdk/x/programs/engine"
 )
 
 const (

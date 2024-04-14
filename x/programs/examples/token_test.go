@@ -13,15 +13,15 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ava-labs/hypersdk/x/programs/engine"
-	"github.com/ava-labs/hypersdk/x/programs/examples/imports/pstate"
-	"github.com/ava-labs/hypersdk/x/programs/examples/storage"
-	"github.com/ava-labs/hypersdk/x/programs/host"
-	"github.com/ava-labs/hypersdk/x/programs/runtime"
-	"github.com/ava-labs/hypersdk/x/programs/tests"
+	"github.com/AnomalyFi/hypersdk/x/programs/engine"
+	"github.com/AnomalyFi/hypersdk/x/programs/examples/imports/pstate"
+	"github.com/AnomalyFi/hypersdk/x/programs/examples/storage"
+	"github.com/AnomalyFi/hypersdk/x/programs/host"
+	"github.com/AnomalyFi/hypersdk/x/programs/runtime"
+	"github.com/AnomalyFi/hypersdk/x/programs/tests"
 )
 
-// go test -v -timeout 30s -run ^TestTokenProgram$ github.com/ava-labs/hypersdk/x/programs/examples -memprofile benchvset.mem -cpuprofile benchvset.cpu
+// go test -v -timeout 30s -run ^TestTokenProgram$ github.com/AnomalyFi/hypersdk/x/programs/examples -memprofile benchvset.mem -cpuprofile benchvset.cpu
 func TestTokenProgram(t *testing.T) {
 	t.Run("BurnUserTokens", func(t *testing.T) {
 		wasmBytes := tests.ReadFixture(t, "../tests/fixture/token.wasm")
@@ -92,7 +92,7 @@ func TestTokenProgram(t *testing.T) {
 	require.NoError(program.Run(context.Background()))
 }
 
-// go test -v -benchmem -run=^$ -bench ^BenchmarkTokenProgram$ github.com/ava-labs/hypersdk/x/programs/examples -memprofile benchvset.mem -cpuprofile benchvset.cpu
+// go test -v -benchmem -run=^$ -bench ^BenchmarkTokenProgram$ github.com/AnomalyFi/hypersdk/x/programs/examples -memprofile benchvset.mem -cpuprofile benchvset.cpu
 func BenchmarkTokenProgram(b *testing.B) {
 	wasmBytes := tests.ReadFixture(b, "../tests/fixture/token.wasm")
 	maxUnits := uint64(80000)
