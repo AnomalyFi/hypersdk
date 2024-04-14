@@ -178,6 +178,7 @@ func (vm *VM) Initialize(
 		vm.rawStateDB, vm.handlers, vm.actionRegistry, vm.authRegistry, vm.authEngine, err = vm.c.Initialize(
 		vm,
 		snowCtx,
+		vm.networkManager,
 		gatherer,
 		genesisBytes,
 		upgradeBytes,
