@@ -94,3 +94,11 @@ func (*Transfer) ValidRange(chain.Rules) (int64, int64) {
 	// Returning -1, -1 means that the action is always valid.
 	return -1, -1
 }
+
+func (*Transfer) NMTNamespace() []byte {
+	// do calculation here to get namespace id
+	// go-eth use chainID as uint64 and it cannot be 0
+	// hence we can direclty using chain id as namespace id (8 bytes)
+
+	return DefaultNMTNamespace
+}

@@ -273,6 +273,8 @@ type Action interface {
 	// OutputsWarpMessage indicates whether an [Action] will produce a warp message. The max size
 	// of any warp message is [MaxOutgoingWarpChunks].
 	OutputsWarpMessage() bool
+
+	NMTNamespace() []byte
 }
 
 type Auth interface {

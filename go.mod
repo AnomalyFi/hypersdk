@@ -38,6 +38,7 @@ require (
 	filippo.io/edwards25519 v1.0.0 // indirect
 	github.com/DataDog/zstd v1.5.2 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
+	github.com/celestiaorg/nmt v0.20.0
 	github.com/cenkalti/backoff/v4 v4.2.0 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/chzyer/readline v1.5.1 // indirect

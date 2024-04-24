@@ -91,14 +91,14 @@ func (j *JSONRPCServer) SubmitTx(
 
 type LastAcceptedReply struct {
 	Height    uint64 `json:"height"`
-	BlockID   ids.ID `json:"blockId"`
+	BlockID   string `json:"blockId"`
 	Timestamp int64  `json:"timestamp"`
 }
 
 func (j *JSONRPCServer) LastAccepted(_ *http.Request, _ *struct{}, reply *LastAcceptedReply) error {
 	blk := j.vm.LastAcceptedBlock()
 	reply.Height = blk.Hght
-	reply.BlockID = blk.ID()
+	reply.BlockID = blk.ID().String()
 	reply.Timestamp = blk.Tmstmp
 	return nil
 }

@@ -4,3 +4,5 @@
 package actions
 
 const TransferComputeUnits = 1
+
+var DefaultNMTNamespace = make([]byte, 8)
