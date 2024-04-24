@@ -37,4 +37,8 @@ type VM interface {
 	) (map[ids.NodeID]*validators.GetValidatorOutput, map[string]struct{})
 	GatherSignatures(context.Context, ids.ID, []byte)
 	GetVerifyAuth() bool
+	HasDiskBlock(height uint64) (bool, error)
+	GetDiskBlock(ctx context.Context, height uint64) (*chain.StatelessBlock, error)
+	GetDiskBlockResults(ctx context.Context, height uint64) ([]*chain.Result, error)
+	GetDiskFeeManager(ctx context.Context, height uint64) ([]byte, error)
 }

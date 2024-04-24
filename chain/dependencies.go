@@ -80,7 +80,8 @@ type VM interface {
 	GetTargetBuildDuration() time.Duration
 	GetTransactionExecutionCores() int
 	GetStateFetchConcurrency() int
-
+	GetStoreBlockResultsOnDisk() bool
+	StoreBlockResultsOnDisk(*StatelessBlock) error
 	Verified(context.Context, *StatelessBlock)
 	Rejected(context.Context, *StatelessBlock)
 	Accepted(context.Context, *StatelessBlock)

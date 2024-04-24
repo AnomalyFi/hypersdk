@@ -417,6 +417,10 @@ func (vm *VM) GetVerifyAuth() bool {
 	return vm.config.GetVerifyAuth()
 }
 
+func (vm *VM) GetStoreBlockResultsOnDisk() bool {
+	return vm.config.GetStoreBlockResultsOnDisk()
+}
+
 func (vm *VM) RecordTxsGossiped(c int) {
 	vm.metrics.txsGossiped.Add(float64(c))
 }

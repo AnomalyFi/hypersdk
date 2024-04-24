@@ -672,10 +672,12 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 	proofJson, err := json.Marshal(b.NMTProofs)
 	if err != nil {
 		b.vm.Logger().Debug("check if proofs are received", zap.String("proof", string(proofJson)))
+		return ErrProofsNotReceived
 	}
 	txMappingJson, err := json.Marshal(b.NMTNamespaceToTxIndexes)
 	if err != nil {
 		b.vm.Logger().Debug("check if transactions mapping received", zap.String("txMapping", string(txMappingJson)))
+		return ErrTxNSMappingNotReceived
 	}
 
 	nmtTree := nmt.New(sha256.New())
@@ -842,7 +844,12 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 			return fmt.Errorf("%w: unable to verify block", err)
 		}
 	}
-
+	// optionally store [block.Results] to disk
+	if b.vm.GetStoreBlockResultsOnDisk() {
+		if err := b.vm.StoreBlockResultsOnDisk(b); err != nil {
+			return fmt.Errorf("%w: unable to store block results on disk", err)
+		}
+	}
 	// Commit view if we don't return before here (would happen if we are still
 	// syncing)
 	if err := b.view.CommitToDB(ctx); err != nil {

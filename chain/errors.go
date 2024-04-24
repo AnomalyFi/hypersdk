@@ -70,7 +70,8 @@ var (
 	ErrPushingElementInNMTTree = errors.New("unable to push element to nmt tree")
 	ErrComputingNMTRoot        = errors.New("unable to compute nmt root")
 	ErrNMTRootNotEqual         = errors.New("NMT root is not equal")
-
+	ErrProofsNotReceived       = errors.New("NMT proofs not received")
+	ErrTxNSMappingNotReceived  = errors.New("NMT tx to namespace mapping not received")
 	// Misc
 	ErrNotImplemented         = errors.New("not implemented")
 	ErrBlockNotProcessed      = errors.New("block is not processed")

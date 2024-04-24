@@ -38,6 +38,7 @@ type Config interface {
 	GetMempoolSponsorSize() int
 	GetMempoolExemptSponsors() []codec.Address
 	GetStreamingBacklogSize() int
+	GetStoreBlockResultsOnDisk() bool
 	GetStateHistoryLength() int               // how many roots back of data to keep to serve state queries
 	GetIntermediateNodeCacheSize() int        // how many bytes to keep in intermediate cache
 	GetStateIntermediateWriteBufferSize() int // how many bytes to keep unwritten in intermediate cache
