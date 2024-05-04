@@ -333,6 +333,10 @@ func (vm *VM) CurrentValidators(
 	return vm.proposerMonitor.Validators(ctx)
 }
 
+func (vm *VM) GetProposer(ctx context.Context, blockHeight, pHeight uint64, maxWindows int) ([]ids.NodeID, error) {
+	return vm.proposerMonitor.ToProposers(ctx, blockHeight, pHeight, maxWindows)
+}
+
 func (vm *VM) GatherSignatures(ctx context.Context, txID ids.ID, msg []byte) {
 	vm.warpManager.GatherSignatures(ctx, txID, msg)
 }

@@ -346,3 +346,14 @@ func (cli *JSONRPCClient) GenerateAggregateWarpSignature(
 	}
 	return message, weight, signatureWeight, nil
 }
+
+func (cli *JSONRPCClient) GetProposer(ctx context.Context, pBlockHeight, blockHeight uint64, maxWindows int) (*[]ids.NodeID, error) {
+	resp := new(GetProposerReply)
+	err := cli.requester.SendRequest(
+		ctx,
+		"getProposer",
+		&GetProposerArgs{PBlockHeight: pBlockHeight, BlockHeight: blockHeight, MaxWindows: maxWindows},
+		resp,
+	)
+	return resp.Proposers, err
+}

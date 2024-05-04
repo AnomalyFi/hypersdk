@@ -201,3 +201,27 @@ func (j *JSONRPCServer) GetWarpSignatures(
 	reply.Signatures = validSignatures
 	return nil
 }
+
+type GetProposerArgs struct {
+	PBlockHeight uint64 `json:"pBlockHeight"`
+	BlockHeight  uint64 `json:"blockHeight"`
+	MaxWindows   int    `json:"maxWindows"`
+}
+type GetProposerReply struct {
+	Proposers *[]ids.NodeID `json:"proposers"`
+}
+
+func (j *JSONRPCServer) GetProposer(
+	req *http.Request,
+	args *GetProposerArgs,
+	reply *GetProposerReply,
+) error {
+	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.GetProposer")
+	defer span.End()
+	proposers, err := j.vm.GetProposer(ctx, args.BlockHeight, args.PBlockHeight, args.MaxWindows)
+	if err != nil {
+		return err
+	}
+	reply.Proposers = &proposers
+	return nil
+}
