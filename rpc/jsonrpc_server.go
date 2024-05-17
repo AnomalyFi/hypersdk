@@ -10,6 +10,7 @@ import (
 	"net/http"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"go.uber.org/zap"
@@ -223,5 +224,21 @@ func (j *JSONRPCServer) GetProposer(
 		return err
 	}
 	reply.Proposers = &proposers
+	return nil
+}
+
+type GetValidatorsReply struct {
+	Validators map[ids.NodeID]*validators.GetValidatorOutput `json:"validators"`
+}
+
+func (j *JSONRPCServer) GetValidators(
+	req *http.Request,
+	_ *struct{},
+	rep *GetValidatorsReply,
+) error {
+	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.GetValidators")
+	defer span.End()
+	val, _ := j.vm.CurrentValidators(ctx)
+	rep.Validators = val
 	return nil
 }

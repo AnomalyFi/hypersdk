@@ -277,6 +277,31 @@ func (*Handler) PromptID(label string) (ids.ID, error) {
 	return id, nil
 }
 
+func (*Handler) PromptUint64(
+	label string,
+) (uint64, error) {
+	promptText := promptui.Prompt{
+		Label: label,
+		Validate: func(input string) error {
+			if len(input) == 0 {
+				return ErrInputEmpty
+			}
+			_, err := strconv.ParseUint(input, 10, 64)
+			if err != nil {
+				return err
+			}
+			return nil
+		},
+	}
+	rawAmount, err := promptText.Run()
+	if err != nil {
+		return 0, err
+	}
+	rawAmount = strings.TrimSpace(rawAmount)
+	return strconv.ParseUint(rawAmount, 10, 64)
+
+}
+
 func (h *Handler) PromptChain(label string, excluded set.Set[ids.ID]) (ids.ID, []string, error) {
 	chains, err := h.GetChains()
 	if err != nil {
