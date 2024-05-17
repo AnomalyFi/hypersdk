@@ -10,7 +10,6 @@ import (
 	"net/http"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"go.uber.org/zap"
@@ -228,9 +227,10 @@ func (j *JSONRPCServer) GetProposer(
 }
 
 type GetValidatorsReply struct {
-	Validators map[ids.NodeID]*validators.GetValidatorOutput `json:"validators"`
+	Validators map[ids.NodeID][]byte `json:"validators"`
 }
 
+// returns a map of nodeID with public keys
 func (j *JSONRPCServer) GetValidators(
 	req *http.Request,
 	_ *struct{},
@@ -239,6 +239,10 @@ func (j *JSONRPCServer) GetValidators(
 	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.GetValidators")
 	defer span.End()
 	val, _ := j.vm.CurrentValidators(ctx)
-	rep.Validators = val
+	newVal := make(map[ids.NodeID][]byte)
+	for _, v := range val {
+		newVal[v.NodeID] = bls.PublicKeyToBytes(v.PublicKey)
+	}
+	rep.Validators = newVal
 	return nil
 }

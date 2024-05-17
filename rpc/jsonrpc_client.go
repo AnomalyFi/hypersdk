@@ -358,7 +358,8 @@ func (cli *JSONRPCClient) GetProposer(ctx context.Context, pBlockHeight, blockHe
 	return resp.Proposers, err
 }
 
-func (cli *JSONRPCClient) GetCurrentValidators(ctx context.Context) (map[ids.NodeID]*validators.GetValidatorOutput, error) {
+// returns a map of nodeID with public keys
+func (cli *JSONRPCClient) GetCurrentValidators(ctx context.Context) (map[ids.NodeID][]byte, error) {
 	resp := new(GetValidatorsReply)
 	err := cli.requester.SendRequest(
 		ctx,
