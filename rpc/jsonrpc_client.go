@@ -362,7 +362,7 @@ func (cli *JSONRPCClient) GetCurrentValidators(ctx context.Context) (map[ids.Nod
 	resp := new(GetValidatorsReply)
 	err := cli.requester.SendRequest(
 		ctx,
-		"getCurrentValidators",
+		"getValidators",
 		nil,
 		resp,
 	)
