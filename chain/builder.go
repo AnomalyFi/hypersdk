@@ -99,7 +99,11 @@ func BuildBlock(
 	if err != nil {
 		return nil, err
 	}
+	//@todo add retrieve local fee market data from state.
+
+	// we need to store namespace fee bytes in state.
 	parentFeeManager := fees.NewManager(feeRaw)
+	//@todo in hypersdk, here, window equals a new block?? 10 second window?
 	feeManager, err := parentFeeManager.ComputeNext(parent.Tmstmp, nextTime, r)
 	if err != nil {
 		return nil, err
@@ -290,6 +294,8 @@ func BuildBlock(
 				defer blockLock.Unlock()
 
 				// Ensure block isn't too big
+				// @todo fee has been deducted from account earlier in tx.Execute
+				// Below check ensures that resources used stay in bound, if not in bound revert tx.
 				if ok, dimension := feeManager.Consume(result.Units, maxUnits); !ok {
 					log.Debug(
 						"skipping tx: too many units",
@@ -387,6 +393,7 @@ func BuildBlock(
 	if err := tsv.Insert(ctx, timestampKey, binary.BigEndian.AppendUint64(nil, uint64(b.Tmstmp))); err != nil {
 		return nil, fmt.Errorf("%w: unable to insert timestamp", err)
 	}
+	//@todo update fee key here
 	if err := tsv.Insert(ctx, feeKey, feeManager.Bytes()); err != nil {
 		return nil, fmt.Errorf("%w: unable to insert fees", err)
 	}

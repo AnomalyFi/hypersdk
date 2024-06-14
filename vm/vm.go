@@ -343,12 +343,14 @@ func (vm *VM) Initialize(
 			return err
 		}
 		genesisRules := vm.c.Rules(0)
-		feeManager := fees.NewManager(nil)
+		//@todo pass nil value for local fee market initiator
+		feeManager := fees.NewManager(nil, nil)
 		minUnitPrice := genesisRules.GetMinUnitPrice()
 		for i := fees.Dimension(0); i < fees.FeeDimensions; i++ {
 			feeManager.SetUnitPrice(i, minUnitPrice[i])
 			snowCtx.Log.Info("set genesis unit price", zap.Int("dimension", int(i)), zap.Uint64("price", feeManager.UnitPrice(i)))
 		}
+		// @todo define a new key for local fee market?
 		if err := sps.Insert(ctx, chain.FeeKey(vm.StateManager().FeeKey()), feeManager.Bytes()); err != nil {
 			return err
 		}
@@ -810,6 +812,8 @@ func (vm *VM) Submit(
 	if err != nil {
 		return []error{err}
 	}
+	//@todo retrive local fee market bytes from the state.
+
 	feeManager := fees.NewManager(feeRaw)
 	now := time.Now().UnixMilli()
 	r := vm.c.Rules(now)
@@ -878,6 +882,7 @@ func (vm *VM) Submit(
 		// Note, [PreExecute] ensures that the pending transaction does not have
 		// an expiry time further ahead than [ValidityWindow]. This ensures anything
 		// added to the [Mempool] is immediately executable.
+		// @todo it seems we can do the just in block fee price increase, without effecting the UX.
 		if err := tx.PreExecute(ctx, nextFeeManager, vm.c.StateManager(), r, view, now); err != nil {
 			errs = append(errs, err)
 			continue

@@ -160,6 +160,7 @@ type MetadataManager interface {
 	HeightKey() []byte
 	TimestampKey() []byte
 	FeeKey() []byte
+	FeeMarketKey() []byte
 }
 
 type FeeHandler interface {

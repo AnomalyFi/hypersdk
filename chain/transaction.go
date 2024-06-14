@@ -307,6 +307,7 @@ func (t *Transaction) Execute(
 		// Should never happen
 		return nil, err
 	}
+	// @todo state manager object is given to deduct fees only.
 	if err := s.Deduct(ctx, t.Auth.Sponsor(), ts, fee); err != nil {
 		// This should never fail for low balance (as we check [CanDeductFee]
 		// immediately before).
