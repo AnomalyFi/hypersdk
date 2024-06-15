@@ -94,6 +94,7 @@ func TestComputeNext(t *testing.T) {
 	market := NewMarket(nil, rules)
 	timeNow := time.Now()
 	ts := timeNow.UnixMilli()
+	// test minimum price
 	market.Consume(dummyNS1, 100, ts)
 	market.Consume(dummyNS2, 300, ts)
 	market, err := market.ComputeNext(ts, timeNow.Add(time.Second).UnixMilli(), rules)
@@ -104,6 +105,7 @@ func TestComputeNext(t *testing.T) {
 	price2, err := market.UnitPrice(dummyNS2)
 	require.Equal(t, rules.GetFeeMarketMinUnitPrice(), price2)
 	require.NoError(t, err)
+	// test price increase
 	timeNow = timeNow.Add(time.Second)
 	ts = timeNow.UnixMilli()
 	market.Consume(dummyNS2, 400, ts)
@@ -113,10 +115,12 @@ func TestComputeNext(t *testing.T) {
 	newPrice := rules.GetFeeMarketMinUnitPrice() + rules.GetFeeMarketMinUnitPrice()/rules.GetFeeMarketPriceChangeDenominator()
 	require.Equal(t, newPrice, price2)
 	require.NoError(t, err)
+	// test namespace deletion
 	market, err = market.ComputeNext(ts, timeNow.Add(10*time.Second).UnixMilli(), rules)
 	require.NoError(t, err)
 	_, ok := market.NameSpaceToUtilityMap[dummyNS1]
 	require.Equal(t, false, ok)
+	// test unit price for no namespace
 	price1, err = market.UnitPrice(dummyNS1)
 	require.Equal(t, rules.GetFeeMarketMinUnitPrice(), price1)
 	require.Error(t, ErrNamespaceNotFound, err)
