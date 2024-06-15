@@ -136,7 +136,9 @@ type Rules interface {
 	GetUnitPriceChangeDenominator() fees.Dimensions
 	GetWindowTargetUnits() fees.Dimensions
 	GetMaxBlockUnits() fees.Dimensions
-
+	GetFeeMarketPriceChangeDenominator() uint64
+	GetFeeMarketWindowTargetUnits() uint64
+	GetFeeMarketMinUnitPrice() uint64
 	GetBaseComputeUnits() uint64
 
 	// Invariants:
@@ -232,6 +234,7 @@ type Action interface {
 
 	NMTNamespace() []byte
 
+	UseFeeMarket() bool
 	// Execute actually runs the [Action]. Any state changes that the [Action] performs should
 	// be done here.
 	//

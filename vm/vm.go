@@ -30,6 +30,7 @@ import (
 	"github.com/AnomalyFi/hypersdk/cache"
 	"github.com/AnomalyFi/hypersdk/chain"
 	"github.com/AnomalyFi/hypersdk/emap"
+	feemarket "github.com/AnomalyFi/hypersdk/fee_market"
 	"github.com/AnomalyFi/hypersdk/fees"
 	"github.com/AnomalyFi/hypersdk/gossiper"
 	"github.com/AnomalyFi/hypersdk/mempool"
@@ -343,15 +344,19 @@ func (vm *VM) Initialize(
 			return err
 		}
 		genesisRules := vm.c.Rules(0)
-		//@todo pass nil value for local fee market initiator
-		feeManager := fees.NewManager(nil, nil)
+		feeManager := fees.NewManager(nil)
 		minUnitPrice := genesisRules.GetMinUnitPrice()
 		for i := fees.Dimension(0); i < fees.FeeDimensions; i++ {
 			feeManager.SetUnitPrice(i, minUnitPrice[i])
 			snowCtx.Log.Info("set genesis unit price", zap.Int("dimension", int(i)), zap.Uint64("price", feeManager.UnitPrice(i)))
 		}
-		// @todo define a new key for local fee market?
+
 		if err := sps.Insert(ctx, chain.FeeKey(vm.StateManager().FeeKey()), feeManager.Bytes()); err != nil {
+			return err
+		}
+
+		feeMarket := feemarket.NewMarket(nil, genesisRules)
+		if err := sps.Insert(ctx, chain.FeeMarketKey(vm.StateManager().FeeMarketKey()), feeMarket.Bytes()); err != nil {
 			return err
 		}
 
@@ -812,8 +817,11 @@ func (vm *VM) Submit(
 	if err != nil {
 		return []error{err}
 	}
-	//@todo retrive local fee market bytes from the state.
 
+	feeMarketRaw, err := view.GetValue(ctx, chain.FeeKey(vm.StateManager().FeeMarketKey()))
+	if err != nil {
+		return []error{err}
+	}
 	feeManager := fees.NewManager(feeRaw)
 	now := time.Now().UnixMilli()
 	r := vm.c.Rules(now)
@@ -821,7 +829,11 @@ func (vm *VM) Submit(
 	if err != nil {
 		return []error{err}
 	}
-
+	feeMarket := feemarket.NewMarket(feeMarketRaw, r)
+	nextFeeMarket, err := feeMarket.ComputeNext(blk.Tmstmp, now, r)
+	if err != nil {
+		return []error{err}
+	}
 	// Find repeats
 	oldestAllowed := now - r.GetValidityWindow()
 	repeats, err := blk.IsRepeat(ctx, oldestAllowed, txs, set.NewBits(), true)
@@ -882,8 +894,7 @@ func (vm *VM) Submit(
 		// Note, [PreExecute] ensures that the pending transaction does not have
 		// an expiry time further ahead than [ValidityWindow]. This ensures anything
 		// added to the [Mempool] is immediately executable.
-		// @todo it seems we can do the just in block fee price increase, without effecting the UX.
-		if err := tx.PreExecute(ctx, nextFeeManager, vm.c.StateManager(), r, view, now); err != nil {
+		if err := tx.PreExecute(ctx, nextFeeManager, nextFeeMarket, vm.c.StateManager(), r, view, now); err != nil {
 			errs = append(errs, err)
 			continue
 		}

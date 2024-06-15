@@ -34,20 +34,16 @@ type (
 )
 
 // Manager is safe for concurrent use
-// should also include bytes of localFeeMarket? @todo
 type Manager struct {
-	l         sync.RWMutex
-	raw       []byte
-	feeMarket *localFeeMarket
+	l   sync.RWMutex
+	raw []byte
 }
 
-func NewManager(raw []byte, feeMarketRaw []byte) *Manager {
-	var feeMarket *localFeeMarket
+func NewManager(raw []byte) *Manager {
 	if len(raw) == 0 {
 		raw = make([]byte, FeeDimensions*dimensionStateLen)
 	}
-	feeMarket = NewFeeMarket(nil)
-	return &Manager{raw: raw, feeMarket: feeMarket}
+	return &Manager{raw: raw}
 }
 
 func (f *Manager) UnitPrice(d Dimension) uint64 {
@@ -166,17 +162,13 @@ func (f *Manager) Consume(d Dimensions, l Dimensions) (bool, Dimension) {
 	return true, 0
 }
 
-// @todo give 2 byte arrays, one for the Dimensions and the other is for local fee markets.
-func (f *Manager) Bytes() ([]byte, []byte) {
+func (f *Manager) Bytes() []byte {
 	f.l.RLock()
 	defer f.l.RUnlock()
 
-	return f.raw, f.feeMarket.Bytes()
+	return f.raw
 }
 
-// @todo take in pricing from fee market for actions. go with default fee for default name space for bandwidth.
-// go with fee market data for non-default namespace for bandwidth
-// leave other dimensions un changed.
 func (f *Manager) Fee(d Dimensions) (uint64, error) {
 	f.l.RLock()
 	defer f.l.RUnlock()

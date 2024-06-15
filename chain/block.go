@@ -25,6 +25,7 @@ import (
 
 	"github.com/AnomalyFi/hypersdk/codec"
 	"github.com/AnomalyFi/hypersdk/consts"
+	feemarket "github.com/AnomalyFi/hypersdk/fee_market"
 	"github.com/AnomalyFi/hypersdk/fees"
 	"github.com/AnomalyFi/hypersdk/state"
 	"github.com/AnomalyFi/hypersdk/utils"
@@ -118,9 +119,9 @@ type StatelessBlock struct {
 
 	results    []*Result
 	feeManager *fees.Manager
-
-	vm   VM
-	view merkledb.View
+	feeMarket  *feemarket.Market
+	vm         VM
+	view       merkledb.View
 
 	sigJob workers.Job
 }
@@ -246,6 +247,7 @@ func (b *StatelessBlock) initializeBuilt(
 	view merkledb.View,
 	results []*Result,
 	feeManager *fees.Manager,
+	feeMarket *feemarket.Market,
 ) error {
 	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.initializeBuilt")
 	defer span.End()
@@ -331,6 +333,7 @@ func (b *StatelessBlock) initializeBuilt(
 	b.t = time.UnixMilli(b.StatefulBlock.Tmstmp)
 	b.results = results
 	b.feeManager = feeManager
+	b.feeMarket = feeMarket
 	b.txsSet = set.NewSet[ids.ID](len(b.Txs))
 	for _, tx := range b.Txs {
 		b.txsSet.Add(tx.ID())
@@ -508,15 +511,25 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 		return err
 	}
 
+	feeMarketKey := FeeMarketKey(b.vm.StateManager().FeeMarketKey())
+	feeMarketRaw, err := parentView.GetValue(ctx, feeMarketKey)
+	if err != nil {
+		return err
+	}
+	parentFeeMarket := feemarket.NewMarket(feeMarketRaw, r)
+	feeMarket, err := parentFeeMarket.ComputeNext(parentTimestamp, b.Tmstmp, r)
+	if err != nil {
+		return err
+	}
 	// Process transactions
-	results, ts, err := b.Execute(ctx, b.vm.Tracer(), parentView, feeManager, r)
+	results, ts, err := b.Execute(ctx, b.vm.Tracer(), parentView, feeManager, feeMarket, r)
 	if err != nil {
 		log.Error("failed to execute block", zap.Error(err))
 		return err
 	}
 	b.results = results
 	b.feeManager = feeManager
-
+	b.feeMarket = feeMarket
 	// NMT root verification
 	txsDataToProve := make([][]byte, 0, len(b.Txs))
 	// for i := 0; i < len(b.Txs); i++ {
@@ -590,15 +603,17 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 	heightKeyStr := string(heightKey)
 	timestampKeyStr := string(timestampKey)
 	feeKeyStr := string(feeKey)
-
+	feeMarketKeystr := string(feeMarketKey)
 	keys := make(state.Keys)
 	keys.Add(heightKeyStr, state.Write)
 	keys.Add(timestampKeyStr, state.Write)
 	keys.Add(feeKeyStr, state.Write)
+	keys.Add(feeMarketKeystr, state.Write)
 	tsv := ts.NewView(keys, map[string][]byte{
 		heightKeyStr:    parentHeightRaw,
 		timestampKeyStr: parentTimestampRaw,
 		feeKeyStr:       parentFeeManager.Bytes(),
+		feeMarketKeystr: parentFeeMarket.Bytes(),
 	})
 	if err := tsv.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
 		return err
@@ -607,6 +622,9 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 		return err
 	}
 	if err := tsv.Insert(ctx, feeKey, feeManager.Bytes()); err != nil {
+		return err
+	}
+	if err := tsv.Insert(ctx, feeMarketKey, feeMarket.Bytes()); err != nil {
 		return err
 	}
 	tsv.Commit()
@@ -961,6 +979,10 @@ func (b *StatelessBlock) Results() []*Result {
 
 func (b *StatelessBlock) FeeManager() *fees.Manager {
 	return b.feeManager
+}
+
+func (b *StatelessBlock) FeeMarket() *feemarket.Market {
+	return b.feeMarket
 }
 
 func (b *StatefulBlock) Marshal() ([]byte, error) {

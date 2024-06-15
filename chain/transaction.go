@@ -8,10 +8,12 @@ import (
 	"fmt"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/units"
 
 	"github.com/AnomalyFi/hypersdk/codec"
 	"github.com/AnomalyFi/hypersdk/consts"
 	"github.com/AnomalyFi/hypersdk/emap"
+	feemarket "github.com/AnomalyFi/hypersdk/fee_market"
 	"github.com/AnomalyFi/hypersdk/fees"
 	"github.com/AnomalyFi/hypersdk/keys"
 	"github.com/AnomalyFi/hypersdk/math"
@@ -182,11 +184,21 @@ func (t *Transaction) Units(sm StateManager, r Rules) (fees.Dimensions, error) {
 	return fees.Dimensions{uint64(t.Size()), maxComputeUnits, reads, allocates, writes}, nil
 }
 
+func (t *Transaction) FeeMarketUnits() map[string]uint64 {
+	fmu := make(map[string]uint64)
+	for _, action := range t.Actions {
+		if action.UseFeeMarket() {
+			fmu[string(action.NMTNamespace())] += (uint64(action.Size()) / units.KiB)
+		}
+	}
+	return fmu
+}
+
 // EstimateUnits provides a pessimistic estimate (some key accesses may be duplicates) of the cost
 // to execute a transaction.
 //
 // This is typically used during transaction construction.
-func EstimateUnits(r Rules, actions []Action, authFactory AuthFactory) (fees.Dimensions, error) {
+func EstimateUnits(r Rules, actions []Action, authFactory AuthFactory) (fees.Dimensions, uint64, error) {
 	var (
 		bandwidth          = uint64(BaseSize)
 		stateKeysMaxChunks = []uint16{} // TODO: preallocate
@@ -198,11 +210,15 @@ func EstimateUnits(r Rules, actions []Action, authFactory AuthFactory) (fees.Dim
 
 	// Calculate over action/auth
 	bandwidth += consts.Uint8Len
+	fmu := uint64(0)
 	for _, action := range actions {
 		bandwidth += consts.ByteLen + uint64(action.Size())
 		actionStateKeysMaxChunks := action.StateKeysMaxChunks()
 		stateKeysMaxChunks = append(stateKeysMaxChunks, actionStateKeysMaxChunks...)
 		computeOp.Add(action.ComputeUnits(authFactory.Address(), r))
+		if action.UseFeeMarket() {
+			fmu += uint64(action.Size())
+		}
 	}
 	authBandwidth, authCompute := authFactory.MaxUnits()
 	bandwidth += consts.ByteLen + authBandwidth
@@ -213,7 +229,7 @@ func EstimateUnits(r Rules, actions []Action, authFactory AuthFactory) (fees.Dim
 	// Estimate compute costs
 	compute, err := computeOp.Value()
 	if err != nil {
-		return fees.Dimensions{}, err
+		return fees.Dimensions{}, 0, err
 	}
 
 	// Estimate storage costs
@@ -230,22 +246,23 @@ func EstimateUnits(r Rules, actions []Action, authFactory AuthFactory) (fees.Dim
 	}
 	reads, err := readsOp.Value()
 	if err != nil {
-		return fees.Dimensions{}, err
+		return fees.Dimensions{}, 0, err
 	}
 	allocates, err := allocatesOp.Value()
 	if err != nil {
-		return fees.Dimensions{}, err
+		return fees.Dimensions{}, 0, err
 	}
 	writes, err := writesOp.Value()
 	if err != nil {
-		return fees.Dimensions{}, err
+		return fees.Dimensions{}, 0, err
 	}
-	return fees.Dimensions{bandwidth, compute, reads, allocates, writes}, nil
+	return fees.Dimensions{bandwidth, compute, reads, allocates, writes}, fmu, nil
 }
 
 func (t *Transaction) PreExecute(
 	ctx context.Context,
 	feeManager *fees.Manager,
+	feeMarket *feemarket.Market,
 	s StateManager,
 	r Rules,
 	im state.Immutable,
@@ -281,6 +298,21 @@ func (t *Transaction) PreExecute(
 	if err != nil {
 		return err
 	}
+	feeo := math.NewUint64Operator(fee)
+	fmUnits := t.FeeMarketUnits()
+	for namespace, units := range fmUnits {
+		fmf, err := feeMarket.Fee(namespace, units)
+		if err != nil {
+			// Should never happen
+			return err
+		}
+		feeo.Add(fmf)
+	}
+	fee, err = feeo.Value()
+	if err != nil {
+		// Should never happen
+		return err
+	}
 	return s.CanDeduct(ctx, t.Auth.Sponsor(), im, fee)
 }
 
@@ -291,6 +323,7 @@ func (t *Transaction) PreExecute(
 func (t *Transaction) Execute(
 	ctx context.Context,
 	feeManager *fees.Manager,
+	feeMarket *feemarket.Market,
 	s StateManager,
 	r Rules,
 	ts *tstate.TStateView,
@@ -307,11 +340,32 @@ func (t *Transaction) Execute(
 		// Should never happen
 		return nil, err
 	}
-	// @todo state manager object is given to deduct fees only.
+
+	feeo := math.NewUint64Operator(fee)
+	fmUnits := t.FeeMarketUnits()
+	for namespace, units := range fmUnits {
+		fmf, err := feeMarket.Fee(namespace, units)
+		if err != nil {
+			// Should never happen
+			return nil, err
+		}
+		feeo.Add(fmf)
+	}
+	fee, err = feeo.Value()
+	if err != nil {
+		// Should never happen
+		return nil, err
+	}
+
 	if err := s.Deduct(ctx, t.Auth.Sponsor(), ts, fee); err != nil {
 		// This should never fail for low balance (as we check [CanDeductFee]
 		// immediately before).
 		return nil, err
+	}
+
+	// Consuming fees for fee market.
+	for namespace, units := range fmUnits {
+		feeMarket.Consume(namespace, units, timestamp)
 	}
 
 	// We create a temp state checkpoint to ensure we don't commit failed actions to state.

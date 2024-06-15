@@ -132,7 +132,7 @@ func (cli *JSONRPCClient) GenerateTransaction(
 		return nil, nil, 0, err
 	}
 
-	units, err := chain.EstimateUnits(parser.Rules(time.Now().UnixMilli()), actions, authFactory)
+	units, _, err := chain.EstimateUnits(parser.Rules(time.Now().UnixMilli()), actions, authFactory)
 	if err != nil {
 		return nil, nil, 0, err
 	}

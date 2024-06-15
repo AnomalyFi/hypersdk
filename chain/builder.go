@@ -19,6 +19,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/AnomalyFi/hypersdk/executor"
+	feemarket "github.com/AnomalyFi/hypersdk/fee_market"
 	"github.com/AnomalyFi/hypersdk/fees"
 	"github.com/AnomalyFi/hypersdk/keys"
 	"github.com/AnomalyFi/hypersdk/state"
@@ -99,12 +100,20 @@ func BuildBlock(
 	if err != nil {
 		return nil, err
 	}
-	//@todo add retrieve local fee market data from state.
-
-	// we need to store namespace fee bytes in state.
 	parentFeeManager := fees.NewManager(feeRaw)
-	//@todo in hypersdk, here, window equals a new block?? 10 second window?
 	feeManager, err := parentFeeManager.ComputeNext(parent.Tmstmp, nextTime, r)
+	if err != nil {
+		return nil, err
+	}
+
+	// Compute next fee market to use
+	feeMarketKey := FeeMarketKey(vm.StateManager().FeeMarketKey())
+	feeMarketRaw, err := parentView.GetValue(ctx, feeMarketKey)
+	if err != nil {
+		return nil, err
+	}
+	parentFeeMarket := feemarket.NewMarket(feeMarketRaw, r)
+	feeMarket, err := parentFeeMarket.ComputeNext(parent.Tmstmp, nextTime, r)
 	if err != nil {
 		return nil, err
 	}
@@ -266,7 +275,7 @@ func BuildBlock(
 
 				// Execute block
 				tsv := ts.NewView(stateKeys, storage)
-				if err := tx.PreExecute(ctx, feeManager, sm, r, tsv, nextTime); err != nil {
+				if err := tx.PreExecute(ctx, feeManager, feeMarket, sm, r, tsv, nextTime); err != nil {
 					// We don't need to rollback [tsv] here because it will never
 					// be committed.
 					if HandlePreExecute(log, err) {
@@ -277,6 +286,7 @@ func BuildBlock(
 				result, err := tx.Execute(
 					ctx,
 					feeManager,
+					feeMarket,
 					sm,
 					r,
 					tsv,
@@ -294,7 +304,6 @@ func BuildBlock(
 				defer blockLock.Unlock()
 
 				// Ensure block isn't too big
-				// @todo fee has been deducted from account earlier in tx.Execute
 				// Below check ensures that resources used stay in bound, if not in bound revert tx.
 				if ok, dimension := feeManager.Consume(result.Units, maxUnits); !ok {
 					log.Debug(
@@ -377,15 +386,17 @@ func BuildBlock(
 	timestampKey := TimestampKey(b.vm.StateManager().TimestampKey())
 	timestampKeyStr := string(timestampKey)
 	feeKeyStr := string(feeKey)
-
+	feeMarketKeyStr := string(feeMarketKey)
 	keys := make(state.Keys)
 	keys.Add(heightKeyStr, state.Write)
 	keys.Add(timestampKeyStr, state.Write)
 	keys.Add(feeKeyStr, state.Write)
+	keys.Add(feeMarketKeyStr, state.Write)
 	tsv := ts.NewView(keys, map[string][]byte{
 		heightKeyStr:    binary.BigEndian.AppendUint64(nil, parent.Hght),
 		timestampKeyStr: binary.BigEndian.AppendUint64(nil, uint64(parent.Tmstmp)),
 		feeKeyStr:       parentFeeManager.Bytes(),
+		feeMarketKeyStr: parentFeeMarket.Bytes(),
 	})
 	if err := tsv.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
 		return nil, fmt.Errorf("%w: unable to insert height", err)
@@ -393,9 +404,11 @@ func BuildBlock(
 	if err := tsv.Insert(ctx, timestampKey, binary.BigEndian.AppendUint64(nil, uint64(b.Tmstmp))); err != nil {
 		return nil, fmt.Errorf("%w: unable to insert timestamp", err)
 	}
-	//@todo update fee key here
 	if err := tsv.Insert(ctx, feeKey, feeManager.Bytes()); err != nil {
 		return nil, fmt.Errorf("%w: unable to insert fees", err)
+	}
+	if err := tsv.Insert(ctx, feeMarketKey, feeMarket.Bytes()); err != nil {
+		return nil, fmt.Errorf("%w: unable to insert fee market", err)
 	}
 	tsv.Commit()
 
@@ -414,7 +427,7 @@ func BuildBlock(
 	}
 
 	// Compute block hash and marshaled representation
-	if err := b.initializeBuilt(ctx, view, results, feeManager); err != nil {
+	if err := b.initializeBuilt(ctx, view, results, feeManager, feeMarket); err != nil {
 		log.Warn("block failed", zap.Int("txs", len(b.Txs)), zap.Any("consumed", feeManager.UnitsConsumed()))
 		return nil, err
 	}
