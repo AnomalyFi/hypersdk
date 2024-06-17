@@ -118,3 +118,27 @@ func (j *JSONRPCServer) UnitPrices(
 	reply.UnitPrices = unitPrices
 	return nil
 }
+
+type NameSpacePriceArgs struct {
+	NameSpace string `json:"namespace"`
+}
+
+type NameSpacePriceReply struct {
+	Price uint64 `json:"price"`
+}
+
+func (j *JSONRPCServer) NameSpacePrice(
+	req *http.Request,
+	args *NameSpacePriceArgs,
+	reply *NameSpacePriceReply,
+) error {
+	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.NameSpacePrice")
+	defer span.End()
+
+	price, err := j.vm.NameSpacePrice(ctx, args.NameSpace)
+	if err != nil {
+		return err
+	}
+	reply.Price = price
+	return nil
+}
