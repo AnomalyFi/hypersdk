@@ -264,10 +264,13 @@ func (b *StatelessBlock) initializeBuilt(
 		tx := b.Txs[i]
 		// txResult := results[i]
 		txID := tx.ID()
-
+		txResult := results[resCount]
+		// Note: Exclude failed transactions, from nmt root generation
+		if !txResult.Success {
+			continue
+		}
 		for j := 0; j < len(tx.Actions); j++ {
 
-			txResult := results[resCount]
 			nID := tx.Actions[j].NMTNamespace()
 			nmtNSs = append(nmtNSs, nID)
 
@@ -554,10 +557,13 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 		tx := b.Txs[i]
 		// txResult := results[i]
 		txID := tx.ID()
-
+		txResult := results[resCount]
+		// Note: Exclude failed transactions, from nmt root generation
+		if !txResult.Success {
+			continue
+		}
 		for j := 0; j < len(tx.Actions); j++ {
 
-			txResult := results[resCount]
 			nID := tx.Actions[j].NMTNamespace()
 
 			txData := make([]byte, 0, 1+len(txID[:])+len(txResult.Outputs[j]))
