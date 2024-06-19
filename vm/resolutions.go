@@ -461,7 +461,7 @@ func (vm *VM) UnitPrices(context.Context) (fees.Dimensions, error) {
 }
 
 func (vm *VM) NameSpacePrice(ctx context.Context, namespace string) (uint64, error) {
-	v, err := vm.stateDB.Get(chain.FeeKey(vm.StateManager().FeeMarketKey()))
+	v, err := vm.stateDB.Get(chain.FeeMarketKey(vm.StateManager().FeeMarketKey()))
 	if err != nil {
 		return 0, err
 	}

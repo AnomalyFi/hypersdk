@@ -818,7 +818,7 @@ func (vm *VM) Submit(
 		return []error{err}
 	}
 
-	feeMarketRaw, err := view.GetValue(ctx, chain.FeeKey(vm.StateManager().FeeMarketKey()))
+	feeMarketRaw, err := view.GetValue(ctx, chain.FeeMarketKey(vm.StateManager().FeeMarketKey()))
 	if err != nil {
 		return []error{err}
 	}
