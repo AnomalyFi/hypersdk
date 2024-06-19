@@ -274,18 +274,20 @@ func (b *StatelessBlock) initializeBuilt(
 			if _, ok := NMTNamespaceToTxIndexes[hex.EncodeToString(nID)]; !ok {
 				NMTNamespaceToTxIndexes[hex.EncodeToString(nID)] = make([]int, 0, 1)
 			}
+			// TODO: a dedup is needed for a multi-actions tx
 			a := NMTNamespaceToTxIndexes[hex.EncodeToString(nID)]
 			a = append(a, i)
 			NMTNamespaceToTxIndexes[hex.EncodeToString(nID)] = a
 
 			//TODO j here needs to be number of actions within the transaction and then resCount here
 			//needs to correspond to which output we want for a specific action not the whole transaction list
-			txData := make([]byte, 1+len(txID[:])+len(txResult.Outputs[j]))
+			txData := make([]byte, 0, 1+len(txID[:])+len(txResult.Outputs[j]))
 			txData = append(txData, nID...)
 			txData = append(txData, txID[:]...)
 			for k := 0; k < len(txResult.Outputs[j]); k++ {
 				txData = append(txData, txResult.Outputs[j][k][:]...)
 			}
+			b.vm.Logger().Debug("data to prove", zap.String("txData", hex.EncodeToString(txData)))
 			//txData = append(txData, txResult.Outputs[j]...)
 			txsDataToProve = append(txsDataToProve, txData)
 			resCount++
@@ -316,6 +318,7 @@ func (b *StatelessBlock) initializeBuilt(
 
 		NMTProofs[hex.EncodeToString(nID)] = proof
 	}
+	b.vm.Logger().Debug("proofs", zap.Any("proofs", NMTProofs))
 
 	b.NMTRoot = nmtRoot
 	b.NMTNamespaceToTxIndexes = NMTNamespaceToTxIndexes
@@ -557,7 +560,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 			txResult := results[resCount]
 			nID := tx.Actions[j].NMTNamespace()
 
-			txData := make([]byte, 1+len(txID[:])+len(txResult.Outputs[j]))
+			txData := make([]byte, 0, 1+len(txID[:])+len(txResult.Outputs[j]))
 			txData = append(txData, nID...)
 			txData = append(txData, txID[:]...)
 			for k := 0; k < len(txResult.Outputs[j]); k++ {
