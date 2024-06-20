@@ -6,6 +6,7 @@ package chain
 import (
 	"time"
 
+	"github.com/AnomalyFi/hypersdk/consts"
 	"github.com/AnomalyFi/hypersdk/keys"
 )
 
@@ -19,8 +20,8 @@ const (
 	FutureBound        = 1 * time.Second
 	HeightKeyChunks    = 1
 	TimestampKeyChunks = 1
-	FeeKeyChunks       = 8 // 96 (per dimension) * 5 (num dimensions)
-
+	FeeKeyChunks       = 8                // 96 (per dimension) * 5 (num dimensions)
+	FeeMarketKeyChunks = consts.MaxUint16 // 104 per namespace
 	// MaxKeyDependencies must be greater than the maximum number of key dependencies
 	// any single task could have when executing a task.
 	MaxKeyDependencies = 100_000_000
@@ -36,4 +37,8 @@ func TimestampKey(prefix []byte) []byte {
 
 func FeeKey(prefix []byte) []byte {
 	return keys.EncodeChunks(prefix, FeeKeyChunks)
+}
+
+func FeeMarketKey(prefix []byte) []byte {
+	return keys.EncodeChunks(prefix, FeeMarketKeyChunks)
 }

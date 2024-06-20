@@ -263,7 +263,7 @@ func (h *Handler) WatchChain(hideTxs bool, pastBlocks bool, startBlock uint64, g
 			runningDuration := time.Since(start)
 			tpsDivisor := min(window.WindowSize, runningDuration.Seconds())
 			utils.Outf(
-				"{{green}}height:{{/}}%d l1head:{{/}}%s {{green}}txs:{{/}}%d {{green}}root:{{/}}%s {{green}}nmtRoot:{{/}}%s {{green}}blockId:{{/}}%s {{green}}size:{{/}}%.2fKB {{green}}units consumed:{{/}} [%s] {{green}}unit prices:{{/}} [%s] [{{green}}TPS:{{/}}%.2f {{green}}latency:{{/}}%dms {{green}}gap:{{/}}%dms]\n",
+				"{{green}}height:{{/}}%d l1head:{{/}}%d {{green}}txs:{{/}}%d {{green}}root:{{/}}%s {{green}}nmtRoot:{{/}}%s {{green}}blockId:{{/}}%s {{green}}size:{{/}}%.2fKB {{green}}units consumed:{{/}} [%s] {{green}}unit prices:{{/}} [%s] [{{green}}TPS:{{/}}%.2f {{green}}latency:{{/}}%dms {{green}}gap:{{/}}%dms]\n",
 				blk.Hght,
 				blk.L1Head,
 				len(blk.Txs),
@@ -279,7 +279,7 @@ func (h *Handler) WatchChain(hideTxs bool, pastBlocks bool, startBlock uint64, g
 			)
 		} else {
 			utils.Outf(
-				"{{green}}height:{{/}}%d l1head:{{/}}%s {{green}}txs:{{/}}%d {{green}}root:{{/}}%s {{green}}root:{{/}}%s {{green}}blockId:{{/}}%s {{green}}size:{{/}}%.2fKB {{green}}units consumed:{{/}} [%s] {{green}}unit prices:{{/}} [%s]\n",
+				"{{green}}height:{{/}}%d l1head:{{/}}%d {{green}}txs:{{/}}%d {{green}}root:{{/}}%s {{green}}root:{{/}}%s {{green}}blockId:{{/}}%s {{green}}size:{{/}}%.2fKB {{green}}units consumed:{{/}} [%s] {{green}}unit prices:{{/}} [%s]\n",
 				blk.Hght,
 				blk.L1Head,
 				len(blk.Txs),

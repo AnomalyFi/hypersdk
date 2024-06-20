@@ -104,6 +104,17 @@ func (cli *JSONRPCClient) UnitPrices(ctx context.Context, useCache bool) (fees.D
 	return resp.UnitPrices, nil
 }
 
+func (cli *JSONRPCClient) NameSpacePrice(ctx context.Context, namespace string) (uint64, error) {
+	resp := new(NameSpacePriceReply)
+	err := cli.requester.SendRequest(
+		ctx,
+		"nameSpacePrice",
+		&NameSpacePriceArgs{NameSpace: namespace},
+		resp,
+	)
+	return resp.Price, err
+}
+
 func (cli *JSONRPCClient) SubmitTx(ctx context.Context, d []byte) (ids.ID, error) {
 	resp := new(SubmitTxReply)
 	err := cli.requester.SendRequest(
@@ -132,7 +143,7 @@ func (cli *JSONRPCClient) GenerateTransaction(
 		return nil, nil, 0, err
 	}
 
-	units, err := chain.EstimateUnits(parser.Rules(time.Now().UnixMilli()), actions, authFactory)
+	units, _, err := chain.EstimateUnits(parser.Rules(time.Now().UnixMilli()), actions, authFactory)
 	if err != nil {
 		return nil, nil, 0, err
 	}

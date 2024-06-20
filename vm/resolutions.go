@@ -20,6 +20,7 @@ import (
 	"github.com/AnomalyFi/hypersdk/builder"
 	"github.com/AnomalyFi/hypersdk/chain"
 	"github.com/AnomalyFi/hypersdk/executor"
+	feemarket "github.com/AnomalyFi/hypersdk/fee_market"
 	"github.com/AnomalyFi/hypersdk/fees"
 	"github.com/AnomalyFi/hypersdk/gossiper"
 	"github.com/AnomalyFi/hypersdk/workers"
@@ -457,6 +458,14 @@ func (vm *VM) UnitPrices(context.Context) (fees.Dimensions, error) {
 		return fees.Dimensions{}, err
 	}
 	return fees.NewManager(v).UnitPrices(), nil
+}
+
+func (vm *VM) NameSpacePrice(ctx context.Context, namespace string) (uint64, error) {
+	v, err := vm.stateDB.Get(chain.FeeMarketKey(vm.StateManager().FeeMarketKey()))
+	if err != nil {
+		return 0, err
+	}
+	return feemarket.NewMarket(v, vm.c.Rules(0)).UnitPrice(namespace)
 }
 
 func (vm *VM) GetTransactionExecutionCores() int {
