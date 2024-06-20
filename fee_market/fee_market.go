@@ -10,8 +10,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/math"
 )
 
-//@todo calculate the bandwidth costs if the action type is sequencer message here.
-
 const (
 	// Window = WindowSize(10) * unit64(8 bytes)
 	// Price(8 bytes) | Window(80 bytes) | LastConsumed(8 bytes) | LastUsedTimestamp(8 bytes)
@@ -33,14 +31,14 @@ func NewMarket(raw []byte, r Rules) *Market {
 		}
 	}
 	var m Market
-	_ = json.Unmarshal(raw, &m) // error should never occur
+	_ = json.Unmarshal(raw, &m.NameSpaceToUtilityMap) // error should never occur
 	m.minUnitPrice = r.GetFeeMarketMinUnitPrice()
 	return &m
 }
 
 func (m *Market) Bytes() []byte {
 	m.l.Lock()
-	b, _ := json.Marshal(m)
+	b, _ := json.Marshal(m.NameSpaceToUtilityMap)
 	m.l.Unlock()
 	return b
 }
@@ -64,7 +62,11 @@ func (m *Market) UnitPrice(namespace string) (uint64, error) {
 	if !ok {
 		return m.minUnitPrice, ErrNamespaceNotFound
 	}
-	return binary.BigEndian.Uint64(utility[:consts.Uint64Len]), nil
+	price := binary.BigEndian.Uint64(utility[:consts.Uint64Len])
+	if price < m.minUnitPrice {
+		price = m.minUnitPrice
+	}
+	return price, nil
 }
 
 func (m *Market) Window(namespace string) window.Window {
@@ -130,7 +132,6 @@ func (m *Market) Consume(namespace string, units uint64, timeStamp int64) {
 func (m *Market) ComputeNext(lastTime, currTime int64, r Rules) (*Market, error) {
 	m.l.Lock()
 	defer m.l.Unlock()
-
 	targetUnitsPerNS := r.GetFeeMarketWindowTargetUnits()
 	unitPriceChangeDenom := r.GetFeeMarketPriceChangeDenominator()
 	minUnitPrice := r.GetFeeMarketMinUnitPrice()
@@ -172,7 +173,7 @@ func (m *Market) ComputeNext(lastTime, currTime int64, r Rules) (*Market, error)
 			nextPrice = minUnitPrice
 		}
 		lastUpdatedTimeStamp := binary.BigEndian.Uint64(utility[consts.Uint64Len+window.WindowSliceSize+consts.Uint64Len:])
-		if int(uint64(currTime)-lastUpdatedTimeStamp)/consts.MillisecondsPerSecond > window.WindowSize {
+		if int(uint64(currTime)-lastUpdatedTimeStamp)/consts.MillisecondsPerSecond > window.WindowSize && nextPrice == minUnitPrice {
 			// if namespace has no activity for more than window size, delete namespace from the map.
 			delete(m.NameSpaceToUtilityMap, namespace)
 			continue

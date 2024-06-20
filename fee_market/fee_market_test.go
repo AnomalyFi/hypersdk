@@ -124,4 +124,7 @@ func TestComputeNext(t *testing.T) {
 	price1, err = market.UnitPrice(dummyNS1)
 	require.Equal(t, rules.GetFeeMarketMinUnitPrice(), price1)
 	require.Error(t, ErrNamespaceNotFound, err)
+	b := market.Bytes()
+	marketFromBytes := NewMarket(b, rules)
+	require.Equal(t, market.NameSpaceToUtilityMap, marketFromBytes.NameSpaceToUtilityMap)
 }

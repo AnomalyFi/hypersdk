@@ -617,12 +617,12 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 	keys.Add(heightKeyStr, state.Write)
 	keys.Add(timestampKeyStr, state.Write)
 	keys.Add(feeKeyStr, state.Write)
-	keys.Add(feeMarketKeystr, state.Write)
+	keys.Add(feeMarketKeystr, state.All)
 	tsv := ts.NewView(keys, map[string][]byte{
 		heightKeyStr:    parentHeightRaw,
 		timestampKeyStr: parentTimestampRaw,
 		feeKeyStr:       parentFeeManager.Bytes(),
-		feeMarketKeystr: parentFeeMarket.Bytes(),
+		// feeMarketKeystr: parentFeeMarket.Bytes(),
 	})
 	if err := tsv.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
 		return err

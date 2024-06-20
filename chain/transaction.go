@@ -188,7 +188,7 @@ func (t *Transaction) FeeMarketUnits() map[string]uint64 {
 	fmu := make(map[string]uint64)
 	for _, action := range t.Actions {
 		if action.UseFeeMarket() {
-			fmu[string(action.NMTNamespace())] += (uint64(action.Size()) / units.KiB)
+			fmu[string(action.NMTNamespace())] += (uint64(action.Size()) / uint64(units.KiB))
 		}
 	}
 	return fmu

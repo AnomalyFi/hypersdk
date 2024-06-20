@@ -112,6 +112,7 @@ func BuildBlock(
 	if err != nil {
 		return nil, err
 	}
+
 	parentFeeMarket := feemarket.NewMarket(feeMarketRaw, r)
 	feeMarket, err := parentFeeMarket.ComputeNext(parent.Tmstmp, nextTime, r)
 	if err != nil {
@@ -391,12 +392,11 @@ func BuildBlock(
 	keys.Add(heightKeyStr, state.Write)
 	keys.Add(timestampKeyStr, state.Write)
 	keys.Add(feeKeyStr, state.Write)
-	keys.Add(feeMarketKeyStr, state.Write)
+	keys.Add(feeMarketKeyStr, state.All)
 	tsv := ts.NewView(keys, map[string][]byte{
 		heightKeyStr:    binary.BigEndian.AppendUint64(nil, parent.Hght),
 		timestampKeyStr: binary.BigEndian.AppendUint64(nil, uint64(parent.Tmstmp)),
 		feeKeyStr:       parentFeeManager.Bytes(),
-		feeMarketKeyStr: parentFeeMarket.Bytes(),
 	})
 	if err := tsv.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
 		return nil, fmt.Errorf("%w: unable to insert height", err)
