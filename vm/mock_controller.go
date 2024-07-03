@@ -22,6 +22,7 @@ import (
 	builder "github.com/AnomalyFi/hypersdk/builder"
 	chain "github.com/AnomalyFi/hypersdk/chain"
 	gossiper "github.com/AnomalyFi/hypersdk/gossiper"
+	network "github.com/AnomalyFi/hypersdk/network"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -63,7 +64,7 @@ func (mr *MockControllerMockRecorder) Accepted(arg0, arg1 any) *gomock.Call {
 }
 
 // Initialize mocks base method.
-func (m *MockController) Initialize(arg0 *VM, arg1 *snow.Context, arg2 metrics.MultiGatherer, arg3, arg4, arg5 []byte) (Config, Genesis, builder.Builder, gossiper.Gossiper, database.Database, database.Database, Handlers, chain.ActionRegistry, chain.AuthRegistry, map[byte]AuthEngine, error) {
+func (m *MockController) Initialize(arg0 *VM, arg1 *snow.Context, arg2 *network.Manager, arg3 metrics.MultiGatherer, arg4, arg5, arg6 []byte) (Config, Genesis, builder.Builder, gossiper.Gossiper, database.Database, database.Database, Handlers, chain.ActionRegistry, chain.AuthRegistry, map[byte]AuthEngine, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Initialize", arg0, arg1, arg2, arg3, arg4, arg5)
 	ret0, _ := ret[0].(Config)
