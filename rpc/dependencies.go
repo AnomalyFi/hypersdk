@@ -39,4 +39,5 @@ type VM interface {
 	GetDiskBlockResults(ctx context.Context, height uint64) ([]*chain.Result, error)
 	GetDiskFeeManager(ctx context.Context, height uint64) ([]byte, error)
 	GetVerifyAuth() bool
+	GetProposer(ctx context.Context, blockHeight, pHeight uint64, maxWindows int) ([]ids.NodeID, error)
 }

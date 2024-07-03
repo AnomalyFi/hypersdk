@@ -13,6 +13,7 @@ import (
 	"github.com/AnomalyFi/hypersdk/chain"
 	"github.com/AnomalyFi/hypersdk/codec"
 	"github.com/AnomalyFi/hypersdk/consts"
+	"github.com/AnomalyFi/hypersdk/crypto/bls"
 	feemarket "github.com/AnomalyFi/hypersdk/fee_market"
 	"github.com/AnomalyFi/hypersdk/fees"
 )
@@ -141,5 +142,49 @@ func (j *JSONRPCServer) NameSpacePrice(
 	if err != nil && err != feemarket.ErrNamespaceNotFound {
 		return err
 	}
+	return nil
+}
+
+type GetProposerArgs struct {
+	PBlockHeight uint64 `json:"pBlockHeight"`
+	BlockHeight  uint64 `json:"blockHeight"`
+	MaxWindows   int    `json:"maxWindows"`
+}
+type GetProposerReply struct {
+	Proposers *[]ids.NodeID `json:"proposers"`
+}
+
+func (j *JSONRPCServer) GetProposer(
+	req *http.Request,
+	args *GetProposerArgs,
+	reply *GetProposerReply,
+) error {
+	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.GetProposer")
+	defer span.End()
+	proposers, err := j.vm.GetProposer(ctx, args.BlockHeight, args.PBlockHeight, args.MaxWindows)
+	if err != nil {
+		return err
+	}
+	reply.Proposers = &proposers
+	return nil
+}
+
+type GetValidatorsReply struct {
+	Validators map[ids.NodeID][]byte `json:"validators"`
+}
+
+func (j *JSONRPCServer) GetValidators(
+	req *http.Request,
+	_ *struct{},
+	rep *GetValidatorsReply,
+) error {
+	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.GetValidators")
+	defer span.End()
+	val, _ := j.vm.CurrentValidators(ctx)
+	newVal := make(map[ids.NodeID][]byte)
+	for _, v := range val {
+		newVal[v.NodeID] = bls.PublicKeyToBytes(v.PublicKey)
+	}
+	rep.Validators = newVal
 	return nil
 }

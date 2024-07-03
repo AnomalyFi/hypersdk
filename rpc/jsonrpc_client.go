@@ -207,3 +207,25 @@ func Wait(ctx context.Context, check func(ctx context.Context) (bool, error)) er
 	}
 	return ctx.Err()
 }
+
+func (cli *JSONRPCClient) GetProposer(ctx context.Context, pBlockHeight, blockHeight uint64, maxWindows int) (*[]ids.NodeID, error) {
+	resp := new(GetProposerReply)
+	err := cli.requester.SendRequest(
+		ctx,
+		"getProposer",
+		&GetProposerArgs{PBlockHeight: pBlockHeight, BlockHeight: blockHeight, MaxWindows: maxWindows},
+		resp,
+	)
+	return resp.Proposers, err
+}
+
+func (cli *JSONRPCClient) GetCurrentValidators(ctx context.Context) (map[ids.NodeID][]byte, error) {
+	resp := new(GetValidatorsReply)
+	err := cli.requester.SendRequest(
+		ctx,
+		"getValidators",
+		nil,
+		resp,
+	)
+	return resp.Validators, err
+}
