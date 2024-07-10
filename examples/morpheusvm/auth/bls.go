@@ -108,6 +108,10 @@ func (b *BLSFactory) Sign(msg []byte) (chain.Auth, error) {
 	return &BLS{Signer: bls.PublicFromPrivateKey(b.priv), Signature: bls.Sign(msg, b.priv)}, nil
 }
 
+func (b *BLSFactory) Address() codec.Address {
+	return NewBLSAddress(bls.PublicFromPrivateKey(b.priv))
+}
+
 func (*BLSFactory) MaxUnits() (uint64, uint64) {
 	return BLSSize, BLSComputeUnits
 }

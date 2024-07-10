@@ -47,7 +47,7 @@ func (t *NMTTestAction) Execute(
 	return nil, nil
 }
 
-func (*NMTTestAction) ComputeUnits(chain.Rules) uint64 {
+func (*NMTTestAction) ComputeUnits(codec.Address, chain.Rules) uint64 {
 	return TransferComputeUnits
 }
 
@@ -79,4 +79,8 @@ func (na *NMTTestAction) NMTNamespace() []byte {
 	// hence we can direclty using chain id as namespace id (8 bytes)
 
 	return na.ChainID
+}
+
+func (*NMTTestAction) UseFeeMarket() bool {
+	return false
 }
