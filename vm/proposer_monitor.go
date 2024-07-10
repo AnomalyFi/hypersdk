@@ -138,3 +138,7 @@ func (p *ProposerMonitor) Validators(
 	}
 	return p.validators, p.validatorPublicKeys
 }
+
+func (p *ProposerMonitor) ToProposers(ctx context.Context, blockHeight, pChainHeight uint64, maxWindows int) ([]ids.NodeID, error) {
+	return p.proposer.Proposers(ctx, blockHeight, pChainHeight, maxWindows)
+}

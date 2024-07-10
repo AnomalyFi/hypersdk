@@ -5,9 +5,10 @@ import (
 	"encoding/json"
 	"sync"
 
+	"github.com/ava-labs/avalanchego/utils/math"
+
 	"github.com/AnomalyFi/hypersdk/consts"
 	"github.com/AnomalyFi/hypersdk/window"
-	"github.com/ava-labs/avalanchego/utils/math"
 )
 
 const (
@@ -151,7 +152,7 @@ func (m *Market) ComputeNext(lastTime, currTime int64, r Rules) (*Market, error)
 		total := window.Sum(newRollupWindow)
 		prevPrice := binary.BigEndian.Uint64(utility[:consts.Uint64Len])
 		nextPrice := prevPrice
-		// the fee market price adjustments happend below.
+		// the fee market price adjustments happened below.
 		if total > targetUnitsPerNS {
 			delta := nextPrice / unitPriceChangeDenom
 			n, over := math.Add64(nextPrice, delta)

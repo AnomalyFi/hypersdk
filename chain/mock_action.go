@@ -16,9 +16,9 @@ import (
 	context "context"
 	reflect "reflect"
 
-	ids "github.com/ava-labs/avalanchego/ids"
 	codec "github.com/AnomalyFi/hypersdk/codec"
 	state "github.com/AnomalyFi/hypersdk/state"
+	ids "github.com/ava-labs/avalanchego/ids"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -46,17 +46,17 @@ func (m *MockAction) EXPECT() *MockActionMockRecorder {
 }
 
 // ComputeUnits mocks base method.
-func (m *MockAction) ComputeUnits(arg0 Rules) uint64 {
+func (m *MockAction) ComputeUnits(arg0 codec.Address, arg1 Rules) uint64 {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ComputeUnits", arg0)
+	ret := m.ctrl.Call(m, "ComputeUnits", arg0, arg1)
 	ret0, _ := ret[0].(uint64)
 	return ret0
 }
 
 // ComputeUnits indicates an expected call of ComputeUnits.
-func (mr *MockActionMockRecorder) ComputeUnits(arg0 any) *gomock.Call {
+func (mr *MockActionMockRecorder) ComputeUnits(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ComputeUnits", reflect.TypeOf((*MockAction)(nil).ComputeUnits), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ComputeUnits", reflect.TypeOf((*MockAction)(nil).ComputeUnits), arg0, arg1)
 }
 
 // Execute mocks base method.
@@ -100,6 +100,20 @@ func (mr *MockActionMockRecorder) Marshal(arg0 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Marshal", reflect.TypeOf((*MockAction)(nil).Marshal), arg0)
 }
 
+// NMTNamespace mocks base method.
+func (m *MockAction) NMTNamespace() []byte {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NMTNamespace")
+	ret0, _ := ret[0].([]byte)
+	return ret0
+}
+
+// NMTNamespace indicates an expected call of NMTNamespace.
+func (mr *MockActionMockRecorder) NMTNamespace() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NMTNamespace", reflect.TypeOf((*MockAction)(nil).NMTNamespace))
+}
+
 // Size mocks base method.
 func (m *MockAction) Size() int {
 	m.ctrl.T.Helper()
@@ -140,6 +154,20 @@ func (m *MockAction) StateKeysMaxChunks() []uint16 {
 func (mr *MockActionMockRecorder) StateKeysMaxChunks() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StateKeysMaxChunks", reflect.TypeOf((*MockAction)(nil).StateKeysMaxChunks))
+}
+
+// UseFeeMarket mocks base method.
+func (m *MockAction) UseFeeMarket() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UseFeeMarket")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// UseFeeMarket indicates an expected call of UseFeeMarket.
+func (mr *MockActionMockRecorder) UseFeeMarket() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UseFeeMarket", reflect.TypeOf((*MockAction)(nil).UseFeeMarket))
 }
 
 // ValidRange mocks base method.

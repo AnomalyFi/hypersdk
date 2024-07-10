@@ -179,7 +179,6 @@ func (*Handler) PromptUint64(
 	}
 	rawAmount = strings.TrimSpace(rawAmount)
 	return strconv.ParseUint(rawAmount, 10, 64)
-
 }
 
 func (*Handler) PromptChoice(label string, max int) (int, error) {

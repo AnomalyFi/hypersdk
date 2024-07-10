@@ -17,6 +17,7 @@ import (
 	"github.com/AnomalyFi/hypersdk/chain"
 	"github.com/AnomalyFi/hypersdk/codec"
 	"github.com/AnomalyFi/hypersdk/gossiper"
+	"github.com/AnomalyFi/hypersdk/network"
 	"github.com/AnomalyFi/hypersdk/state"
 	"github.com/AnomalyFi/hypersdk/trace"
 
@@ -74,6 +75,7 @@ type Controller interface {
 	Initialize(
 		inner *VM, // hypersdk VM
 		snowCtx *snow.Context,
+		networkManager *network.Manager,
 		gatherer avametrics.MultiGatherer,
 		genesisBytes []byte,
 		upgradeBytes []byte,

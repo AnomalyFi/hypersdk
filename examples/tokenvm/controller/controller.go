@@ -24,6 +24,7 @@ import (
 	"github.com/AnomalyFi/hypersdk/examples/tokenvm/storage"
 	"github.com/AnomalyFi/hypersdk/examples/tokenvm/version"
 	"github.com/AnomalyFi/hypersdk/gossiper"
+	"github.com/AnomalyFi/hypersdk/network"
 	"github.com/AnomalyFi/hypersdk/vm"
 
 	hrpc "github.com/AnomalyFi/hypersdk/rpc"
@@ -55,6 +56,7 @@ func New() *vm.VM {
 func (c *Controller) Initialize(
 	inner *vm.VM,
 	snowCtx *snow.Context,
+	networkManager *network.Manager,
 	gatherer ametrics.MultiGatherer,
 	genesisBytes []byte,
 	upgradeBytes []byte, // subnets to allow for AWM

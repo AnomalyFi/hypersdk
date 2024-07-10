@@ -20,10 +20,11 @@ import (
 	"github.com/AnomalyFi/hypersdk/builder"
 	"github.com/AnomalyFi/hypersdk/chain"
 	"github.com/AnomalyFi/hypersdk/executor"
-	feemarket "github.com/AnomalyFi/hypersdk/fee_market"
 	"github.com/AnomalyFi/hypersdk/fees"
 	"github.com/AnomalyFi/hypersdk/gossiper"
 	"github.com/AnomalyFi/hypersdk/workers"
+
+	feemarket "github.com/AnomalyFi/hypersdk/fee_market"
 )
 
 var (
@@ -312,6 +313,10 @@ func (vm *VM) CurrentValidators(
 	return vm.proposerMonitor.Validators(ctx)
 }
 
+func (vm *VM) GetProposer(ctx context.Context, blockHeight, pHeight uint64, maxWindows int) ([]ids.NodeID, error) {
+	return vm.proposerMonitor.ToProposers(ctx, blockHeight, pHeight, maxWindows)
+}
+
 func (vm *VM) NodeID() ids.NodeID {
 	return vm.snowCtx.NodeID
 }
@@ -460,7 +465,7 @@ func (vm *VM) UnitPrices(context.Context) (fees.Dimensions, error) {
 	return fees.NewManager(v).UnitPrices(), nil
 }
 
-func (vm *VM) NameSpacePrice(ctx context.Context, namespace string) (uint64, error) {
+func (vm *VM) NameSpacePrice(_ context.Context, namespace string) (uint64, error) {
 	v, err := vm.stateDB.Get(chain.FeeMarketKey(vm.StateManager().FeeMarketKey()))
 	if err != nil {
 		return 0, err

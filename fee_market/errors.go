@@ -2,6 +2,4 @@ package feemarket
 
 import "errors"
 
-var (
-	ErrNamespaceNotFound = errors.New("namespace not found")
-)
+var ErrNamespaceNotFound = errors.New("namespace not found")

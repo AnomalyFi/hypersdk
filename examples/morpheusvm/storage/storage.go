@@ -45,6 +45,7 @@ const (
 	heightPrefix    = 0x1
 	timestampPrefix = 0x2
 	feePrefix       = 0x3
+	feeMarketPrefix = 0x4
 )
 
 const BalanceChunks uint16 = 1
@@ -55,6 +56,7 @@ var (
 	heightKey    = []byte{heightPrefix}
 	timestampKey = []byte{timestampPrefix}
 	feeKey       = []byte{feePrefix}
+	feeMarketKey = []byte{feeMarketPrefix}
 )
 
 // [txPrefix] + [txID]
@@ -253,4 +255,8 @@ func TimestampKey() (k []byte) {
 
 func FeeKey() (k []byte) {
 	return feeKey
+}
+
+func FeeMarketKey() (k []byte) {
+	return feeMarketKey
 }

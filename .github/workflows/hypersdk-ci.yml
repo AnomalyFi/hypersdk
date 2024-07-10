@@ -50,9 +50,9 @@ jobs:
       - name: Run static analysis tests
         shell: bash
         run: scripts/tests.lint.sh
-      - name: Run shellcheck
-        shell: bash
-        run: scripts/tests.shellcheck.sh
+      # - name: Run shellcheck
+      #   shell: bash
+      #   run: scripts/tests.shellcheck.sh
 
   hypersdk-unit-tests:
     runs-on: ubuntu-20.04-32

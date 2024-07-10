@@ -19,20 +19,20 @@ import (
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/x/merkledb"
+	"github.com/celestiaorg/nmt"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/AnomalyFi/hypersdk/codec"
 	"github.com/AnomalyFi/hypersdk/consts"
-	feemarket "github.com/AnomalyFi/hypersdk/fee_market"
 	"github.com/AnomalyFi/hypersdk/fees"
 	"github.com/AnomalyFi/hypersdk/state"
 	"github.com/AnomalyFi/hypersdk/utils"
 	"github.com/AnomalyFi/hypersdk/window"
 	"github.com/AnomalyFi/hypersdk/workers"
 
-	"github.com/celestiaorg/nmt"
+	feemarket "github.com/AnomalyFi/hypersdk/fee_market"
 	ethhex "github.com/ethereum/go-ethereum/common/hexutil"
 )
 
@@ -257,7 +257,7 @@ func (b *StatelessBlock) initializeBuilt(
 	txsDataToProve := make([][]byte, 0, len(b.Txs))
 	// store namespaces used in this block
 	nmtNSs := make([][]byte, 0, 10)
-	NMTNamespaceToTxIndexes := make(map[string][]int)
+	nmtNamespaceToTxIndexes := make(map[string][]int)
 
 	resCount := 0
 	for i := 0; i < len(b.Txs); i++ {
@@ -270,28 +270,27 @@ func (b *StatelessBlock) initializeBuilt(
 			continue
 		}
 		for j := 0; j < len(tx.Actions); j++ {
-
 			nID := tx.Actions[j].NMTNamespace()
 			nmtNSs = append(nmtNSs, nID)
 
-			if _, ok := NMTNamespaceToTxIndexes[hex.EncodeToString(nID)]; !ok {
-				NMTNamespaceToTxIndexes[hex.EncodeToString(nID)] = make([]int, 0, 1)
+			if _, ok := nmtNamespaceToTxIndexes[hex.EncodeToString(nID)]; !ok {
+				nmtNamespaceToTxIndexes[hex.EncodeToString(nID)] = make([]int, 0, 1)
 			}
 			// TODO: a dedup is needed for a multi-actions tx
-			a := NMTNamespaceToTxIndexes[hex.EncodeToString(nID)]
+			a := nmtNamespaceToTxIndexes[hex.EncodeToString(nID)]
 			a = append(a, i)
-			NMTNamespaceToTxIndexes[hex.EncodeToString(nID)] = a
+			nmtNamespaceToTxIndexes[hex.EncodeToString(nID)] = a
 
-			//TODO j here needs to be number of actions within the transaction and then resCount here
-			//needs to correspond to which output we want for a specific action not the whole transaction list
+			// TODO j here needs to be number of actions within the transaction and then resCount here
+			// needs to correspond to which output we want for a specific action not the whole transaction list
 			txData := make([]byte, 0, 1+len(txID[:])+len(txResult.Outputs[j]))
 			txData = append(txData, nID...)
 			txData = append(txData, txID[:]...)
 			for k := 0; k < len(txResult.Outputs[j]); k++ {
-				txData = append(txData, txResult.Outputs[j][k][:]...)
+				txData = append(txData, txResult.Outputs[j][k]...)
 			}
 			b.vm.Logger().Debug("data to prove", zap.String("txData", hex.EncodeToString(txData)))
-			//txData = append(txData, txResult.Outputs[j]...)
+			// txData = append(txData, txResult.Outputs[j]...)
 			txsDataToProve = append(txsDataToProve, txData)
 			resCount++
 		}
@@ -302,6 +301,7 @@ func (b *StatelessBlock) initializeBuilt(
 	for _, d := range txsDataToProve {
 		if err := nmtTree.Push(d); err != nil {
 			b.vm.Logger().Warn("unable to push element to nmt tree", zap.Error(err))
+			nmtSpan.End()
 			return ErrPushingElementInNMTTree
 		}
 	}
@@ -309,23 +309,24 @@ func (b *StatelessBlock) initializeBuilt(
 	nmtRoot, err := nmtTree.Root()
 	if err != nil {
 		b.vm.Logger().Warn("unable to compute nmt root", zap.Error(err))
+		nmtSpan.End()
 		return ErrComputingNMTRoot
 	}
 
-	NMTProofs := make(map[string]nmt.Proof)
+	nmtProofs := make(map[string]nmt.Proof)
 	for _, nID := range nmtNSs {
 		proof, err := nmtTree.ProveNamespace(nID)
 		if err != nil {
 			continue
 		}
 
-		NMTProofs[hex.EncodeToString(nID)] = proof
+		nmtProofs[hex.EncodeToString(nID)] = proof
 	}
-	b.vm.Logger().Debug("proofs", zap.Any("proofs", NMTProofs))
+	b.vm.Logger().Debug("proofs", zap.Any("proofs", nmtProofs))
 
 	b.NMTRoot = nmtRoot
-	b.NMTNamespaceToTxIndexes = NMTNamespaceToTxIndexes
-	b.NMTProofs = NMTProofs
+	b.NMTNamespaceToTxIndexes = nmtNamespaceToTxIndexes
+	b.NMTProofs = nmtProofs
 
 	nmtSpan.End()
 
@@ -563,29 +564,28 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 			continue
 		}
 		for j := 0; j < len(tx.Actions); j++ {
-
 			nID := tx.Actions[j].NMTNamespace()
 
 			txData := make([]byte, 0, 1+len(txID[:])+len(txResult.Outputs[j]))
 			txData = append(txData, nID...)
 			txData = append(txData, txID[:]...)
 			for k := 0; k < len(txResult.Outputs[j]); k++ {
-				txData = append(txData, txResult.Outputs[j][k][:]...)
+				txData = append(txData, txResult.Outputs[j][k]...)
 			}
-			//txData = append(txData, txResult.Outputs[j]...)
+			// txData = append(txData, txResult.Outputs[j]...)
 			txsDataToProve = append(txsDataToProve, txData)
 			resCount++
 		}
 	}
 
-	proofJson, err := json.Marshal(b.NMTProofs)
+	proofJSON, err := json.Marshal(b.NMTProofs)
 	if err != nil {
-		b.vm.Logger().Debug("check if proofs are received", zap.String("proof", string(proofJson)))
+		b.vm.Logger().Debug("check if proofs are received", zap.String("proof", string(proofJSON)))
 		return ErrProofsNotReceived
 	}
-	txMappingJson, err := json.Marshal(b.NMTNamespaceToTxIndexes)
+	txMappingJSON, err := json.Marshal(b.NMTNamespaceToTxIndexes)
 	if err != nil {
-		b.vm.Logger().Debug("check if transactions mapping received", zap.String("txMapping", string(txMappingJson)))
+		b.vm.Logger().Debug("check if transactions mapping received", zap.String("txMapping", string(txMappingJSON)))
 		return ErrTxNSMappingNotReceived
 	}
 
@@ -1021,11 +1021,11 @@ func (b *StatefulBlock) Marshal() ([]byte, error) {
 
 	p.PackBytes(b.NMTRoot)
 
-	proofsJson, err := json.Marshal(b.NMTProofs)
+	proofsJSON, err := json.Marshal(b.NMTProofs)
 	if err != nil {
 		return nil, err
 	}
-	p.PackBytes(proofsJson)
+	p.PackBytes(proofsJSON)
 	nmtNSTxMapping, err := json.Marshal(b.NMTNamespaceToTxIndexes)
 	if err != nil {
 		return nil, err

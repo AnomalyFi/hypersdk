@@ -19,11 +19,12 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/AnomalyFi/hypersdk/executor"
-	feemarket "github.com/AnomalyFi/hypersdk/fee_market"
 	"github.com/AnomalyFi/hypersdk/fees"
 	"github.com/AnomalyFi/hypersdk/keys"
 	"github.com/AnomalyFi/hypersdk/state"
 	"github.com/AnomalyFi/hypersdk/tstate"
+
+	feemarket "github.com/AnomalyFi/hypersdk/fee_market"
 )
 
 const (
