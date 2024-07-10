@@ -16,13 +16,13 @@ import (
 	context "context"
 	reflect "reflect"
 
-	metrics "github.com/ava-labs/avalanchego/api/metrics"
-	database "github.com/ava-labs/avalanchego/database"
-	snow "github.com/ava-labs/avalanchego/snow"
 	builder "github.com/AnomalyFi/hypersdk/builder"
 	chain "github.com/AnomalyFi/hypersdk/chain"
 	gossiper "github.com/AnomalyFi/hypersdk/gossiper"
 	network "github.com/AnomalyFi/hypersdk/network"
+	metrics "github.com/ava-labs/avalanchego/api/metrics"
+	database "github.com/ava-labs/avalanchego/database"
+	snow "github.com/ava-labs/avalanchego/snow"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -66,7 +66,7 @@ func (mr *MockControllerMockRecorder) Accepted(arg0, arg1 any) *gomock.Call {
 // Initialize mocks base method.
 func (m *MockController) Initialize(arg0 *VM, arg1 *snow.Context, arg2 *network.Manager, arg3 metrics.MultiGatherer, arg4, arg5, arg6 []byte) (Config, Genesis, builder.Builder, gossiper.Gossiper, database.Database, database.Database, Handlers, chain.ActionRegistry, chain.AuthRegistry, map[byte]AuthEngine, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Initialize", arg0, arg1, arg2, arg3, arg4, arg5)
+	ret := m.ctrl.Call(m, "Initialize", arg0, arg1, arg2, arg3, arg4, arg5, arg6)
 	ret0, _ := ret[0].(Config)
 	ret1, _ := ret[1].(Genesis)
 	ret2, _ := ret[2].(builder.Builder)
@@ -82,9 +82,9 @@ func (m *MockController) Initialize(arg0 *VM, arg1 *snow.Context, arg2 *network.
 }
 
 // Initialize indicates an expected call of Initialize.
-func (mr *MockControllerMockRecorder) Initialize(arg0, arg1, arg2, arg3, arg4, arg5 any) *gomock.Call {
+func (mr *MockControllerMockRecorder) Initialize(arg0, arg1, arg2, arg3, arg4, arg5, arg6 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Initialize", reflect.TypeOf((*MockController)(nil).Initialize), arg0, arg1, arg2, arg3, arg4, arg5)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Initialize", reflect.TypeOf((*MockController)(nil).Initialize), arg0, arg1, arg2, arg3, arg4, arg5, arg6)
 }
 
 // Rejected mocks base method.

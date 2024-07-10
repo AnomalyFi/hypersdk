@@ -15,8 +15,8 @@ package chain
 import (
 	reflect "reflect"
 
-	ids "github.com/ava-labs/avalanchego/ids"
 	fees "github.com/AnomalyFi/hypersdk/fees"
+	ids "github.com/ava-labs/avalanchego/ids"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -84,6 +84,48 @@ func (m *MockRules) GetBaseComputeUnits() uint64 {
 func (mr *MockRulesMockRecorder) GetBaseComputeUnits() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBaseComputeUnits", reflect.TypeOf((*MockRules)(nil).GetBaseComputeUnits))
+}
+
+// GetFeeMarketMinUnitPrice mocks base method.
+func (m *MockRules) GetFeeMarketMinUnitPrice() uint64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetFeeMarketMinUnitPrice")
+	ret0, _ := ret[0].(uint64)
+	return ret0
+}
+
+// GetFeeMarketMinUnitPrice indicates an expected call of GetFeeMarketMinUnitPrice.
+func (mr *MockRulesMockRecorder) GetFeeMarketMinUnitPrice() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFeeMarketMinUnitPrice", reflect.TypeOf((*MockRules)(nil).GetFeeMarketMinUnitPrice))
+}
+
+// GetFeeMarketPriceChangeDenominator mocks base method.
+func (m *MockRules) GetFeeMarketPriceChangeDenominator() uint64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetFeeMarketPriceChangeDenominator")
+	ret0, _ := ret[0].(uint64)
+	return ret0
+}
+
+// GetFeeMarketPriceChangeDenominator indicates an expected call of GetFeeMarketPriceChangeDenominator.
+func (mr *MockRulesMockRecorder) GetFeeMarketPriceChangeDenominator() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFeeMarketPriceChangeDenominator", reflect.TypeOf((*MockRules)(nil).GetFeeMarketPriceChangeDenominator))
+}
+
+// GetFeeMarketWindowTargetUnits mocks base method.
+func (m *MockRules) GetFeeMarketWindowTargetUnits() uint64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetFeeMarketWindowTargetUnits")
+	ret0, _ := ret[0].(uint64)
+	return ret0
+}
+
+// GetFeeMarketWindowTargetUnits indicates an expected call of GetFeeMarketWindowTargetUnits.
+func (mr *MockRulesMockRecorder) GetFeeMarketWindowTargetUnits() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFeeMarketWindowTargetUnits", reflect.TypeOf((*MockRules)(nil).GetFeeMarketWindowTargetUnits))
 }
 
 // GetMaxActionsPerTx mocks base method.
