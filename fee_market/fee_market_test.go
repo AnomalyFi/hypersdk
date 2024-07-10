@@ -4,8 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/AnomalyFi/hypersdk/window"
 	"github.com/stretchr/testify/require"
+
+	"github.com/AnomalyFi/hypersdk/window"
 )
 
 var (
@@ -119,11 +120,11 @@ func TestComputeNext(t *testing.T) {
 	market, err = market.ComputeNext(ts, timeNow.Add(10*time.Second).UnixMilli(), rules)
 	require.NoError(t, err)
 	_, ok := market.NameSpaceToUtilityMap[dummyNS1]
-	require.Equal(t, false, ok)
+	require.False(t, ok)
 	// test unit price for no namespace
 	price1, err = market.UnitPrice(dummyNS1)
 	require.Equal(t, rules.GetFeeMarketMinUnitPrice(), price1)
-	require.Error(t, ErrNamespaceNotFound, err)
+	require.ErrorIs(t, ErrNamespaceNotFound, err)
 	b := market.Bytes()
 	marketFromBytes := NewMarket(b, rules)
 	require.Equal(t, market.NameSpaceToUtilityMap, marketFromBytes.NameSpaceToUtilityMap)

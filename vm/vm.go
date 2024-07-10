@@ -23,6 +23,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/version"
 	"github.com/ava-labs/avalanchego/x/merkledb"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 
@@ -30,7 +31,6 @@ import (
 	"github.com/AnomalyFi/hypersdk/cache"
 	"github.com/AnomalyFi/hypersdk/chain"
 	"github.com/AnomalyFi/hypersdk/emap"
-	feemarket "github.com/AnomalyFi/hypersdk/fee_market"
 	"github.com/AnomalyFi/hypersdk/fees"
 	"github.com/AnomalyFi/hypersdk/gossiper"
 	"github.com/AnomalyFi/hypersdk/mempool"
@@ -41,13 +41,12 @@ import (
 	"github.com/AnomalyFi/hypersdk/utils"
 	"github.com/AnomalyFi/hypersdk/workers"
 
+	feemarket "github.com/AnomalyFi/hypersdk/fee_market"
 	avametrics "github.com/ava-labs/avalanchego/api/metrics"
 	avacache "github.com/ava-labs/avalanchego/cache"
 	avatrace "github.com/ava-labs/avalanchego/trace"
 	avautils "github.com/ava-labs/avalanchego/utils"
 	avasync "github.com/ava-labs/avalanchego/x/sync"
-
-	"github.com/ethereum/go-ethereum/ethclient"
 	ethrpc "github.com/ethereum/go-ethereum/rpc"
 )
 
@@ -307,14 +306,14 @@ func (vm *VM) Initialize(
 		snowCtx.Log.Info("genesis state created", zap.Stringer("root", root))
 
 		// Attach L1 Head to genesis
-		ethRpcUrl := vm.config.GetETHL1RPC()
-		ethRpcCli, err := ethclient.Dial(ethRpcUrl)
+		ethRPCUrl := vm.config.GetETHL1RPC()
+		ethRPCCli, err := ethclient.Dial(ethRPCUrl)
 		if err != nil {
 			snowCtx.Log.Error("unable to connect to eth-l1", zap.Error(err))
 			return err
 		}
 
-		ethBlockHeader, err := ethRpcCli.HeaderByNumber(context.Background(), nil)
+		ethBlockHeader, err := ethRPCCli.HeaderByNumber(context.Background(), nil)
 		if err != nil {
 			snowCtx.Log.Error("unable to fetch eth-l1 block header", zap.Error(err))
 			return err
@@ -1154,7 +1153,7 @@ func (vm *VM) ETHL1HeadSubscribe() {
 	if err != nil {
 		vm.Logger().Error("unable to dial eth-l1", zap.String("l1-ws", ethWSUrl), zap.Error(err))
 	}
-	//subch := make(chan ETHBlock)
+	// subch := make(chan ETHBlock)
 
 	// Ensure that subch receives the latest block.
 	go func() {
@@ -1170,10 +1169,10 @@ func (vm *VM) ETHL1HeadSubscribe() {
 	go func() {
 		for block := range vm.subCh {
 			vm.mu.Lock()
-			//block.Number.String()
+			// block.Number.String()
 			head := block.Number.ToInt()
 			if head.Cmp(vm.L1Head) < 1 {
-				//This block is not newer than the current block which can occur because of an L1 reorg.
+				// This block is not newer than the current block which can occur because of an L1 reorg.
 				continue
 			}
 			vm.L1Head = block.Number.ToInt()
@@ -1181,7 +1180,6 @@ func (vm *VM) ETHL1HeadSubscribe() {
 			vm.mu.Unlock()
 		}
 	}()
-
 }
 
 // subscribeBlocks runs in its own goroutine and maintains

@@ -234,7 +234,7 @@ func (h *Handler) WatchChain(hideTxs bool, pastBlocks bool, startBlock uint64, g
 		tpsWindow         = window.Window{}
 	)
 	for ctx.Err() == nil {
-		blk, results, prices, realId, err := scli.ListenBlock(ctx, parser)
+		blk, results, prices, realID, err := scli.ListenBlock(ctx, parser)
 		if err != nil {
 			utils.Outf("{{red}}unable to listen block: %s\n", err.Error())
 			return err
@@ -269,7 +269,7 @@ func (h *Handler) WatchChain(hideTxs bool, pastBlocks bool, startBlock uint64, g
 				len(blk.Txs),
 				blk.StateRoot,
 				nmtRootStr,
-				realId,
+				realID,
 				float64(blk.Size())/units.KiB,
 				ParseDimensions(consumed),
 				ParseDimensions(prices),
@@ -285,7 +285,7 @@ func (h *Handler) WatchChain(hideTxs bool, pastBlocks bool, startBlock uint64, g
 				len(blk.Txs),
 				blk.StateRoot,
 				nmtRootStr,
-				realId,
+				realID,
 				float64(blk.Size())/units.KiB,
 				ParseDimensions(consumed),
 				ParseDimensions(prices),

@@ -10,11 +10,12 @@ import (
 	"github.com/ava-labs/avalanchego/trace"
 
 	"github.com/AnomalyFi/hypersdk/executor"
-	feemarket "github.com/AnomalyFi/hypersdk/fee_market"
 	"github.com/AnomalyFi/hypersdk/fees"
 	"github.com/AnomalyFi/hypersdk/fetcher"
 	"github.com/AnomalyFi/hypersdk/state"
 	"github.com/AnomalyFi/hypersdk/tstate"
+
+	feemarket "github.com/AnomalyFi/hypersdk/fee_market"
 )
 
 type fetchData struct {
