@@ -533,7 +533,6 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 	// 	txsDataToProve = append(txsDataToProve, txData)
 	// }
 
-	resCount := 0
 	for i := 0; i < len(b.Txs); i++ {
 		tx := b.Txs[i]
 		// txResult := results[i]
@@ -541,7 +540,7 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 
 		for j := 0; j < len(tx.Actions); j++ {
 
-			txResult := results[resCount]
+			txResult := results[i]
 			nID := tx.Actions[j].NMTNamespace()
 
 			txData := make([]byte, 0, 1+len(txID[:])+len(txResult.Outputs[j]))
@@ -552,7 +551,6 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 			}
 			//txData = append(txData, txResult.Outputs[j]...)
 			txsDataToProve = append(txsDataToProve, txData)
-			resCount++
 		}
 	}
 
