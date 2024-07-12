@@ -257,7 +257,6 @@ func (b *StatelessBlock) initializeBuilt(
 	nmtNSs := make([][]byte, 0, 10)
 	NMTNamespaceToTxIndexes := make(map[string][]int)
 
-	resCount := 0
 	for i := 0; i < len(b.Txs); i++ {
 		tx := b.Txs[i]
 		// txResult := results[i]
@@ -265,7 +264,7 @@ func (b *StatelessBlock) initializeBuilt(
 
 		for j := 0; j < len(tx.Actions); j++ {
 
-			txResult := results[resCount]
+			txResult := results[i]
 			nID := tx.Actions[j].NMTNamespace()
 			nmtNSs = append(nmtNSs, nID)
 
@@ -285,10 +284,8 @@ func (b *StatelessBlock) initializeBuilt(
 			for k := 0; k < len(txResult.Outputs[j]); k++ {
 				txData = append(txData, txResult.Outputs[j][k][:]...)
 			}
-			b.vm.Logger().Debug("data to prove", zap.String("txData", hex.EncodeToString(txData)))
 			//txData = append(txData, txResult.Outputs[j]...)
 			txsDataToProve = append(txsDataToProve, txData)
-			resCount++
 		}
 	}
 
