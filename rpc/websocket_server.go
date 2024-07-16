@@ -174,28 +174,20 @@ func (w *WebSocketServer) MessageCallback(vm VM) pubsub.Callback {
 							w.logger.Error("Couldnt find block on disk", zap.Uint64("height", i))
 							return
 						}
-						// blkResults, err := vm.GetDiskBlockResults(ctx, i)
-						// if err != nil {
-						// 	w.logger.Error("Couldnt find block results on disk", zap.Uint64("height", i))
-						// 	return
-						// }
-						// feeBytes, err := vm.GetDiskFeeManager(ctx, i)
-						// if err != nil {
-						// 	w.logger.Error("Something went wrong, couldnt find block results on disk")
-						// 	w.logger.Error("Couldnt get feeBytes on disk", zap.Uint64("height", i))
-						// 	return
-						// }
-
-						// TODO need to change this from stateful block to stateless block before packing messages
-						// blkStateless, err := chain.ParseStatefulBlock(
-						// 	ctx,
-						// 	blk,
-						// 	nil,
-						// 	choices.Accepted,
-						// 	vm,
-						// )
-						bytes, err := PackBlockMessage(blk)
+						blkResults, err := vm.GetDiskBlockResults(ctx, i)
 						if err != nil {
+							w.logger.Error("Couldnt find block results on disk", zap.Uint64("height", i))
+							return
+						}
+						feeBytes, err := vm.GetDiskFeeManager(ctx, i)
+						if err != nil {
+							w.logger.Error("Something went wrong, couldnt find block results on disk")
+							w.logger.Error("Couldnt get feeBytes on disk", zap.Uint64("height", i))
+							return
+						}
+						bytes, err := PackBlockMessageForBackwardStream(blk, blkResults, feeBytes)
+						if err != nil {
+							w.logger.Error("Couldnt pack block message for backward stream", zap.Uint64("height", i))
 							return
 						}
 						if !c.Send(append([]byte{BlockMode}, bytes...)) {
