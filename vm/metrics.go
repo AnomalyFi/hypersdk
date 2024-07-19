@@ -49,6 +49,8 @@ type Metrics struct {
 	storageReadPrice         prometheus.Gauge
 	storageAllocatePrice     prometheus.Gauge
 	storageWritePrice        prometheus.Gauge
+	namespacePrice           *prometheus.GaugeVec
+	namespaceUsage           *prometheus.GaugeVec
 	rootCalculated           metric.Averager
 	waitRoot                 metric.Averager
 	waitSignatures           metric.Averager
@@ -259,6 +261,18 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "storage_modify_price",
 			Help:      "unit price of storage modifications",
 		}),
+		namespacePrice: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: "fee_market",
+			Name:      "namespace_price",
+			Help:      "unit price per namespace",
+		}, []string{"namespace"},
+		),
+		namespaceUsage: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: "fee_market",
+			Name:      "namespace_usage",
+			Help:      "usage per namespace",
+		}, []string{"namespace"},
+		),
 		rootCalculated: rootCalculated,
 		waitRoot:       waitRoot,
 		waitSignatures: waitSignatures,
@@ -297,6 +311,8 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.storageReadPrice),
 		r.Register(m.storageAllocatePrice),
 		r.Register(m.storageWritePrice),
+		r.Register(m.namespacePrice),
+		r.Register(m.namespaceUsage),
 	)
 	return r, m, errs.Err
 }

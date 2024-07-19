@@ -127,7 +127,7 @@ func (h *Handler) GeneratePrometheus(baseURI string, openBrowser bool, startProm
 	//
 	// Attempting to exit from the terminal will gracefully
 	// stop this process.
-	cmd := exec.CommandContext(context.Background(), "/tmp/prometheus", "--config.file="+prometheusFile, "--storage.tsdb.path="+prometheusData)
+	cmd := exec.CommandContext(context.Background(), "/tmp/prometheus", "--config.file="+prometheusFile, "--storage.tsdb.path="+prometheusData, "--web.listen-address=0.0.0.0:9096")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	errChan := make(chan error)
