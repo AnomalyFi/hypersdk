@@ -11,6 +11,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -288,6 +289,11 @@ func (b *StatelessBlock) initializeBuilt(
 			txsDataToProve = append(txsDataToProve, txData)
 		}
 	}
+
+	// sort actions data lexicographically
+	slices.SortFunc(txsDataToProve, func(a, b []byte) int {
+		return bytes.Compare(a[0:8], b[0:8])
+	})
 
 	// default tree uses 8 bytes as namespace id
 	nmtTree := nmt.New(sha256.New())
