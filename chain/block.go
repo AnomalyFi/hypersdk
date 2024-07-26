@@ -260,12 +260,14 @@ func (b *StatelessBlock) initializeBuilt(
 
 	for i := 0; i < len(b.Txs); i++ {
 		tx := b.Txs[i]
-		// txResult := results[i]
 		txID := tx.ID()
 
+		txResult := results[i]
+		if !txResult.Success {
+			continue
+		}
 		for j := 0; j < len(tx.Actions); j++ {
 
-			txResult := results[i]
 			nID := tx.Actions[j].NMTNamespace()
 			nmtNSs = append(nmtNSs, nID)
 
