@@ -160,7 +160,7 @@ func (vm *VM) Initialize(
 	vm.L1Head = big.NewInt(0)
 	vm.subCh = make(chan chain.ETHBlock)
 	gatherer := avametrics.NewMultiGatherer()
-	if err := vm.snowCtx.Metrics.Register(gatherer); err != nil {
+	if err := vm.snowCtx.Metrics.Register("hypersdk", gatherer); err != nil {
 		return err
 	}
 	defaultRegistry, metrics, err := newMetrics()
