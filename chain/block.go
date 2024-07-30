@@ -573,10 +573,15 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 		return ErrTxNSMappingNotReceived
 	}
 
+	// sort actions data lexicographically
+	slices.SortFunc(txsDataToProve, func(a, b []byte) int {
+		return bytes.Compare(a[0:8], b[0:8])
+	})
+
 	nmtTree := nmt.New(sha256.New())
 	for _, d := range txsDataToProve {
 		if err := nmtTree.Push(d); err != nil {
-			b.vm.Logger().Warn("unable to push element", zap.ByteString("element", d))
+			b.vm.Logger().Warn("unable to push element", zap.ByteString("element", d), zap.Error(err))
 			return ErrPushingElementInNMTTree
 		}
 	}
