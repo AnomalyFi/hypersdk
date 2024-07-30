@@ -6,12 +6,9 @@ package chain
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
 	"encoding/binary"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"slices"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -62,7 +59,7 @@ type StatefulBlock struct {
 
 	NMTRoot []byte `json:"nmtRoot"`
 
-	NMTNamespaceToTxIndexes map[string][]int     `json:"namespaceToTxIndex"`
+	NMTNamespaceToTxIndexes map[string][][2]int  `json:"namespaceToTxIndex"`
 	NMTProofs               map[string]nmt.Proof `json:"nmtProofs"`
 
 	size int
@@ -253,81 +250,22 @@ func (b *StatelessBlock) initializeBuilt(
 
 	// NMT generation must before block marshal
 	_, nmtSpan := b.vm.Tracer().Start(ctx, "StatelessBlock.NMTGen")
-	txsDataToProve := make([][]byte, 0, len(b.Txs))
-	// store namespaces used in this block
-	nmtNSs := make([][]byte, 0, 10)
-	NMTNamespaceToTxIndexes := make(map[string][]int)
-
-	for i := 0; i < len(b.Txs); i++ {
-		tx := b.Txs[i]
-		txID := tx.ID()
-
-		txResult := results[i]
-		if !txResult.Success {
-			continue
-		}
-		for j := 0; j < len(tx.Actions); j++ {
-
-			nID := tx.Actions[j].NMTNamespace()
-			nmtNSs = append(nmtNSs, nID)
-
-			if _, ok := NMTNamespaceToTxIndexes[hex.EncodeToString(nID)]; !ok {
-				NMTNamespaceToTxIndexes[hex.EncodeToString(nID)] = make([]int, 0, 1)
-			}
-			// TODO: a dedup is needed for a multi-actions tx
-			a := NMTNamespaceToTxIndexes[hex.EncodeToString(nID)]
-			a = append(a, i)
-			NMTNamespaceToTxIndexes[hex.EncodeToString(nID)] = a
-
-			//TODO j here needs to be number of actions within the transaction and then resCount here
-			//needs to correspond to which output we want for a specific action not the whole transaction list
-			txData := make([]byte, 0, 1+len(txID[:])+len(txResult.Outputs[j]))
-			txData = append(txData, nID...)
-			txData = append(txData, txID[:]...)
-			for k := 0; k < len(txResult.Outputs[j]); k++ {
-				txData = append(txData, txResult.Outputs[j][k][:]...)
-			}
-			//txData = append(txData, txResult.Outputs[j]...)
-			txsDataToProve = append(txsDataToProve, txData)
-		}
-	}
-
-	// sort actions data lexicographically
-	slices.SortFunc(txsDataToProve, func(a, b []byte) int {
-		return bytes.Compare(a[0:8], b[0:8])
-	})
-
-	// default tree uses 8 bytes as namespace id
-	nmtTree := nmt.New(sha256.New())
-	for _, d := range txsDataToProve {
-		if err := nmtTree.Push(d); err != nil {
-			b.vm.Logger().Warn("unable to push element to nmt tree", zap.Error(err))
-			return ErrPushingElementInNMTTree
-		}
-	}
-
-	nmtRoot, err := nmtTree.Root()
+	txsDataToProve, nmtNSs, NMTNamespaceToTxIndexes, err := ExtractTxsDataToApproveFromTxs(b.Txs, results)
 	if err != nil {
-		b.vm.Logger().Warn("unable to compute nmt root", zap.Error(err))
-		return ErrComputingNMTRoot
+		b.vm.Logger().Error("unable to extract data from txs", zap.Error(err))
+		return err
 	}
 
-	NMTProofs := make(map[string]nmt.Proof)
-	for _, nID := range nmtNSs {
-		proof, err := nmtTree.ProveNamespace(nID)
-		if err != nil {
-			continue
-		}
-
-		NMTProofs[hex.EncodeToString(nID)] = proof
+	_, nmtRoot, NMTProofs, err := BuildNMTTree(txsDataToProve, nmtNSs)
+	if err != nil {
+		b.vm.Logger().Error("unable to build NMT tree", zap.Error(err))
+		return err
 	}
-	b.vm.Logger().Debug("proofs", zap.Any("proofs", NMTProofs))
+	nmtSpan.End()
 
 	b.NMTRoot = nmtRoot
 	b.NMTNamespaceToTxIndexes = NMTNamespaceToTxIndexes
 	b.NMTProofs = NMTProofs
-
-	nmtSpan.End()
 
 	blk, err := b.StatefulBlock.Marshal()
 	if err != nil {
@@ -526,72 +464,17 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 	b.feeManager = feeManager
 
 	// NMT root verification
-	txsDataToProve := make([][]byte, 0, len(b.Txs))
-	// for i := 0; i < len(b.Txs); i++ {
-	// 	tx := b.Txs[i]
-	// 	txResult := b.results[i]
-	// 	txID := tx.ID()
-
-	// 	nID := tx.Action.NMTNamespace()
-
-	// 	txData := make([]byte, 1+len(txID[:])+len(txResult.Output))
-	// 	txData = append(txData, nID...)
-	// 	txData = append(txData, txID[:]...)
-	// 	txData = append(txData, txResult.Output...)
-	// 	txsDataToProve = append(txsDataToProve, txData)
-	// }
-
-	for i := 0; i < len(b.Txs); i++ {
-		tx := b.Txs[i]
-		txID := tx.ID()
-		txResult := results[i]
-		if !txResult.Success {
-			continue
-		}
-
-		for j := 0; j < len(tx.Actions); j++ {
-
-			nID := tx.Actions[j].NMTNamespace()
-
-			txData := make([]byte, 0, 1+len(txID[:])+len(txResult.Outputs[j]))
-			txData = append(txData, nID...)
-			txData = append(txData, txID[:]...)
-			for k := 0; k < len(txResult.Outputs[j]); k++ {
-				txData = append(txData, txResult.Outputs[j][k][:]...)
-			}
-			//txData = append(txData, txResult.Outputs[j]...)
-			txsDataToProve = append(txsDataToProve, txData)
-		}
-	}
-
-	proofJson, err := json.Marshal(b.NMTProofs)
+	txsDataToProve, nmtNSs, NMTNamespaceToTxIndexes, err := ExtractTxsDataToApproveFromTxs(b.Txs, b.results)
 	if err != nil {
-		b.vm.Logger().Debug("check if proofs are received", zap.String("proof", string(proofJson)))
-		return ErrProofsNotReceived
+		b.vm.Logger().Error("unable to extract data from txs", zap.Error(err))
+		return err
 	}
-	txMappingJson, err := json.Marshal(b.NMTNamespaceToTxIndexes)
+	b.vm.Logger().Info("nmt info", zap.ByteStrings("txsDataToProve", txsDataToProve), zap.ByteStrings("nmtNSs", nmtNSs), zap.Error(err))
+
+	_, nmtRoot, NMTProofs, err := BuildNMTTree(txsDataToProve, nmtNSs)
 	if err != nil {
-		b.vm.Logger().Debug("check if transactions mapping received", zap.String("txMapping", string(txMappingJson)))
-		return ErrTxNSMappingNotReceived
-	}
-
-	// sort actions data lexicographically
-	slices.SortFunc(txsDataToProve, func(a, b []byte) int {
-		return bytes.Compare(a[0:8], b[0:8])
-	})
-
-	nmtTree := nmt.New(sha256.New())
-	for _, d := range txsDataToProve {
-		if err := nmtTree.Push(d); err != nil {
-			b.vm.Logger().Warn("unable to push element", zap.ByteString("element", d), zap.Error(err))
-			return ErrPushingElementInNMTTree
-		}
-	}
-
-	nmtRoot, err := nmtTree.Root()
-	if err != nil {
-		b.vm.Logger().Warn("unable to compute nmt root", zap.Error(err))
-		return ErrComputingNMTRoot
+		b.vm.Logger().Error("unable to build NMT tree", zap.Error(err))
+		return err
 	}
 
 	if !bytes.Equal(nmtRoot, b.NMTRoot) {
@@ -663,6 +546,9 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 		return err
 	}
 	b.view = view
+	// values are regenerated by NMTTree, safe to use as root is verified
+	b.NMTNamespaceToTxIndexes = NMTNamespaceToTxIndexes
+	b.NMTProofs = NMTProofs
 
 	// Kickoff root generation
 	go func() {
@@ -1063,7 +949,7 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
 		return nil, err
 	}
 	txNSMappingBytes := make([]byte, 0, 256)
-	txNsMapping := make(map[string][]int)
+	txNsMapping := make(map[string][][2]int)
 	p.UnpackBytes(consts.MaxNSTxMappingBytes, false, &txNSMappingBytes)
 	err = json.Unmarshal(txNSMappingBytes, &txNsMapping)
 	if err != nil {

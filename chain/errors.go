@@ -64,6 +64,7 @@ var (
 	ErrNMTRootNotEqual         = errors.New("NMT root is not equal")
 	ErrProofsNotReceived       = errors.New("NMT proofs not received")
 	ErrTxNSMappingNotReceived  = errors.New("NMT tx to namespace mapping not received")
+	ErrConvertingNamespace     = errors.New("unable to convert encoded namespace id back to namespace id")
 
 	// Misc
 	ErrNotImplemented         = errors.New("not implemented")
