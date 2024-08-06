@@ -58,7 +58,7 @@ func (h *Handler) ImportANR() error {
 
 	// Load new items from ANR
 	anrCli, err := client.New(client.Config{
-		Endpoint:    "0.0.0.0:12352",
+		Endpoint:    "127.0.0.1:12352",
 		DialTimeout: 10 * time.Second,
 	}, logging.NoLog{})
 	if err != nil {

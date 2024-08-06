@@ -174,36 +174,24 @@ func (w *WebSocketServer) MessageCallback(vm VM) pubsub.Callback {
 							w.logger.Error("Couldnot find block on disk", zap.Uint64("height", i))
 							return
 						}
-						// blkResults, err := vm.GetDiskBlockResults(ctx, i)
-						// if err != nil {
-						// 	w.logger.Error("Couldnot find block results on disk", zap.Uint64("height", i))
-						// 	return
-						// }
-						// feeBytes, err := vm.GetDiskFeeManager(ctx, i)
-						// if err != nil {
-						// 	w.logger.Error("Something went wrong, couldnot find block results on disk")
-						// 	w.logger.Error("Couldnot get feeBytes on disk", zap.Uint64("height", i))
-						// 	return
-						// }
-
-						//TODO need to change this from stateful block to stateless block before packing messages
-						// blkStateless, err := chain.ParseStatefulBlock(
-						// 	ctx,
-						// 	blk,
-						// 	nil,
-						// 	choices.Accepted,
-						// 	vm,
-						// )
-						bytes, err := PackBlockMessage(blk)
+						blkResults, err := vm.GetDiskBlockResults(ctx, i)
+						if err != nil {
+							w.logger.Error("Couldnot find block results on disk", zap.Uint64("height", i))
+							return
+						}
+						feeBytes, err := vm.GetDiskFeeManager(ctx, i)
+						if err != nil {
+							w.logger.Error("Something went wrong, couldnot find block results on disk")
+							w.logger.Error("Couldnot get feeBytes on disk", zap.Uint64("height", i))
+							return
+						}
+						bytes, err := PackBlockMessageLegacy(blk.StatefulBlock, blkResults, feeBytes)
 						if err != nil {
 							return
 						}
 						if !c.Send(append([]byte{BlockMode}, bytes...)) {
 							w.logger.Error("dropping message to subscribed connection due to too many pending messages")
 						}
-						// if i == currentBlockHeight-1 { // ensure to stream all blocks
-						// 	currentBlockHeight = vm.LastAcceptedBlock().Height()
-						// }
 					}
 				}
 

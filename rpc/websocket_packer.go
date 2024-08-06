@@ -12,6 +12,7 @@ import (
 	"github.com/AnomalyFi/hypersdk/codec"
 	"github.com/AnomalyFi/hypersdk/consts"
 	"github.com/AnomalyFi/hypersdk/fees"
+	"github.com/AnomalyFi/hypersdk/utils"
 )
 
 const (
@@ -32,6 +33,27 @@ func PackBlockMessage(b *chain.StatelessBlock) ([]byte, error) {
 	}
 	p.PackBytes(mresults)
 	p.PackFixedBytes(b.FeeManager().UnitPrices().Bytes())
+	return p.Bytes(), p.Err()
+}
+
+func PackBlockMessageLegacy(b *chain.StatefulBlock, results []*chain.Result, feeBytes []byte) ([]byte, error) {
+	blkBytes, err := b.Marshal()
+	if err != nil {
+		return nil, err
+	}
+	blkID := utils.ToID(blkBytes)
+
+	size := codec.BytesLen(blkBytes) + consts.IntLen + codec.CummSize(results) + fees.DimensionsLen
+	p := codec.NewWriter(size, consts.MaxInt)
+
+	p.PackID(blkID)
+	p.PackBytes(blkBytes)
+	mresults, err := chain.MarshalResults(results)
+	if err != nil {
+		return nil, err
+	}
+	p.PackBytes(mresults)
+	p.PackFixedBytes(feeBytes)
 	return p.Bytes(), p.Err()
 }
 
