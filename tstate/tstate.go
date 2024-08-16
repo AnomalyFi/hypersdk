@@ -82,6 +82,10 @@ func (ts *TState) Iterate(f func([]byte, maybe.Maybe[[]byte]) error) error {
 	return nil
 }
 
+// Persist changes to the provided batch from the Tstate.
+// call prepare on the batch, before calling this function.
+// This function will iterate over all the changes in the Tstate and apply them to the batch.
+// After persisiting changes, call write on the batch to write the changes to the underlying storage.
 func (ts *TState) PersistChanges(ctx context.Context, batch state.Mutable) error {
 	return ts.Iterate(func(key []byte, value maybe.Maybe[[]byte]) error {
 		if value.IsNothing() {
