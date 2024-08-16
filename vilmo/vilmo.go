@@ -14,6 +14,7 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/utils/units"
 	"go.uber.org/zap"
 	"golang.org/x/exp/maps"
 )
@@ -40,14 +41,28 @@ type opsWrapper struct {
 	ops []any
 }
 
+type Config struct {
+	initialSize int
+	batchSize   int
+	bufferSize  int
+	historyLen  int // should not be changed
+}
+
+func NewDefaultConfig() *Config {
+	return &Config{
+		initialSize: 15_000_000,
+		batchSize:   50_000,
+		bufferSize:  64 * units.KiB,
+		historyLen:  256,
+	}
+}
+
 // New returns a new Vilmo instance and the ID of the last committed file.
+// TODO: return metrics too, while initiating new vilmo.
 func New(
 	logger logging.Logger,
 	baseDir string,
-	initialSize int,
-	batchSize int,
-	bufferSize int,
-	historyLen int, // should not be changed
+	cfg *Config,
 ) (*Vilmo, ids.ID, error) {
 	// Iterate over files in directory and put into sorted order
 	start := time.Now()
@@ -85,7 +100,7 @@ func New(
 	batches := make(map[uint64]*log, len(files))
 	for _, file := range files {
 		path := filepath.Join(baseDir, strconv.FormatUint(file, 10))
-		l, allOps, err := load(logger, path, batchSize)
+		l, allOps, err := load(logger, path, cfg.batchSize)
 		if err != nil {
 			logger.Warn("could not load log", zap.String("path", path), zap.Error(err))
 			return nil, ids.Empty, err
@@ -103,7 +118,7 @@ func New(
 		}
 		batches[l.batch] = l
 	}
-	if len(batches) > historyLen+1 {
+	if len(batches) > cfg.historyLen+1 {
 		logger.Warn("found too many logs", zap.Int("count", len(batches)))
 		return nil, ids.Empty, errors.New("too many logs")
 	}
@@ -111,7 +126,7 @@ func New(
 	// Build current state from all log files
 	var (
 		checksum          ids.ID
-		keys              = make(map[string]*record, initialSize)
+		keys              = make(map[string]*record, cfg.initialSize)
 		replayableBatches = maps.Keys(batchOps)
 	)
 	slices.Sort(replayableBatches)
@@ -157,9 +172,9 @@ func New(
 	adb := &Vilmo{
 		logger:     logger,
 		baseDir:    baseDir,
-		batchSize:  batchSize,
-		bufferSize: bufferSize,
-		historyLen: historyLen,
+		batchSize:  cfg.batchSize,
+		bufferSize: cfg.bufferSize,
+		historyLen: cfg.historyLen,
 
 		keys:    keys,
 		batches: batches,

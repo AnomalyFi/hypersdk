@@ -30,6 +30,7 @@ type VM interface {
 	LastAcceptedBlock() *chain.StatelessBlock
 	LastL1Head() int64
 	UnitPrices(context.Context) (fees.Dimensions, error)
+	IterateCurrentValidators(context.Context, func(ids.NodeID, *validators.GetValidatorOutput)) error
 	CurrentValidators(
 		context.Context,
 	) (map[ids.NodeID]*validators.GetValidatorOutput, map[string]struct{})
@@ -38,4 +39,13 @@ type VM interface {
 	GetDiskBlockResults(ctx context.Context, height uint64) ([]*chain.Result, error)
 	GetDiskFeeManager(ctx context.Context, height uint64) ([]byte, error)
 	GetVerifyAuth() bool
+
+	GetAuthRPCCores() int
+	GetAuthRPCBacklog() int
+	RecordRPCTxBacklog(int64)
+	AddRPCAuthorized(tx *chain.Transaction)
+	StopChan() chan struct{}
+
+	RecordWebsocketConnection(int)
+	RecordRPCTxInvalid()
 }

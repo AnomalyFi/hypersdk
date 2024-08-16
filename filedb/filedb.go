@@ -11,6 +11,7 @@ import (
 	"github.com/ava-labs/avalanchego/cache"
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/units"
 )
 
 type FileDB struct {
@@ -22,12 +23,27 @@ type FileDB struct {
 	fileCache cache.Cacher[string, []byte]
 }
 
-func New(baseDir string, sync bool, directoryCache int, dataCache int) *FileDB {
+type Config struct {
+	sync           bool
+	directoryCache int
+	dataCache      int
+}
+
+func NewDefaultConfig() *Config {
+	return &Config{
+		sync:           true,
+		directoryCache: 1024,
+		dataCache:      1 * units.GiB,
+	}
+}
+
+// TODO: return metrics too, while initiating new filedb.
+func New(baseDir string, cfg *Config) *FileDB {
 	return &FileDB{
 		baseDir:   baseDir,
-		sync:      sync,
+		sync:      cfg.sync,
 		lm:        lockmap.New(16), // concurrent locks
-		fileCache: cache.NewSizedLRU[string, []byte](dataCache, func(key string, value []byte) int { return len(key) + len(value) }),
+		fileCache: cache.NewSizedLRU[string, []byte](cfg.dataCache, func(key string, value []byte) int { return len(key) + len(value) }),
 	}
 }
 

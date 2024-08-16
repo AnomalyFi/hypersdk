@@ -18,7 +18,9 @@ import (
 
 func TestFileDB(t *testing.T) {
 	require := require.New(t)
-	db := New(t.TempDir(), true, 1024, 2*units.MiB)
+	cfg := NewDefaultConfig()
+	cfg.dataCache = 2 * units.MiB
+	db := New(t.TempDir(), cfg)
 
 	v, err := db.Get("1", true)
 	require.ErrorIs(err, database.ErrNotFound)
@@ -52,7 +54,9 @@ func TestFileDB(t *testing.T) {
 func TestFileDBCorruption(t *testing.T) {
 	require := require.New(t)
 	dbDir := t.TempDir()
-	db := New(dbDir, true, 1024, 2*units.MiB)
+	cfg := NewDefaultConfig()
+	cfg.dataCache = 2 * units.MiB
+	db := New(t.TempDir(), cfg)
 
 	v, err := db.Get("1", true)
 	require.ErrorIs(err, database.ErrNotFound)
@@ -94,7 +98,9 @@ func TestFileDBCorruption(t *testing.T) {
 func TestFileDBCache(t *testing.T) {
 	require := require.New(t)
 	dbDir := t.TempDir()
-	db := New(dbDir, true, 1024, 2*units.MiB)
+	cfg := NewDefaultConfig()
+	cfg.dataCache = 2 * units.MiB
+	db := New(t.TempDir(), cfg)
 
 	require.NoError(db.Put("1", []byte("2"), true))
 	require.NoError(db.Put("2", []byte("3"), true))
@@ -114,7 +120,9 @@ func BenchmarkFileDB(b *testing.B) {
 	for _, sync := range []bool{true, false} {
 		b.Run(fmt.Sprintf("sync=%v", sync), func(b *testing.B) {
 			b.StopTimer()
-			db := New(b.TempDir(), sync, 1024, 32*units.MiB)
+			cfg := NewDefaultConfig()
+			cfg.dataCache = 2 * units.MiB
+			db := New(b.TempDir(), cfg)
 			msg := make([]byte, 1.5*units.MiB)
 			_, err := rand.Read(msg)
 			if err != nil {
@@ -134,7 +142,9 @@ func BenchmarkFileDBConcurrent(b *testing.B) {
 	for _, sync := range []bool{true, false} {
 		b.Run(fmt.Sprintf("sync=%v", sync), func(b *testing.B) {
 			b.StopTimer()
-			db := New(b.TempDir(), sync, 1024, 32*units.MiB)
+			cfg := NewDefaultConfig()
+			cfg.dataCache = 2 * units.MiB
+			db := New(b.TempDir(), cfg)
 			msg := make([]byte, 1.5*units.MiB)
 			_, err := rand.Read(msg)
 			if err != nil {

@@ -19,15 +19,15 @@ const (
 	// no more than 50 KiB of overhead but is likely much less)
 	NetworkSizeLimit = 2_044_723 // 1.95 MiB
 
-	MaxUint8              = ^uint8(0)
-	MaxUint16             = ^uint16(0)
-	MaxUint8Offset        = 7
-	MaxUint               = ^uint(0)
-	MaxInt                = int(MaxUint >> 1)
-	MaxUint64Offset       = 63
-	MaxUint64             = ^uint64(0)
-	MillisecondsPerSecond = 1000
-
+	MaxUint8                  = ^uint8(0)
+	MaxUint16                 = ^uint16(0)
+	MaxUint8Offset            = 7
+	MaxUint                   = ^uint(0)
+	MaxInt                    = int(MaxUint >> 1)
+	MaxUint64Offset           = 63
+	MaxUint64                 = ^uint64(0)
+	MillisecondsPerSecond     = 1000
+	MillisecondsPerDecisecond = 100
 	// NMT
 	// See https://github.com/celestiaorg/nmt/blob/master/nmt.go#L477
 	// 8 + 8 + 32

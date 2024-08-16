@@ -11,6 +11,7 @@ require (
 	github.com/bytecodealliance/wasmtime-go/v14 v14.0.0
 	github.com/celestiaorg/nmt v0.20.0
 	github.com/cockroachdb/pebble v0.0.0-20230928194634-aa077af62593
+	github.com/dustin/go-humanize v1.0.0
 	github.com/ethereum/go-ethereum v1.13.8
 	github.com/gorilla/mux v1.8.0
 	github.com/gorilla/rpc v1.2.0
@@ -93,7 +94,7 @@ require (
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
 	github.com/tklauser/numcpus v0.6.1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.2 // indirect
-	github.com/zeebo/xxh3 v1.0.2 
+	github.com/zeebo/xxh3 v1.0.2
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.22.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.22.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.22.0 // indirect

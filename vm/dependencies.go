@@ -13,12 +13,12 @@ import (
 	"github.com/ava-labs/avalanchego/utils/profiler"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 
-	"github.com/AnomalyFi/hypersdk/builder"
 	"github.com/AnomalyFi/hypersdk/chain"
 	"github.com/AnomalyFi/hypersdk/codec"
-	"github.com/AnomalyFi/hypersdk/gossiper"
+	"github.com/AnomalyFi/hypersdk/filedb"
 	"github.com/AnomalyFi/hypersdk/state"
 	"github.com/AnomalyFi/hypersdk/trace"
+	"github.com/AnomalyFi/hypersdk/vilmo"
 
 	avametrics "github.com/ava-labs/avalanchego/api/metrics"
 	avatrace "github.com/ava-labs/avalanchego/trace"
@@ -81,12 +81,10 @@ type Controller interface {
 	) (
 		config Config,
 		genesis Genesis,
-		builder builder.Builder,
-		gossiper gossiper.Gossiper,
-		// TODO: consider splitting out blockDB for use with more experimental
-		// databases
+
 		vmDB database.Database,
-		stateDB database.Database,
+		blobDB *filedb.FileDB,
+		stateDB *vilmo.Vilmo,
 		handler Handlers,
 		actionRegistry chain.ActionRegistry,
 		authRegistry chain.AuthRegistry,
