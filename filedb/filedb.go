@@ -6,12 +6,11 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/AnomalyFi/hypersdk/lockmap"
+	"github.com/AnomalyFi/hypersdk/utils"
 	"github.com/ava-labs/avalanchego/cache"
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/hypersdk/consts"
-	"github.com/ava-labs/hypersdk/lockmap"
-	"github.com/ava-labs/hypersdk/utils"
 )
 
 type FileDB struct {
@@ -100,12 +99,12 @@ func (f *FileDB) Get(key string, cache bool) ([]byte, error) {
 	if _, err = file.Read(diskValue); err != nil {
 		return nil, fmt.Errorf("%w: unable to read from file", err)
 	}
-	if len(diskValue) < consts.IDLen {
+	if len(diskValue) < ids.IDLen {
 		return nil, fmt.Errorf("%w: less than IDLen found=%d", ErrCorrupt, len(diskValue))
 	}
-	value := diskValue[consts.IDLen:]
+	value := diskValue[ids.IDLen:]
 	vid := utils.ToID(value)
-	did := ids.ID(diskValue[:consts.IDLen])
+	did := ids.ID(diskValue[:ids.IDLen])
 	if vid != did {
 		return nil, fmt.Errorf("%w: found=%s expected=%s", ErrCorrupt, vid, did)
 	}

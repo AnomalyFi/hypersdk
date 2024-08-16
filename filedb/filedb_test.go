@@ -9,9 +9,9 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/AnomalyFi/hypersdk/pebble"
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/utils/units"
-	"github.com/ava-labs/hypersdk/pebble"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 )
@@ -20,29 +20,29 @@ func TestFileDB(t *testing.T) {
 	require := require.New(t)
 	db := New(t.TempDir(), true, 1024, 2*units.MiB)
 
-	v, err := db.Get("1")
+	v, err := db.Get("1", true)
 	require.ErrorIs(err, database.ErrNotFound)
 	require.Empty(v)
 
-	require.NoError(db.Put("1", []byte("2")))
+	require.NoError(db.Put("1", []byte("2"), true))
 
-	v, err = db.Get("1")
+	v, err = db.Get("1", true)
 	require.NoError(err)
 	require.Equal([]byte("2"), v)
 
-	require.NoError(db.Put("2", []byte("3")))
+	require.NoError(db.Put("2", []byte("3"), true))
 
-	v, err = db.Get("2")
+	v, err = db.Get("2", true)
 	require.Nil(err)
 	require.Equal([]byte("3"), v)
 
 	require.NoError(db.Remove("1"))
 	require.NoError(db.Remove("2"))
 
-	v, err = db.Get("1")
+	v, err = db.Get("1", true)
 	require.ErrorIs(err, database.ErrNotFound)
 	require.Empty(v)
-	v, err = db.Get("2")
+	v, err = db.Get("2", true)
 	require.ErrorIs(err, database.ErrNotFound)
 	require.Empty(v)
 
@@ -54,13 +54,13 @@ func TestFileDBCorruption(t *testing.T) {
 	dbDir := t.TempDir()
 	db := New(dbDir, true, 1024, 2*units.MiB)
 
-	v, err := db.Get("1")
+	v, err := db.Get("1", true)
 	require.ErrorIs(err, database.ErrNotFound)
 	require.Empty(v)
 
-	require.NoError(db.Put("1", []byte("2")))
+	require.NoError(db.Put("1", []byte("2"), true))
 
-	v, err = db.Get("1")
+	v, err = db.Get("1", true)
 	require.NoError(err)
 	require.Equal([]byte("2"), v)
 
@@ -72,8 +72,9 @@ func TestFileDBCorruption(t *testing.T) {
 	require.NoError(f.Close())
 
 	db.fileCache.Flush()
-	v, err = db.Get("1")
+	v, err = db.Get("1", true)
 	require.ErrorIs(err, ErrCorrupt)
+	require.Empty(v)
 
 	// Corrupt file with invalid data
 	f, err = os.Create(filepath.Join(dbDir, "1"))
@@ -85,8 +86,28 @@ func TestFileDBCorruption(t *testing.T) {
 	require.NoError(err)
 	require.NoError(f.Close())
 
-	v, err = db.Get("1")
+	v, err = db.Get("1", true)
 	require.ErrorIs(err, ErrCorrupt)
+	require.Empty(v)
+}
+
+func TestFileDBCache(t *testing.T) {
+	require := require.New(t)
+	dbDir := t.TempDir()
+	db := New(dbDir, true, 1024, 2*units.MiB)
+
+	require.NoError(db.Put("1", []byte("2"), true))
+	require.NoError(db.Put("2", []byte("3"), true))
+
+	db.fileCache.Flush()
+	v, err := db.Get("1", true)
+	require.NoError(err)
+	require.Equal([]byte("2"), v)
+
+	require.NoError(db.Put("1", []byte("4"), true))
+	v, cache := db.fileCache.Get(filepath.Join(dbDir, "1"))
+	require.True(cache)
+	require.Equal([]byte("4"), v)
 }
 
 func BenchmarkFileDB(b *testing.B) {
@@ -101,7 +122,7 @@ func BenchmarkFileDB(b *testing.B) {
 			}
 			b.StartTimer()
 			for i := 0; i < b.N; i++ {
-				if err := db.Put(fmt.Sprintf("%d", i), msg); err != nil {
+				if err := db.Put(fmt.Sprintf("%d", i), msg, true); err != nil {
 					b.Fatal(err)
 				}
 			}
@@ -125,7 +146,7 @@ func BenchmarkFileDBConcurrent(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				ti := i
 				g.Go(func() error {
-					return db.Put(fmt.Sprintf("%d", ti), msg)
+					return db.Put(fmt.Sprintf("%d", ti), msg, true)
 				})
 			}
 			if err := g.Wait(); err != nil {

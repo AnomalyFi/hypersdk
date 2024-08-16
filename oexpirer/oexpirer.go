@@ -3,7 +3,7 @@ package oexpirer
 import (
 	"sync"
 
-	"github.com/ava-labs/hypersdk/list"
+	"github.com/AnomalyFi/hypersdk/list"
 
 	"github.com/ava-labs/avalanchego/ids"
 )

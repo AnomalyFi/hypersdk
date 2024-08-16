@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync/atomic"
 
-	"github.com/ava-labs/hypersdk/smap"
+	"github.com/AnomalyFi/hypersdk/smap"
 )
 
 type RChannel[V any] struct {
