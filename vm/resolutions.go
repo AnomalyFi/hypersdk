@@ -14,7 +14,6 @@ import (
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
-	"github.com/ava-labs/avalanchego/x/merkledb"
 	"go.uber.org/zap"
 
 	"github.com/AnomalyFi/hypersdk/builder"
@@ -22,15 +21,13 @@ import (
 	"github.com/AnomalyFi/hypersdk/executor"
 	"github.com/AnomalyFi/hypersdk/fees"
 	"github.com/AnomalyFi/hypersdk/gossiper"
-	"github.com/AnomalyFi/hypersdk/workers"
+	"github.com/AnomalyFi/hypersdk/vilmo"
 )
 
 var (
-	_ chain.VM              = (*VM)(nil)
-	_ gossiper.VM           = (*VM)(nil)
-	_ builder.VM            = (*VM)(nil)
-	_ block.ChainVM         = (*VM)(nil)
-	_ block.StateSyncableVM = (*VM)(nil)
+	_ chain.VM                           = (*VM)(nil)
+	_ block.ChainVM                      = (*VM)(nil)
+	_ block.BuildBlockWithContextChainVM = (*VM)(nil)
 )
 
 func (vm *VM) ChainID() ids.ID {
@@ -51,10 +48,6 @@ func (vm *VM) ValidatorState() validators.State {
 
 func (vm *VM) Registry() (chain.ActionRegistry, chain.AuthRegistry) {
 	return vm.actionRegistry, vm.authRegistry
-}
-
-func (vm *VM) AuthVerifiers() workers.Workers {
-	return vm.authVerifiers
 }
 
 func (vm *VM) Tracer() trace.Tracer {
@@ -82,11 +75,8 @@ func (vm *VM) IsBootstrapped() bool {
 	return vm.bootstrapped.Get()
 }
 
-func (vm *VM) State() (merkledb.MerkleDB, error) {
-	// As soon as synced (before ready), we can safely request data from the db.
-	if !vm.StateReady() {
-		return nil, ErrStateMissing
-	}
+func (vm *VM) State() (*vilmo.Vilmo, error) {
+	// TODO: enable state sync
 	return vm.stateDB, nil
 }
 
@@ -94,8 +84,8 @@ func (vm *VM) Mempool() chain.Mempool {
 	return vm.mempool
 }
 
-func (vm *VM) IsRepeat(ctx context.Context, txs []*chain.Transaction, marker set.Bits, stop bool) set.Bits {
-	_, span := vm.tracer.Start(ctx, "VM.IsRepeat")
+func (vm *VM) IsRepeatTx(ctx context.Context, txs []*chain.Transaction, marker set.Bits, stop bool) set.Bits {
+	_, span := vm.tracer.Start(ctx, "VM.IsRepeatTx")
 	defer span.End()
 
 	return vm.seen.Contains(txs, marker, stop)

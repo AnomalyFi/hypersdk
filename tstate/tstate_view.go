@@ -6,12 +6,12 @@ package tstate
 import (
 	"bytes"
 	"context"
-
-	"github.com/ava-labs/avalanchego/database"
-	"github.com/ava-labs/avalanchego/utils/maybe"
+	"slices"
 
 	"github.com/AnomalyFi/hypersdk/keys"
 	"github.com/AnomalyFi/hypersdk/state"
+	"github.com/ava-labs/avalanchego/database"
+	"github.com/ava-labs/avalanchego/utils/maybe"
 )
 
 const defaultOps = 4
@@ -33,7 +33,11 @@ type op struct {
 }
 
 type TStateView struct {
-	ts                 *TState
+	ts *TState
+
+	chunkIdx int
+	txIdx    int
+
 	pendingChangedKeys map[string]maybe.Maybe[[]byte]
 
 	// Ops is a record of all operations performed on [TState]. Tracking
@@ -44,23 +48,27 @@ type TStateView struct {
 	// TODO: Need to handle read-only/write-only keys differently (won't prefetch a write
 	// key, see issue below)
 	// https://github.com/AnomalyFi/hypersdk/issues/709
-	scope        state.Keys
-	scopeStorage map[string][]byte
+	scope state.Keys
+	im    state.Immutable
 
 	// Store which keys are modified and how large their values were.
 	allocates map[string]uint16
 	writes    map[string]uint16
 }
 
-func (ts *TState) NewView(scope state.Keys, storage map[string][]byte) *TStateView {
+func (ts *TState) NewView(chunkIdx, txIdx int, im state.Immutable, scope state.Keys) *TStateView {
 	return &TStateView{
-		ts:                 ts,
+		ts: ts,
+
+		chunkIdx: chunkIdx,
+		txIdx:    txIdx,
+
 		pendingChangedKeys: make(map[string]maybe.Maybe[[]byte], len(scope)),
 
 		ops: make([]*op, 0, defaultOps),
 
-		scope:        scope,
-		scopeStorage: storage,
+		scope: scope,
+		im:    im,
 
 		allocates: make(map[string]uint16, len(scope)),
 		writes:    make(map[string]uint16, len(scope)),
@@ -138,7 +146,8 @@ func (ts *TStateView) OpIndex() int {
 // operation will be returned here (if 1 chunk then 2 chunks are written to a key,
 // this function will return 2 chunks).
 //
-// TODO: this function is no longer used but could be a useful metric
+// TODO: add a metric for tracking the difference between requested allocate/write
+// vs used allocate/write.
 func (ts *TStateView) KeyOperations() (map[string]uint16, map[string]uint16) {
 	return ts.allocates, ts.writes
 }
@@ -148,7 +157,7 @@ func (ts *TStateView) checkScope(_ context.Context, k []byte, perm state.Permiss
 	return ts.scope[string(k)].Has(perm)
 }
 
-// GetValue returns the value associated from tempStorage with the
+// Get returns the value associated from tempStorage with the
 // associated [key]. If [key] does not exist in scope, or is not read/rw, or if it is not found
 // in storage an error is returned.
 func (ts *TStateView) GetValue(ctx context.Context, key []byte) ([]byte, error) {
@@ -156,16 +165,15 @@ func (ts *TStateView) GetValue(ctx context.Context, key []byte) ([]byte, error) 
 	if !ts.checkScope(ctx, key, state.Read) {
 		return nil, ErrInvalidKeyOrPermission
 	}
-	k := string(key)
-	v, exists := ts.getValue(ctx, k)
+	v, exists := ts.getValue(ctx, key)
 	if !exists {
 		return nil, database.ErrNotFound
 	}
 	return v, nil
 }
 
-func (ts *TStateView) getValue(ctx context.Context, key string) ([]byte, bool) {
-	if v, ok := ts.pendingChangedKeys[key]; ok {
+func (ts *TStateView) getValue(ctx context.Context, key []byte) ([]byte, bool) {
+	if v, ok := ts.pendingChangedKeys[string(key)]; ok {
 		if v.IsNothing() {
 			return nil, false
 		}
@@ -174,7 +182,7 @@ func (ts *TStateView) getValue(ctx context.Context, key string) ([]byte, bool) {
 	if v, changed, exists := ts.ts.getChangedValue(ctx, key); changed {
 		return v, exists
 	}
-	if v, ok := ts.scopeStorage[key]; ok {
+	if v, err := ts.im.GetValue(ctx, key); err == nil {
 		return v, true
 	}
 	return nil, false
@@ -182,20 +190,20 @@ func (ts *TStateView) getValue(ctx context.Context, key string) ([]byte, bool) {
 
 // isUnchanged determines if a [key] is unchanged from the parent view (or
 // scope if the parent is unchanged).
-func (ts *TStateView) isUnchanged(ctx context.Context, key string, nval []byte, nexists bool) bool {
+func (ts *TStateView) isUnchanged(ctx context.Context, key []byte, nval []byte, nexists bool) bool {
 	if v, changed, exists := ts.ts.getChangedValue(ctx, key); changed {
 		return !exists && !nexists || exists && nexists && bytes.Equal(v, nval)
 	}
-	if v, ok := ts.scopeStorage[key]; ok {
+	if v, err := ts.im.GetValue(ctx, key); err == nil {
 		return nexists && bytes.Equal(v, nval)
 	}
 	return !nexists
 }
 
-// Insert allocates and writes (or just writes) a new key to [tstate]. If this
+// Put allocates and writes (or just writes) a new key to [tstate]. If this
 // action returns the value of [key] to the parent view, it reverts any pending changes.
 func (ts *TStateView) Insert(ctx context.Context, key []byte, value []byte) error {
-	// Inserting requires a Write Permissions, so we pass state.Write
+	// Puting requires a Write Permissions, so we pass state.Write
 	if !ts.checkScope(ctx, key, state.Write) {
 		return ErrInvalidKeyOrPermission
 	}
@@ -203,10 +211,8 @@ func (ts *TStateView) Insert(ctx context.Context, key []byte, value []byte) erro
 		return ErrInvalidKeyValue
 	}
 	valueChunks, _ := keys.NumChunks(value) // not possible to fail
+	past, exists := ts.getValue(ctx, key)
 	k := string(key)
-	// Invariant: [getValue] is safe to call here because with [state.Write], it
-	// will provide Read and Write access to the state
-	past, exists := ts.getValue(ctx, k)
 	op := &op{
 		k:             k,
 		pastV:         past,
@@ -221,10 +227,6 @@ func (ts *TStateView) Insert(ctx context.Context, key []byte, value []byte) erro
 		op.t = insertOp
 		ts.writes[k] = valueChunks // set to latest value
 	} else {
-		// New entry requires Allocate
-		// TODO: we assume any allocate is a write too, but we should
-		// make this invariant more clear. Do we require Write,
-		// Allocate|Write, and never Allocate alone?
 		if !ts.checkScope(ctx, key, state.Allocate) {
 			return ErrInvalidKeyOrPermission
 		}
@@ -235,7 +237,7 @@ func (ts *TStateView) Insert(ctx context.Context, key []byte, value []byte) erro
 	}
 	ts.ops = append(ts.ops, op)
 	ts.pendingChangedKeys[k] = maybe.Some(value)
-	if ts.isUnchanged(ctx, k, value, true) {
+	if ts.isUnchanged(ctx, key, value, true) {
 		delete(ts.allocates, k)
 		delete(ts.writes, k)
 		delete(ts.pendingChangedKeys, k)
@@ -243,7 +245,7 @@ func (ts *TStateView) Insert(ctx context.Context, key []byte, value []byte) erro
 	return nil
 }
 
-// Remove deletes a key from [tstate]. If this action returns the
+// Delete deletes a key from [tstate]. If this action returns the
 // value of [key] to the parent view, it reverts any pending changes.
 func (ts *TStateView) Remove(ctx context.Context, key []byte) error {
 	// Removing requires writing & deleting that key, so we pass state.Write
@@ -251,7 +253,7 @@ func (ts *TStateView) Remove(ctx context.Context, key []byte) error {
 		return ErrInvalidKeyOrPermission
 	}
 	k := string(key)
-	past, exists := ts.getValue(ctx, k)
+	past, exists := ts.getValue(ctx, key)
 	if !exists {
 		// We do not update writes if the key does not exist.
 		return nil
@@ -275,7 +277,7 @@ func (ts *TStateView) Remove(ctx context.Context, key []byte) error {
 		ts.writes[k] = 0
 		ts.pendingChangedKeys[k] = maybe.Nothing[[]byte]()
 	}
-	if ts.isUnchanged(ctx, k, nil, false) {
+	if ts.isUnchanged(ctx, key, nil, false) {
 		delete(ts.allocates, k)
 		delete(ts.writes, k)
 		delete(ts.pendingChangedKeys, k)
@@ -290,13 +292,13 @@ func (ts *TStateView) PendingChanges() int {
 
 // Commit adds all pending changes to the parent view.
 func (ts *TStateView) Commit() {
-	ts.ts.l.Lock()
-	defer ts.ts.l.Unlock()
-
+	changedKeys := make([]string, 0, len(ts.pendingChangedKeys))
 	for k, v := range ts.pendingChangedKeys {
-		ts.ts.changedKeys[k] = v
+		ts.ts.changedKeys.Put(k, &change{ts.chunkIdx, ts.txIdx, v})
+		changedKeys = append(changedKeys, k)
 	}
-	ts.ts.ops += len(ts.ops)
+	slices.Sort(changedKeys)
+	ts.ts.viewKeys[ts.chunkIdx][ts.txIdx] = changedKeys
 }
 
 // chunks gets the number of chunks for a key in [m]
@@ -307,4 +309,42 @@ func chunks(m map[string]uint16, key string) *uint16 {
 		return nil
 	}
 	return &chunks
+}
+
+type TStateWriteView struct {
+	ts *TState
+
+	chunkIdx int
+	txIdx    int
+
+	pendingChangedKeys map[string]maybe.Maybe[[]byte]
+}
+
+func (ts *TState) NewWriteView(chunkIdx, txIdx int) *TStateWriteView {
+	return &TStateWriteView{
+		ts: ts,
+
+		chunkIdx: chunkIdx,
+		txIdx:    txIdx,
+
+		pendingChangedKeys: make(map[string]maybe.Maybe[[]byte]),
+	}
+}
+
+func (ts *TStateWriteView) Put(ctx context.Context, key []byte, value []byte) error {
+	if !keys.VerifyValue(key, value) {
+		return ErrInvalidKeyValue
+	}
+	ts.pendingChangedKeys[string(key)] = maybe.Some(value)
+	return nil
+}
+
+func (tsv *TStateWriteView) Commit() {
+	changedKeys := make([]string, 0, len(tsv.pendingChangedKeys))
+	for k, v := range tsv.pendingChangedKeys {
+		tsv.ts.changedKeys.Put(k, &change{tsv.chunkIdx, tsv.txIdx, v})
+		changedKeys = append(changedKeys, k)
+	}
+	slices.Sort(changedKeys)
+	tsv.ts.viewKeys[tsv.chunkIdx][tsv.txIdx] = changedKeys
 }

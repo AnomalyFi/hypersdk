@@ -8,18 +8,18 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
-	"github.com/ava-labs/avalanchego/x/merkledb"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 
 	"github.com/AnomalyFi/hypersdk/codec"
+	"github.com/AnomalyFi/hypersdk/crypto/bls"
 	"github.com/AnomalyFi/hypersdk/executor"
 	"github.com/AnomalyFi/hypersdk/fees"
 	"github.com/AnomalyFi/hypersdk/state"
-	"github.com/AnomalyFi/hypersdk/workers"
+	"github.com/AnomalyFi/hypersdk/vilmo"
 )
 
 type (
@@ -33,19 +33,44 @@ type Parser interface {
 }
 
 type Metrics interface {
-	RecordRootCalculated(time.Duration) // only called in Verify
-	RecordWaitRoot(time.Duration)       // only called in Verify
-	RecordWaitSignatures(time.Duration) // only called in Verify
+	RecordRPCAuthorizedTx()
+	RecordExecutedChunks(int)
 
+	RecordWaitRepeat(time.Duration)
+	RecordWaitQueue(time.Duration)
+	RecordWaitAuth(time.Duration)
+	RecordWaitPrecheck(time.Duration)
+	RecordWaitExec(time.Duration)
+	RecordWaitCommit(time.Duration)
+
+	RecordRemainingMempool(int)
+
+	RecordBlockVerifyFail()
 	RecordBlockVerify(time.Duration)
 	RecordBlockAccept(time.Duration)
+	RecordAcceptedEpoch(uint64)
+	RecordExecutedEpoch(uint64)
+
+	GetExecutorRecorder() executor.Metrics
+	RecordBlockExecute(time.Duration)
+	RecordTxsIncluded(int)
+	RecordChunkBuildTxDropped()
+	RecordBlockBuildCertDropped()
+	RecordTxsInvalid(int)
+	RecordEngineBacklog(int)
+
 	RecordStateChanges(int)
-	RecordStateOperations(int)
-	RecordBuildCapped()
-	RecordEmptyBlockBuilt()
-	RecordClearedMempool()
-	GetExecutorBuildRecorder() executor.Metrics
-	GetExecutorVerifyRecorder() executor.Metrics
+
+	// TODO: make each name a string and then
+	// allow dynamic registering of metrics
+	// as needed rather than this approach (just
+	// have gauge, counter, averager).
+	RecordVilmoBatchInit(time.Duration)
+	RecordVilmoBatchInitBytes(int64)
+	RecordVilmoBatchesRewritten()
+	RecordVilmoBatchPrepare(time.Duration)
+	RecordTStateIterate(time.Duration)
+	RecordVilmoBatchWrite(time.Duration)
 }
 
 type Monitoring interface {
@@ -60,7 +85,9 @@ type VM interface {
 
 	// We don't include this in registry because it would never be used
 	// by any client of the hypersdk.
-	AuthVerifiers() workers.Workers
+	Engine() *Engine
+	RequestChunks(uint64, []*ChunkCertificate, chan *Chunk)
+	SubnetID() ids.ID
 	GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (AuthBatchVerifier, bool)
 	GetVerifyAuth() bool
 
@@ -69,9 +96,7 @@ type VM interface {
 	LastL1Head() int64
 	GetStatelessBlock(context.Context, ids.ID) (*StatelessBlock, error)
 
-	GetVerifyContext(ctx context.Context, blockHeight uint64, parent ids.ID) (VerifyContext, error)
-
-	State() (merkledb.MerkleDB, error)
+	State() (*vilmo.Vilmo, error)
 	StateManager() StateManager
 	ValidatorState() validators.State
 
@@ -87,18 +112,29 @@ type VM interface {
 	Verified(context.Context, *StatelessBlock)
 	Rejected(context.Context, *StatelessBlock)
 	Accepted(context.Context, *StatelessBlock)
-	AcceptedSyncableBlock(context.Context, *SyncableBlock) (block.StateSyncMode, error)
+	ExecutedChunk(context.Context, *StatefulBlock, *FilteredChunk, []*Result, []ids.ID)
+	ExecutedBlock(context.Context, *StatefulBlock)
 
-	// UpdateSyncTarget returns a bool that is true if the root
-	// was updated and the sync is continuing with the new specified root
-	// and false if the sync completed with the previous root.
-	UpdateSyncTarget(*StatelessBlock) (bool, error)
-	StateReady() bool
-}
+	NodeID() ids.NodeID
+	Signer() *bls.PublicKey
+	Beneficiary() codec.Address
 
-type VerifyContext interface {
-	View(ctx context.Context, verify bool) (state.View, error)
-	IsRepeat(ctx context.Context, oldestAllowed int64, txs []*Transaction, marker set.Bits, stop bool) (set.Bits, error)
+	Sign(*warp.UnsignedMessage) ([]byte, error)
+	StopChan() chan struct{}
+
+	StartCertStream(context.Context)
+	StreamCert(context.Context) (*ChunkCertificate, bool)
+	FinishCertStream(context.Context, []*ChunkCertificate)
+	HasChunk(ctx context.Context, slot int64, id ids.ID) bool
+	RestoreChunkCertificates(context.Context, []*ChunkCertificate)
+	IsSeenChunk(context.Context, ids.ID) bool
+	GetChunk(int64, ids.ID) (*Chunk, error)
+
+	IsValidHeight(ctx context.Context, height uint64) (bool, error)
+	CacheValidators(ctx context.Context, height uint64)
+	IsValidator(ctx context.Context, height uint64, nodeID ids.NodeID) (bool, error)                                       // TODO: filter based on being part of whole epoch
+	GetAggregatePublicKey(ctx context.Context, height uint64, signers set.Bits, num, denom uint64) (*bls.PublicKey, error) // cached
+	AddressPartition(ctx context.Context, epoch uint64, height uint64, addr codec.Address, partition uint8) (ids.NodeID, error)
 }
 
 type Mempool interface {
@@ -125,9 +161,13 @@ type Rules interface {
 	NetworkID() uint32
 	ChainID() ids.ID
 
-	GetMinBlockGap() int64      // in milliseconds
-	GetMinEmptyBlockGap() int64 // in milliseconds
-	GetValidityWindow() int64   // in milliseconds
+	// TODO: make immutable rules (that don't expect to be changed)
+	GetPartitions() uint8
+	GetBlockExecutionDepth() uint64
+	GetEpochDuration() int64
+
+	GetMinBlockGap() int64    // in milliseconds
+	GetValidityWindow() int64 // in milliseconds
 
 	GetMaxActionsPerTx() uint8
 	GetMaxOutputsPerAction() uint8
@@ -178,6 +218,19 @@ type FeeHandler interface {
 	Deduct(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64) error
 }
 
+type EpochManager interface {
+	// EpochKey is the key that corresponds to the height of the P-Chain to use for
+	// validation of a given epoch and the fees to use for verifying transactions.
+	EpochKey(epoch uint64) string
+}
+
+type RewardHandler interface {
+	// Reward sends [amount] to [addr] after block execution if any fees or bonds were collected.
+	//
+	// Reward is only invoked if [amount] > 0.
+	// Reward(ctx context.Context, addr codec.Address, mu state.Mutable, amount uint64) error
+}
+
 // StateManager allows [Chain] to safely store certain types of items in state
 // in a structured manner. If we did not use [StateManager], we may overwrite
 // state written by actions or auth.
@@ -187,6 +240,8 @@ type FeeHandler interface {
 type StateManager interface {
 	FeeHandler
 	MetadataManager
+	EpochManager
+	RewardHandler
 }
 
 type Object interface {
