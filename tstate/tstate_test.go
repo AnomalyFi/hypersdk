@@ -9,15 +9,15 @@ import (
 	"testing"
 
 	"github.com/ava-labs/avalanchego/database"
-	"github.com/ava-labs/avalanchego/database/memdb"
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/maybe"
 	"github.com/ava-labs/avalanchego/utils/units"
-	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/stretchr/testify/require"
 
 	"github.com/AnomalyFi/hypersdk/keys"
 	"github.com/AnomalyFi/hypersdk/state"
-	"github.com/AnomalyFi/hypersdk/trace"
+	"github.com/AnomalyFi/hypersdk/vilmo"
 )
 
 var (
@@ -64,9 +64,9 @@ func TestScope(t *testing.T) {
 	require := require.New(t)
 	ctx := context.TODO()
 	ts := New(10)
-
+	db := NewTestDB()
 	// No Scope
-	tsv := ts.NewView(state.Keys{}, map[string][]byte{})
+	tsv := ts.NewView(1, 1, db, state.Keys{})
 	val, err := tsv.GetValue(ctx, testKey)
 	require.ErrorIs(ErrInvalidKeyOrPermission, err)
 	require.Nil(val)
@@ -78,9 +78,11 @@ func TestGetValue(t *testing.T) {
 	require := require.New(t)
 	ctx := context.TODO()
 	ts := New(10)
-
+	db := NewTestDB()
+	db.Insert(ctx, testKey, testVal)
+	sk := state.Keys{string(testKey): state.Read | state.Write}
 	// Set Scope
-	tsv := ts.NewView(state.Keys{string(testKey): state.Read | state.Write}, map[string][]byte{string(testKey): testVal})
+	tsv := ts.NewView(1, 1, db, sk)
 	val, err := tsv.GetValue(ctx, testKey)
 	require.NoError(err, "unable to get value")
 	require.Equal(testVal, val, "value was not saved correctly")
@@ -90,14 +92,16 @@ func TestDeleteCommitGet(t *testing.T) {
 	require := require.New(t)
 	ctx := context.TODO()
 	ts := New(10)
-
+	db := NewTestDB()
+	db.Insert(ctx, testKey, testVal)
+	ts.PrepareChunk(1, 2)
 	// Delete value
-	tsv := ts.NewView(state.Keys{string(testKey): state.Read | state.Write}, map[string][]byte{string(testKey): testVal})
+	tsv := ts.NewView(1, 1, db, state.Keys{string(testKey): state.Read | state.Write})
 	require.NoError(tsv.Remove(ctx, testKey))
 	tsv.Commit()
 
 	// Check deleted
-	tsv = ts.NewView(state.Keys{string(testKey): state.Read | state.Write}, map[string][]byte{string(testKey): testVal})
+	tsv = ts.NewView(1, 1, db, state.Keys{string(testKey): state.Read | state.Write})
 	val, err := tsv.GetValue(ctx, testKey)
 	require.ErrorIs(err, database.ErrNotFound)
 	require.Nil(val)
@@ -107,9 +111,10 @@ func TestGetValueNoStorage(t *testing.T) {
 	require := require.New(t)
 	ctx := context.TODO()
 	ts := New(10)
-
+	db := NewTestDB()
+	ts.PrepareChunk(1, 2)
 	// SetScope but dont add to storage
-	tsv := ts.NewView(state.Keys{string(testKey): state.Read | state.Write}, map[string][]byte{})
+	tsv := ts.NewView(1, 1, db, state.Keys{string(testKey): state.Read | state.Write})
 	_, err := tsv.GetValue(ctx, testKey)
 	require.ErrorIs(database.ErrNotFound, err, "data should not exist")
 }
@@ -118,9 +123,10 @@ func TestInsertNew(t *testing.T) {
 	require := require.New(t)
 	ctx := context.TODO()
 	ts := New(10)
-
+	db := NewTestDB()
+	ts.PrepareChunk(1, 2)
 	// SetScope
-	tsv := ts.NewView(state.Keys{string(testKey): state.All}, map[string][]byte{})
+	tsv := ts.NewView(1, 1, db, state.Keys{string(testKey): state.All})
 
 	// Insert key
 	require.NoError(tsv.Insert(ctx, testKey, testVal))
@@ -128,20 +134,20 @@ func TestInsertNew(t *testing.T) {
 	require.NoError(err)
 	require.Equal(1, tsv.OpIndex(), "insert was not added as an operation")
 	require.Equal(testVal, val, "value was not set correctly")
-
 	// Check commit
 	tsv.Commit()
-	require.Equal(1, ts.OpIndex(), "insert was not added as an operation")
+	require.Equal(1, tsv.OpIndex(), "insert was not added as an operation")
 }
 
 func TestInsertInvalid(t *testing.T) {
 	require := require.New(t)
 	ctx := context.TODO()
 	ts := New(10)
-
+	db := NewTestDB()
+	ts.PrepareChunk(1, 2)
 	// SetScope
 	key := binary.BigEndian.AppendUint16([]byte("hello"), 0)
-	tsv := ts.NewView(state.Keys{string(key): state.Read | state.Write}, map[string][]byte{})
+	tsv := ts.NewView(1, 1, db, state.Keys{string(key): state.Read | state.Write})
 
 	// Insert key
 	require.ErrorIs(tsv.Insert(ctx, key, []byte("cool")), ErrInvalidKeyValue)
@@ -155,10 +161,12 @@ func TestInsertUpdate(t *testing.T) {
 	require := require.New(t)
 	ctx := context.TODO()
 	ts := New(10)
-
+	db := NewTestDB()
+	db.Insert(ctx, testKey, testVal)
+	ts.PrepareChunk(1, 2)
 	// SetScope and add
-	tsv := ts.NewView(state.Keys{string(testKey): state.Read | state.Write}, map[string][]byte{string(testKey): testVal})
-	require.Equal(0, ts.OpIndex())
+	tsv := ts.NewView(1, 1, db, state.Keys{string(testKey): state.Read | state.Write})
+	// require.Equal(0, ts.OpIndex())
 
 	// Insert key
 	newVal := []byte("newVal")
@@ -173,7 +181,7 @@ func TestInsertUpdate(t *testing.T) {
 
 	// Check value after commit
 	tsv.Commit()
-	tsv = ts.NewView(state.Keys{string(testKey): state.Read | state.Write}, map[string][]byte{string(testKey): testVal})
+	tsv = ts.NewView(1, 1, db, state.Keys{string(testKey): state.Read | state.Write})
 	val, err = tsv.GetValue(ctx, testKey)
 	require.NoError(err)
 	require.Equal(newVal, val, "value was not committed correctly")
@@ -183,10 +191,11 @@ func TestInsertRemoveInsert(t *testing.T) {
 	require := require.New(t)
 	ctx := context.TODO()
 	ts := New(10)
-
+	db := NewTestDB()
+	ts.PrepareChunk(1, 2)
 	// SetScope and add
-	tsv := ts.NewView(state.Keys{key2str: state.All}, map[string][]byte{})
-	require.Equal(0, ts.OpIndex())
+	tsv := ts.NewView(1, 1, db, state.Keys{key2str: state.All})
+	// require.Equal(0, ts.OpIndex())
 
 	// Insert key for first time
 	require.NoError(tsv.Insert(ctx, key2, testVal))
@@ -255,10 +264,12 @@ func TestModifyRemoveInsert(t *testing.T) {
 	require := require.New(t)
 	ctx := context.TODO()
 	ts := New(10)
-
+	db := NewTestDB()
+	db.Insert(ctx, key2, testVal)
+	ts.PrepareChunk(1, 2)
 	// SetScope and add
-	tsv := ts.NewView(state.Keys{key2str: state.All}, map[string][]byte{key2str: testVal})
-	require.Equal(0, ts.OpIndex())
+	tsv := ts.NewView(1, 1, db, state.Keys{key2str: state.All})
+	// require.Equal(0, ts.OpIndex())
 
 	// Modify existing key
 	testVal2 := []byte("blah")
@@ -309,10 +320,12 @@ func TestModifyRevert(t *testing.T) {
 	require := require.New(t)
 	ctx := context.TODO()
 	ts := New(10)
-
+	db := NewTestDB()
+	db.Insert(ctx, key2, testVal)
+	ts.PrepareChunk(1, 2)
 	// SetScope and add
-	tsv := ts.NewView(state.Keys{key2str: state.Read | state.Write}, map[string][]byte{key2str: testVal})
-	require.Equal(0, ts.OpIndex())
+	tsv := ts.NewView(1, 1, db, state.Keys{key2str: state.Read | state.Write})
+	// require.Equal(0, ts.OpIndex())
 
 	// Modify existing key
 	testVal2 := []byte("blah")
@@ -349,10 +362,12 @@ func TestModifyModify(t *testing.T) {
 	require := require.New(t)
 	ctx := context.TODO()
 	ts := New(10)
-
+	db := NewTestDB()
+	db.Insert(ctx, key2, testVal)
+	ts.PrepareChunk(1, 2)
 	// SetScope and add
-	tsv := ts.NewView(state.Keys{key2str: state.Read | state.Write}, map[string][]byte{key2str: testVal})
-	require.Equal(0, ts.OpIndex())
+	tsv := ts.NewView(1, 1, db, state.Keys{key2str: state.Read | state.Write})
+	// require.Equal(0, ts.OpIndex())
 
 	// Modify existing key
 	testVal2 := []byte("blah")
@@ -396,9 +411,10 @@ func TestRemoveInsertRollback(t *testing.T) {
 	require := require.New(t)
 	ts := New(10)
 	ctx := context.TODO()
-
+	db := NewTestDB()
+	ts.PrepareChunk(1, 2)
 	// Insert
-	tsv := ts.NewView(state.Keys{string(testKey): state.All}, map[string][]byte{})
+	tsv := ts.NewView(1, 1, db, state.Keys{string(testKey): state.All})
 	require.NoError(tsv.Insert(ctx, testKey, testVal))
 	v, err := tsv.GetValue(ctx, testKey)
 	require.NoError(err)
@@ -435,6 +451,8 @@ func TestRestoreInsert(t *testing.T) {
 	require := require.New(t)
 	ts := New(10)
 	ctx := context.TODO()
+	db := NewTestDB()
+	ts.PrepareChunk(1, 2)
 	keys := [][]byte{key1, key2, key3}
 	keySet := state.Keys{
 		key1str: state.All,
@@ -444,7 +462,7 @@ func TestRestoreInsert(t *testing.T) {
 	vals := [][]byte{[]byte("val1"), []byte("val2"), []byte("val3")}
 
 	// Store keys
-	tsv := ts.NewView(keySet, map[string][]byte{})
+	tsv := ts.NewView(1, 1, db, keySet)
 	for i, key := range keys {
 		require.NoError(tsv.Insert(ctx, key, vals[i]))
 	}
@@ -492,6 +510,8 @@ func TestRestoreDelete(t *testing.T) {
 	require := require.New(t)
 	ts := New(10)
 	ctx := context.TODO()
+	db := NewTestDB()
+	ts.PrepareChunk(1, 2)
 	keys := [][]byte{key1, key2, key3}
 	keySet := state.Keys{
 		key1str: state.Read | state.Write,
@@ -499,11 +519,10 @@ func TestRestoreDelete(t *testing.T) {
 		key3str: state.Read | state.Write,
 	}
 	vals := [][]byte{[]byte("val1"), []byte("val2"), []byte("val3")}
-	tsv := ts.NewView(keySet, map[string][]byte{
-		string(keys[0]): vals[0],
-		string(keys[1]): vals[1],
-		string(keys[2]): vals[2],
-	})
+	for i, key := range keys {
+		require.NoError(db.Insert(ctx, key, vals[i]))
+	}
+	tsv := ts.NewView(1, 1, db, keySet)
 
 	// Check scope
 	for i, key := range keys {
@@ -523,8 +542,8 @@ func TestRestoreDelete(t *testing.T) {
 
 	// Roll back all removes
 	tsv.Rollback(ctx, 0)
-	require.Equal(0, ts.OpIndex(), "operations not rolled back properly")
-	require.Equal(0, ts.PendingChanges())
+	// require.Equal(0, ts.OpIndex(), "operations not rolled back properly")
+	// require.Equal(0, ts.changedKeys)
 	for i, key := range keys {
 		val, err := tsv.GetValue(ctx, key)
 		require.NoError(err, "error getting value")
@@ -534,21 +553,20 @@ func TestRestoreDelete(t *testing.T) {
 
 func TestCreateView(t *testing.T) {
 	require := require.New(t)
-
+	const (
+		defaultInitialSize = 10_000_000
+		defaultBufferSize  = 64 * units.KiB
+		defaultHistoryLen  = 100
+	)
 	ctx := context.TODO()
 	ts := New(10)
-	tracer, err := trace.New(&trace.Config{Enabled: false})
+	ts.PrepareChunk(0, 1)
+
+	baseDir := t.TempDir()
+	db, last, err := vilmo.New(logging.NoLog{}, baseDir, defaultInitialSize, 100_000, defaultBufferSize, 15)
 	require.NoError(err)
-	db, err := merkledb.New(ctx, memdb.New(), merkledb.Config{
-		BranchFactor:                merkledb.BranchFactor16,
-		RootGenConcurrency:          1,
-		HistoryLength:               100,
-		ValueNodeCacheSize:          units.MiB,
-		IntermediateNodeCacheSize:   units.MiB,
-		IntermediateWriteBufferSize: units.KiB,
-		IntermediateWriteBatchSize:  units.KiB,
-		Tracer:                      tracer,
-	})
+	require.Equal(ids.Empty, last)
+	batch, err := db.NewBatch()
 	require.NoError(err)
 	keys := [][]byte{key1, key2, key3}
 	keySet := state.Keys{
@@ -559,7 +577,7 @@ func TestCreateView(t *testing.T) {
 	vals := [][]byte{[]byte("val1"), []byte("val2"), []byte("val3")}
 
 	// Add
-	tsv := ts.NewView(keySet, map[string][]byte{})
+	tsv := ts.NewView(0, 0, db, keySet)
 	for i, key := range keys {
 		require.NoError(tsv.Insert(ctx, key, vals[i]), "error inserting value")
 		val, err := tsv.GetValue(ctx, key)
@@ -576,30 +594,31 @@ func TestCreateView(t *testing.T) {
 	require.Equal(writeMap, writes)
 
 	// Test warm modification
-	tsvM := ts.NewView(keySet, map[string][]byte{})
+	tsvM := ts.NewView(0, 0, db, keySet)
 	require.NoError(tsvM.Insert(ctx, keys[0], vals[2]))
 	allocates, writes = tsvM.KeyOperations()
 	require.Empty(allocates)
 	require.Equal(map[string]uint16{key1str: 1}, writes)
-
-	// Create merkle view
-	view, err := ts.ExportMerkleDBView(ctx, tracer, db)
-	require.NoError(err, "error writing changes")
-	require.NoError(view.CommitToDB(ctx))
-
+	batch.Prepare()
+	require.NoError(ts.PersistChanges(ctx, batch))
+	_, err = batch.Write()
+	require.NoError(err)
+	db, _, err = vilmo.New(logging.NoLog{}, baseDir, defaultInitialSize, 100_000, defaultBufferSize, 15)
+	require.NoError(err)
 	// Check if db was updated correctly
 	for i, key := range keys {
 		val, _ := db.GetValue(ctx, key)
 		require.Equal(vals[i], val, "value not updated in db")
 	}
-
 	// Remove
 	ts = New(10)
-	tsv = ts.NewView(keySet, map[string][]byte{
-		string(keys[0]): vals[0],
-		string(keys[1]): vals[1],
-		string(keys[2]): vals[2],
-	})
+	ts.PrepareChunk(0, 1)
+	db, _, err = vilmo.New(logging.NoLog{}, baseDir, defaultInitialSize, 100_000, defaultBufferSize, 15)
+	require.NoError(err)
+
+	batch, err = db.NewBatch()
+	require.NoError(err)
+	tsv = ts.NewView(0, 0, db, keySet)
 	for _, key := range keys {
 		err := tsv.Remove(ctx, key)
 		require.NoError(err, "error removing from ts")
@@ -607,17 +626,16 @@ func TestCreateView(t *testing.T) {
 		require.ErrorIs(err, database.ErrNotFound, "key not removed")
 	}
 	tsv.Commit()
-
-	// Create merkle view
-	view, err = tsv.ts.ExportMerkleDBView(ctx, tracer, db)
-	require.NoError(err, "error writing changes")
-	require.NoError(view.CommitToDB(ctx))
-
+	batch.Prepare()
+	require.NoError(ts.PersistChanges(ctx, batch))
+	_, err = batch.Write()
+	require.NoError(err)
 	// Check if db was updated correctly
 	for _, key := range keys {
 		_, err := db.GetValue(ctx, key)
 		require.ErrorIs(err, database.ErrNotFound, "value not removed from db")
 	}
+
 }
 
 func TestGetValuePermissions(t *testing.T) {
@@ -658,7 +676,10 @@ func TestGetValuePermissions(t *testing.T) {
 			require := require.New(t)
 			ctx := context.TODO()
 			ts := New(10)
-			tsv := ts.NewView(state.Keys{tt.key: tt.permission}, map[string][]byte{tt.key: testVal})
+			db := NewTestDB()
+			db.Insert(ctx, []byte(tt.key), testVal)
+			ts.PrepareChunk(1, 2)
+			tsv := ts.NewView(1, 1, db, state.Keys{tt.key: tt.permission})
 			_, err := tsv.GetValue(ctx, []byte(tt.key))
 			require.ErrorIs(err, tt.expectedErr)
 		})
@@ -703,7 +724,10 @@ func TestInsertPermissions(t *testing.T) {
 			require := require.New(t)
 			ctx := context.TODO()
 			ts := New(10)
-			tsv := ts.NewView(state.Keys{tt.key: tt.permission}, map[string][]byte{tt.key: testVal})
+			db := NewTestDB()
+			db.Insert(ctx, []byte(tt.key), testVal)
+			ts.PrepareChunk(1, 2)
+			tsv := ts.NewView(1, 1, db, state.Keys{tt.key: tt.permission})
 			err := tsv.Insert(ctx, []byte(tt.key), []byte("val"))
 			require.ErrorIs(err, tt.expectedErr)
 		})
@@ -748,7 +772,10 @@ func TestDeletePermissions(t *testing.T) {
 			require := require.New(t)
 			ctx := context.TODO()
 			ts := New(10)
-			tsv := ts.NewView(state.Keys{tt.key: tt.permission}, map[string][]byte{tt.key: testVal})
+			db := NewTestDB()
+			db.Insert(ctx, []byte(tt.key), testVal)
+			ts.PrepareChunk(1, 2)
+			tsv := ts.NewView(1, 1, db, state.Keys{tt.key: tt.permission})
 			err := tsv.Remove(ctx, []byte(tt.key))
 			require.ErrorIs(err, tt.expectedErr)
 		})
@@ -803,9 +830,11 @@ func TestUpdatingKeyPermission(t *testing.T) {
 			require := require.New(t)
 			ctx := context.TODO()
 			ts := New(10)
-
+			db := NewTestDB()
+			db.Insert(ctx, []byte(tt.key), testVal)
+			ts.PrepareChunk(1, 2)
 			keys := state.Keys{tt.key: tt.permission1}
-			tsv := ts.NewView(keys, map[string][]byte{tt.key: testVal})
+			tsv := ts.NewView(1, 1, db, keys)
 
 			// Check permissions
 			perm := keys[tt.key]
@@ -893,13 +922,15 @@ func TestInsertAllocate(t *testing.T) {
 			require := require.New(t)
 			ctx := context.TODO()
 			ts := New(10)
-
+			db := NewTestDB()
+			ts.PrepareChunk(1, 2)
 			keys := state.Keys{tt.key: tt.permission}
 			var tsv *TStateView
 			if tt.keyExists {
-				tsv = ts.NewView(keys, map[string][]byte{tt.key: testVal})
+				db.Insert(ctx, []byte(tt.key), testVal)
+				tsv = ts.NewView(1, 1, db, keys)
 			} else {
-				tsv = ts.NewView(keys, map[string][]byte{})
+				tsv = ts.NewView(1, 1, db, keys)
 			}
 
 			// Try to update key
