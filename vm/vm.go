@@ -81,6 +81,7 @@ type VM struct {
 	// Handle chunks
 	cm             *ChunkManager
 	anchorRegistry *anchor.AnchorRegistry
+	anchorCli      *anchor.AnchorClient
 	engine         *chain.Engine
 
 	// track all issuedTxs (to prevent wasting bandwidth)
@@ -172,7 +173,7 @@ func (vm *VM) Initialize(
 	vm.ready = make(chan struct{})
 	vm.stop = make(chan struct{})
 	gatherer := ametrics.NewMultiGatherer()
-	if err := vm.snowCtx.Metrics.Register(gatherer); err != nil {
+	if err := vm.snowCtx.Metrics.Register("hypersdk", gatherer); err != nil {
 		return err
 	}
 	defaultRegistry, metrics, err := newMetrics()
@@ -215,6 +216,9 @@ func (vm *VM) Initialize(
 
 	anchorRegistry := anchor.NewAnchorRegistry(vm)
 	vm.anchorRegistry = anchorRegistry
+
+	anchorCli := anchor.NewAnchorClient(vm, vm.config.GetAnchorURL())
+	vm.anchorCli = anchorCli
 
 	// Setup tracer
 	vm.tracer, err = htrace.New(vm.config.GetTraceConfig())

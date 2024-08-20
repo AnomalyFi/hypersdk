@@ -606,6 +606,10 @@ func (vm *VM) AnchorRegistry() *anchor.AnchorRegistry {
 	return vm.anchorRegistry
 }
 
+func (vm *VM) AnchorCli() *anchor.AnchorClient {
+	return vm.anchorCli
+}
+
 func (vm *VM) IsIssuedTx(_ context.Context, tx *chain.Transaction) bool {
 	return vm.issuedTxs.Has(tx)
 }
