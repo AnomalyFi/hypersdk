@@ -19,6 +19,7 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
+	"github.com/ava-labs/hypersdk/actions"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/utils"
@@ -43,7 +44,7 @@ type StatefulBlock struct {
 	Height    uint64 `json:"height"`
 	Timestamp int64  `json:"timestamp"`
 
-	Anchors []*Anchor `json:"anchors"`
+	Anchors []*actions.AnchorInfo `json:"anchors"`
 
 	// AvailableChunks is a collection of valid Chunks that will be executed in
 	// the future.
@@ -118,9 +119,9 @@ func UnmarshalBlock(raw []byte) (*StatefulBlock, error) {
 	b.Timestamp = p.UnpackInt64(false)
 
 	numAnchors := p.UnpackInt(false)
-	b.Anchors = make([]*Anchor, 0, 16)
+	b.Anchors = make([]*actions.AnchorInfo, 0, 16) // prevent DoS
 	for i := 0; i < numAnchors; i++ {
-		anchor, err := UnmarshalAnchor(p)
+		anchor, err := actions.UnmarshalAnchorInfo(p)
 		if err != nil {
 			return nil, err
 		}
@@ -528,7 +529,7 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 		b.Anchors = anchors
 		b.vm.Logger().Debug("anchors of block", zap.Uint64("blockHeight", b.Height()), zap.Int("numAnchors", len(anchors)))
 		for _, anchor := range anchors {
-			b.vm.Logger().Debug("anchor info", zap.String("namespace", anchor.Namespace), zap.String("url", anchor.Url))
+			b.vm.Logger().Debug("anchor info", zap.ByteString("namespace", anchor.Namespace), zap.String("feeRecipient", string(anchor.FeeRecipient[:])))
 		}
 	}
 

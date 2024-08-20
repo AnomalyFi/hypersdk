@@ -2,7 +2,6 @@ package chain
 
 import (
 	"context"
-	"encoding/hex"
 	"fmt"
 	"time"
 
@@ -10,6 +9,8 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/hypersdk/actions"
+	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/executor"
 	"github.com/ava-labs/hypersdk/opool"
 	"github.com/ava-labs/hypersdk/state"
@@ -40,7 +41,7 @@ type Processor struct {
 	txs     map[ids.ID]*blockLoc
 	results [][]*Result
 
-	anchors []*Anchor
+	anchors []*actions.AnchorInfo
 
 	// TODO: track frozen sponsors
 
@@ -87,7 +88,7 @@ func NewProcessor(
 
 		txs:     make(map[ids.ID]*blockLoc, numTxs),
 		results: make([][]*Result, chunks),
-		anchors: make([]*Anchor, 0),
+		anchors: make([]*actions.AnchorInfo, 0),
 	}
 }
 
@@ -224,8 +225,8 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 	}
 
 	// constraint on only allowing one L2 block per SEQ block
-	if chunk.Anchor != nil {
-		switch chunk.Anchor.BlockType {
+	if chunk.AnchorMeta != nil {
+		switch chunk.AnchorMeta.BlockType {
 		case AnchorToB:
 			if _, exists := p.acceptedNS["TOB"]; exists {
 				p.markChunkTxsInvalid(chunkIndex, chunkTxs)
@@ -233,11 +234,11 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 			}
 			p.acceptedNS["TOB"] = struct{}{}
 		case AnchorRoB:
-			if _, exists := p.acceptedNS[chunk.Anchor.Namespace]; exists {
+			if _, exists := p.acceptedNS[chunk.AnchorMeta.Namespace]; exists {
 				p.markChunkTxsInvalid(chunkIndex, chunkTxs)
 				return
 			}
-			p.acceptedNS[chunk.Anchor.Namespace] = struct{}{}
+			p.acceptedNS[chunk.AnchorMeta.Namespace] = struct{}{}
 		}
 	}
 
@@ -312,7 +313,7 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 			// If this passes, we know that latest pHeight must be non-nil
 
 			// Check that transaction is in right partition
-			if chunk.Anchor == nil { // from mempool
+			if chunk.AnchorMeta == nil { // from mempool
 				parition, err := p.vm.AddressPartition(ctx, txEpoch, *epochHeight, tx.Sponsor(), tx.Partition())
 				if err != nil {
 					p.vm.Logger().Warn("unable to compute tx partition", zap.Stringer("txID", tx.ID()), zap.Error(err))
@@ -342,7 +343,7 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 	p.queueWait += time.Since(queueStart)
 }
 
-func (p *Processor) Wait() (map[ids.ID]*blockLoc, *tstate.TState, [][]*Result, []*Anchor, error) {
+func (p *Processor) Wait() (map[ids.ID]*blockLoc, *tstate.TState, [][]*Result, []*actions.AnchorInfo, error) {
 	p.vm.RecordWaitRepeat(p.repeatWait)
 	p.vm.RecordWaitQueue(p.queueWait)
 	p.vm.RecordWaitAuth(p.authWait) // we record once so we can see how much of a block was spend waiting (this is not the same as the total time)
@@ -366,19 +367,20 @@ func (p *Processor) Wait() (map[ids.ID]*blockLoc, *tstate.TState, [][]*Result, [
 			return nil, nil, nil, nil, err
 		}
 		for _, ns := range namespaces {
-			url, err := p.im.Get(context.TODO(), actions.AnchorKey(ns))
+			info, err := p.im.Get(context.TODO(), actions.AnchorKey(ns))
 			if err != nil {
 				// should never happen since url and namespace are paired, should be created & deleted the same time
 				return nil, nil, nil, nil, err
 			}
 
-			anchor := Anchor{
-				Url:       string(url),
-				Namespace: hex.EncodeToString(ns),
-				BlockType: -1,
+			packer := codec.NewReader(info, consts.NetworkSizeLimit)
+			anchorInfo, err := actions.UnmarshalAnchorInfo(packer)
+			if err != nil {
+				return nil, nil, nil, nil, err
 			}
-			p.vm.Logger().Debug("anchor", zap.String("namespace", anchor.Namespace), zap.String("url", anchor.Url))
-			p.anchors = append(p.anchors, &anchor)
+
+			p.vm.Logger().Debug("anchor", zap.ByteString("namespace", anchorInfo.Namespace), zap.Any("info", anchorInfo))
+			p.anchors = append(p.anchors, anchorInfo)
 		}
 	default:
 		return nil, nil, nil, nil, fmt.Errorf("state: %+v", err)

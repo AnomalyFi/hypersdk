@@ -82,13 +82,13 @@ var anchorsCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		namespaces, urls, err := bcli.RegisteredAnchors(ctx)
+		namespaces, infos, err := bcli.RegisteredAnchors(ctx)
 		if err != nil {
 			return err
 		}
 		fmt.Printf("num of anchors registered: %d\n", len(namespaces))
 		for i := 0; i < len(namespaces); i++ {
-			fmt.Printf("%s: %s\n", string(namespaces[i]), urls[i])
+			fmt.Printf("%s: %+v\n", string(namespaces[i]), infos[i])
 		}
 
 		return nil

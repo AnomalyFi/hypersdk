@@ -6,6 +6,7 @@ package cmd
 import (
 	"context"
 
+	hactions "github.com/ava-labs/hypersdk/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/spf13/cobra"
@@ -74,20 +75,26 @@ var anchorCmd = &cobra.Command{
 			return err
 		}
 		namespace := []byte(namespaceStr)
-		url, err := handler.Root().PromptString("url", 0, 100)
+		feeRecipient, err := handler.Root().PromptAddress("feeRecipient")
 		if err != nil {
 			return err
 		}
-		delete, err := handler.Root().PromptBool("delete")
+
+		op, err := handler.Root().PromptChoice("(0)create (1)delete (2)update", 3)
 		if err != nil {
 			return err
+		}
+
+		info := hactions.AnchorInfo{
+			FeeRecipient: feeRecipient,
+			Namespace:    namespace,
 		}
 
 		// Generate transaction
 		_, _, err = sendAndWait(ctx, nil, &actions.AnchorRegister{
 			Namespace: namespace,
-			Delete:    delete,
-			Url:       url,
+			Info:      info,
+			OpCode:    op,
 		}, cli, bcli, ws, factory, true)
 		return err
 	},

@@ -8,6 +8,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 
+	hactions "github.com/ava-labs/hypersdk/actions"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
@@ -85,19 +86,19 @@ func (j *JSONRPCServer) Balance(req *http.Request, args *BalanceArgs, reply *Bal
 }
 
 type RegisteredAnchorReply struct {
-	Namespaces [][]byte `json:"namespaces"`
-	Urls       []string `json:"urls"`
+	Namespaces [][]byte               `json:"namespaces"`
+	Anchors    []*hactions.AnchorInfo `json:"anchors"`
 }
 
 func (j *JSONRPCServer) RegisteredAnchors(req *http.Request, args *struct{}, reply *RegisteredAnchorReply) error {
 	ctx, span := j.c.Tracer().Start(req.Context(), "Server.Balance")
 	defer span.End()
 
-	namespaces, urls, err := j.c.GetRegisteredAnchorsFromState(ctx)
+	namespaces, infos, err := j.c.GetRegisteredAnchorsFromState(ctx)
 	if err != nil {
 		return err
 	}
 	reply.Namespaces = namespaces
-	reply.Urls = urls
+	reply.Anchors = infos
 	return err
 }

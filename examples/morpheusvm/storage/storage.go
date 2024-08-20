@@ -309,37 +309,37 @@ func UnpackNamespaces(raw []byte) ([][]byte, error) {
 func GetAnchors(
 	ctx context.Context,
 	im state.Immutable,
-) ([][]byte, []string, error) {
-	_, namespaces, urls, _, err := getAnchors(ctx, im)
-	return namespaces, urls, err
+) ([][]byte, []*hactions.AnchorInfo, error) {
+	_, namespaces, infos, _, err := getAnchors(ctx, im)
+	return namespaces, infos, err
 }
 
 func getAnchors(
 	ctx context.Context,
 	im state.Immutable,
-) (string, [][]byte, []string, bool, error) {
+) (string, [][]byte, []*hactions.AnchorInfo, bool, error) {
 	k := AnchorRegistryKey()
 	namespaces, exists, err := innerGetAnchors(im.Get(ctx, k))
 	if err != nil {
 		return "", nil, nil, false, err
 	}
 
-	urls := make([]string, 0, len(namespaces))
+	infos := make([]*hactions.AnchorInfo, 0, len(namespaces))
 	for _, ns := range namespaces {
-		url, err := GetAnchor(ctx, im, ns)
+		info, err := GetAnchor(ctx, im, ns)
 		if err != nil {
 			return "", nil, nil, false, err
 		}
-		urls = append(urls, url)
+		infos = append(infos, info)
 	}
-	return k, namespaces, urls, exists, err
+	return k, namespaces, infos, exists, err
 }
 
 // Used to serve RPC queries
 func GetAnchorsFromState(
 	ctx context.Context,
 	f ReadState,
-) ([][]byte, []string, error) {
+) ([][]byte, []*hactions.AnchorInfo, error) {
 	k := AnchorRegistryKey()
 	values, errs := f(ctx, []string{k})
 	namespaces, _, err := innerGetAnchors(values[0], errs[0])
@@ -347,17 +347,17 @@ func GetAnchorsFromState(
 		return nil, nil, err
 	}
 
-	urls := make([]string, 0, len(namespaces))
+	infos := make([]*hactions.AnchorInfo, 0, len(namespaces))
 	for _, ns := range namespaces {
 		k := AnchorKey(ns)
 		values, errs := f(ctx, []string{k})
-		url, _, err := innerGetAnchor(values[0], errs[0])
+		info, _, err := innerGetAnchor(values[0], errs[0])
 		if err != nil {
 			return nil, nil, err
 		}
-		urls = append(urls, url)
+		infos = append(infos, info)
 	}
-	return namespaces, urls, err
+	return namespaces, infos, err
 }
 
 func innerGetAnchors(
@@ -413,7 +413,7 @@ func GetAnchor(
 	ctx context.Context,
 	im state.Immutable,
 	namespace []byte,
-) (string, error) {
+) (*hactions.AnchorInfo, error) {
 	_, anchor, _, err := getAnchor(ctx, im, namespace)
 	return anchor, err
 }
@@ -422,7 +422,7 @@ func getAnchor(
 	ctx context.Context,
 	im state.Immutable,
 	namespace []byte,
-) (string, string, bool, error) {
+) (string, *hactions.AnchorInfo, bool, error) {
 	k := AnchorKey(namespace)
 	anchor, exists, err := innerGetAnchor(im.Get(ctx, k))
 	return k, anchor, exists, err
@@ -433,7 +433,7 @@ func GetAnchorFromState(
 	ctx context.Context,
 	f ReadState,
 	namespace []byte,
-) (string, error) {
+) (*hactions.AnchorInfo, error) {
 	k := AnchorKey(namespace)
 	values, errs := f(ctx, []string{k})
 	anchor, _, err := innerGetAnchor(values[0], errs[0])
@@ -443,34 +443,44 @@ func GetAnchorFromState(
 func innerGetAnchor(
 	v []byte,
 	err error,
-) (string, bool, error) {
+) (*hactions.AnchorInfo, bool, error) {
 	if errors.Is(err, database.ErrNotFound) {
-		return "", false, nil
+		return nil, false, nil
 	}
 	if err != nil {
-		return "", false, err
+		return nil, false, err
 	}
-	return string(v), true, nil
+	p := codec.NewReader(v, consts.NetworkSizeLimit)
+	info, err := hactions.UnmarshalAnchorInfo(p)
+	if err != nil {
+		return nil, false, err
+	}
+	return info, true, nil
 }
 
 func SetAnchor(
 	ctx context.Context,
 	mu state.Mutable,
 	namespace []byte,
-	url string,
+	info *hactions.AnchorInfo,
 ) error {
 	k := AnchorKey(namespace)
-	return setAnchor(ctx, mu, k, url)
+	return setAnchor(ctx, mu, k, info)
 }
 
 func setAnchor(
 	ctx context.Context,
 	mu state.Mutable,
 	key string,
-	url string,
+	info *hactions.AnchorInfo,
 ) error {
-	urlBytes := []byte(url)
-	return mu.Put(ctx, key, urlBytes)
+	p := codec.NewWriter(info.Size(), consts.NetworkSizeLimit)
+	err := info.Marshal(p)
+	if err != nil {
+		return err
+	}
+	infoBytes := p.Bytes()
+	return mu.Put(ctx, key, infoBytes)
 }
 
 func DelAnchor(

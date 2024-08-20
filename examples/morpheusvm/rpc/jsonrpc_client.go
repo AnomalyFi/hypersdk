@@ -9,6 +9,7 @@ import (
 
 	"github.com/ava-labs/avalanchego/ids"
 
+	hactions "github.com/ava-labs/hypersdk/actions"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/consts"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/genesis"
@@ -86,7 +87,7 @@ func (cli *JSONRPCClient) Balance(ctx context.Context, addr string) (uint64, err
 	return resp.Amount, err
 }
 
-func (cli *JSONRPCClient) RegisteredAnchors(ctx context.Context) ([][]byte, []string, error) {
+func (cli *JSONRPCClient) RegisteredAnchors(ctx context.Context) ([][]byte, []*hactions.AnchorInfo, error) {
 	resp := new(RegisteredAnchorReply)
 	err := cli.requester.SendRequest(
 		ctx,
@@ -94,7 +95,7 @@ func (cli *JSONRPCClient) RegisteredAnchors(ctx context.Context) ([][]byte, []st
 		nil,
 		resp,
 	)
-	return resp.Namespaces, resp.Urls, err
+	return resp.Namespaces, resp.Anchors, err
 }
 
 func (cli *JSONRPCClient) WaitForBalance(

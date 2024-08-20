@@ -364,14 +364,9 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock, chunks []*c
 	// Cleanup expired chunks we are tracking and chunk certificates
 	vm.cm.SetBuildableMin(ctx, b.StatefulBlock.Timestamp) // clear unnecessary certs
 
-	vm.anchorRegistry.Reset()
+	vm.anchorRegistry.Update(b.Anchors)
 	for _, anchor := range b.Anchors {
-		if err := vm.anchorRegistry.Register(anchor.Url, anchor.Namespace); err != nil {
-			vm.Logger().Error("unable to register anchor", zap.Error(err))
-			continue
-		}
-
-		vm.Logger().Debug("registered anchor", zap.String("namespace", anchor.Namespace), zap.String("url", anchor.Url))
+		vm.Logger().Debug("registered anchor", zap.ByteString("namespace", anchor.Namespace), zap.Any("info", anchor))
 	}
 
 	// Remove from verified caches
@@ -603,7 +598,7 @@ func (vm *VM) SignAnchorDigest(ctx context.Context, digest []byte) ([]byte, erro
 	return vm.cm.SignAnchorDigest(ctx, digest)
 }
 
-func (vm *VM) HandleAnchorChunk(ctx context.Context, anchor *chain.Anchor, slot int64, txs []*chain.Transaction, priorityFeeReceiverAddr codec.Address) error {
+func (vm *VM) HandleAnchorChunk(ctx context.Context, anchor *chain.AnchorMeta, slot int64, txs []*chain.Transaction, priorityFeeReceiverAddr codec.Address) error {
 	return vm.cm.HandleAnchorChunk(ctx, anchor, slot, txs, priorityFeeReceiverAddr)
 }
 

@@ -18,7 +18,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/version"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
-	"github.com/ava-labs/hypersdk/anchor"
 	"github.com/ava-labs/hypersdk/cache"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
@@ -852,95 +851,95 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 		for {
 			select {
 			case <-t.C:
-				if !c.vm.isReady() {
-					c.vm.Logger().Debug("skipping chunk loop because vm isn't ready")
-					continue
-				}
-				if skipChunks {
-					continue
-				}
-				ctx := context.TODO()
-				now := time.Now().UnixMilli() - consts.ClockSkewAllowance
-				r := c.vm.Rules(now)
-				slot := utils.UnixRDeci(now, r.GetValidityWindow()) // chunk validity window is 9 seconds @todo
+				// if !c.vm.isReady() {
+				// 	c.vm.Logger().Debug("skipping chunk loop because vm isn't ready")
+				// 	continue
+				// }
+				// if skipChunks {
+				// 	continue
+				// }
+				// ctx := context.TODO()
+				// now := time.Now().UnixMilli() - consts.ClockSkewAllowance
+				// r := c.vm.Rules(now)
+				// slot := utils.UnixRDeci(now, r.GetValidityWindow()) // chunk validity window is 9 seconds @todo
 
-				_, epochHeight, err := c.getEpochInfo(ctx, slot)
-				if err != nil {
-					c.vm.metrics.gossipChunkSigInvalid.Inc()
-					c.vm.Logger().Warn("unable to determine chunk epoch", zap.Int64("slot", slot))
-					return nil
-				}
+				// _, epochHeight, err := c.getEpochInfo(ctx, slot)
+				// if err != nil {
+				// 	c.vm.metrics.gossipChunkSigInvalid.Inc()
+				// 	c.vm.Logger().Warn("unable to determine chunk epoch", zap.Int64("slot", slot))
+				// 	return nil
+				// }
 
-				canonicalValidators, _, err := c.vm.proposerMonitor.GetWarpValidatorSet(ctx, epochHeight)
-				if err != nil {
-					c.vm.Logger().Warn("cannot get canonical validator set", zap.Error(err))
-				}
+				// canonicalValidators, _, err := c.vm.proposerMonitor.GetWarpValidatorSet(ctx, epochHeight)
+				// if err != nil {
+				// 	c.vm.Logger().Warn("cannot get canonical validator set", zap.Error(err))
+				// }
 
-				totalAnchors := c.vm.AnchorRegistry().Len()
+				// totalAnchors := c.vm.AnchorRegistry().Len()
 
-				partition := c.vm.proposerMonitor.PartitionArray(ctx, epochHeight, epochHeight, totalAnchors, len(canonicalValidators))
+				// partition := c.vm.proposerMonitor.PartitionArray(ctx, epochHeight, epochHeight, totalAnchors, len(canonicalValidators))
 
-				myValidatorIdx := 0
-				myPubkey := c.vm.snowCtx.PublicKey
-				for i, validator := range canonicalValidators {
-					if *validator.PublicKey == *myPubkey {
-						myValidatorIdx = i
-						break
-					}
-				}
-				partitionedAnchors, assigned := partition[myValidatorIdx]
-				if !assigned || len(partitionedAnchors) == 0 {
-					continue
-				}
+				// myValidatorIdx := 0
+				// myPubkey := c.vm.snowCtx.PublicKey
+				// for i, validator := range canonicalValidators {
+				// 	if *validator.PublicKey == *myPubkey {
+				// 		myValidatorIdx = i
+				// 		break
+				// 	}
+				// }
+				// partitionedAnchors, assigned := partition[myValidatorIdx]
+				// if !assigned || len(partitionedAnchors) == 0 {
+				// 	continue
+				// }
 
-				anchors := c.vm.AnchorRegistry().SortedAnchors()
-				anchorClis := make([]*anchor.Anchor, 0)
-				for _, anchorIdx := range partitionedAnchors {
-					anchorClis = append(anchorClis, anchors[anchorIdx])
-				}
+				// anchors := c.vm.AnchorRegistry().SortedAnchors()
+				// anchorClis := make([]*anchor.Anchor, 0)
+				// for _, anchorIdx := range partitionedAnchors {
+				// 	anchorClis = append(anchorClis, anchors[anchorIdx])
+				// }
 
-				for _, anchorCli := range anchorClis {
-					go func() {
-						// // Attempt to build a chunk
-						now := time.Now().UnixMilli() - consts.ClockSkewAllowance
-						r := c.vm.Rules(now)
-						digest, err := anchorCli.RequestAnchorDigest()
-						if err != nil {
-							c.vm.Logger().Error("unable to fetch chunk digest from anchor", zap.Error(err))
-							return
-						}
-						wm, err := warp.NewUnsignedMessage(r.NetworkID(), r.ChainID(), digest)
-						if err != nil {
-							c.vm.Logger().Error("unable to generate warp message", zap.Error(err))
-							return
-						}
-						sigBytes, err := c.vm.Sign(wm)
-						if err != nil {
-							c.vm.Logger().Error("unable to sign message", zap.Error(err))
-							return
-						}
-						sig, err := bls.SignatureFromBytes(sigBytes)
-						if err != nil {
-							c.vm.Logger().Error("unable to unmarshal sig", zap.Error(err))
-							return
-						}
+				// for _, anchorCli := range anchorClis {
+				// 	go func() {
+				// 		// // Attempt to build a chunk
+				// 		now := time.Now().UnixMilli() - consts.ClockSkewAllowance
+				// 		r := c.vm.Rules(now)
+				// 		digest, err := anchorCli.RequestAnchorDigest()
+				// 		if err != nil {
+				// 			c.vm.Logger().Error("unable to fetch chunk digest from anchor", zap.Error(err))
+				// 			return
+				// 		}
+				// 		wm, err := warp.NewUnsignedMessage(r.NetworkID(), r.ChainID(), digest)
+				// 		if err != nil {
+				// 			c.vm.Logger().Error("unable to generate warp message", zap.Error(err))
+				// 			return
+				// 		}
+				// 		sigBytes, err := c.vm.Sign(wm)
+				// 		if err != nil {
+				// 			c.vm.Logger().Error("unable to sign message", zap.Error(err))
+				// 			return
+				// 		}
+				// 		sig, err := bls.SignatureFromBytes(sigBytes)
+				// 		if err != nil {
+				// 			c.vm.Logger().Error("unable to unmarshal sig", zap.Error(err))
+				// 			return
+				// 		}
 
-						meta, slot, txs, priorityFeeReceiver, err := anchorCli.RequestAnchorChunk(sig)
-						if err != nil {
-							c.vm.Logger().Error("unable to fetch chunk from Anchor", zap.Error(err))
-							return
-						}
+				// 		meta, slot, txs, priorityFeeReceiver, err := anchorCli.RequestAnchorChunk(sig)
+				// 		if err != nil {
+				// 			c.vm.Logger().Error("unable to fetch chunk from Anchor", zap.Error(err))
+				// 			return
+				// 		}
 
-						chunk, err := chain.BuildChunkFromAnchor(context.TODO(), c.vm, meta, slot, txs, priorityFeeReceiver)
-						if err != nil {
-							c.vm.Logger().Error("unable to build chunk", zap.Error(err))
-							return
-						}
-						c.auth.Add(chunk) // this will be a no-op because we are the producer
-						c.PushChunk(context.TODO(), chunk)
+				// 		chunk, err := chain.BuildChunkFromAnchor(context.TODO(), c.vm, meta, slot, txs, priorityFeeReceiver)
+				// 		if err != nil {
+				// 			c.vm.Logger().Error("unable to build chunk", zap.Error(err))
+				// 			return
+				// 		}
+				// 		c.auth.Add(chunk) // this will be a no-op because we are the producer
+				// 		c.PushChunk(context.TODO(), chunk)
 
-					}()
-				}
+				// 	}()
+				// }
 
 			case <-c.vm.stop:
 				// If engine taking too long to process message, Shutdown will not
@@ -1572,7 +1571,7 @@ func (c *ChunkManager) SignAnchorDigest(ctx context.Context, digest []byte) ([]b
 
 // fields that are guaranteed populated:
 // Slot, Txs, PriorityFeeReceiverAddr
-func (c *ChunkManager) HandleAnchorChunk(ctx context.Context, anchor *chain.Anchor, slot int64, txs []*chain.Transaction, priorityFeeReceiverAddr codec.Address) error {
+func (c *ChunkManager) HandleAnchorChunk(ctx context.Context, anchor *chain.AnchorMeta, slot int64, txs []*chain.Transaction, priorityFeeReceiverAddr codec.Address) error {
 	chunk, err := chain.BuildChunkFromAnchor(ctx, c.vm, anchor, slot, txs, priorityFeeReceiverAddr)
 	if err != nil {
 		return err

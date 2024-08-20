@@ -13,6 +13,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/math"
 	"github.com/ava-labs/avalanchego/utils/maybe"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/hypersdk/actions"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/utils"
 	"github.com/ava-labs/hypersdk/vilmo"
@@ -32,7 +33,7 @@ type output struct {
 	chunks   []*FilteredChunk
 	checksum ids.ID
 
-	anchors []*Anchor
+	anchors []*actions.AnchorInfo
 }
 
 // Engine is in charge of orchestrating the execution of
@@ -319,7 +320,7 @@ func (e *Engine) processJob(batch *vilmo.Batch, job *engineJob) error {
 	if len(anchors) != 0 {
 		log.Debug("anchor list", zap.Uint64("blkHeight", job.blk.StatefulBlock.Height), zap.Int("numAnchors", len(anchors)))
 		for _, anchor := range anchors {
-			log.Debug("anchor", zap.String("namespace", anchor.Namespace), zap.String("url", anchor.Url))
+			log.Debug("anchor", zap.String("namespace", string(anchor.Namespace)), zap.ByteString("feeRecipient", anchor.FeeRecipient[:]))
 		}
 	}
 
@@ -417,7 +418,7 @@ func (e *Engine) Results(height uint64) ([]ids.ID /* Executed Chunks */, ids.ID 
 	return nil, ids.Empty, fmt.Errorf("%w: results not found for %d", errors.New("not found"), height)
 }
 
-func (e *Engine) PruneResults(ctx context.Context, height uint64) ([][]*Result, []*FilteredChunk, []*Anchor, error) {
+func (e *Engine) PruneResults(ctx context.Context, height uint64) ([][]*Result, []*FilteredChunk, []*actions.AnchorInfo, error) {
 	e.outputsLock.Lock()
 	defer e.outputsLock.Unlock()
 
