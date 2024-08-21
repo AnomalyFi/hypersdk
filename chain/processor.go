@@ -86,9 +86,10 @@ func NewProcessor(
 		executor:   executor.New(numTxs, vm.GetActionExecutionCores(), vm.GetExecutorRecorder()),
 		ts:         tstate.New(numTxs * 2),
 
-		txs:     make(map[ids.ID]*blockLoc, numTxs),
-		results: make([][]*Result, chunks),
-		anchors: make([]*actions.AnchorInfo, 0),
+		txs:        make(map[ids.ID]*blockLoc, numTxs),
+		results:    make([][]*Result, chunks),
+		anchors:    make([]*actions.AnchorInfo, 0),
+		acceptedNS: make(map[string]struct{}),
 	}
 }
 

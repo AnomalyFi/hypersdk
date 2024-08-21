@@ -545,6 +545,11 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 		b.vm.Engine().Execute(b)
 	}
 
+	b.vm.Logger().Debug("included chunk")
+	for chunkID := range b.chunks {
+		b.vm.Logger().Debug("chunk", zap.String("chunkID", chunkID.String()))
+	}
+
 	r := b.vm.Rules(b.StatefulBlock.Timestamp)
 	epoch := utils.Epoch(b.StatefulBlock.Timestamp, r.GetEpochDuration())
 	b.vm.RecordAcceptedEpoch(epoch)

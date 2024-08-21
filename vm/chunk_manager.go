@@ -1238,6 +1238,15 @@ func makeChunkMsg(chunk *chain.Chunk) ([]byte, error) {
 }
 
 func (c *ChunkManager) PushChunk(ctx context.Context, chunk *chain.Chunk) {
+	p := codec.NewWriter(chunk.AnchorMeta.Size(), consts.NetworkSizeLimit)
+	err := chunk.AnchorMeta.Marshal(p)
+	if err != nil {
+		c.vm.Logger().Error("unable to marshal meta", zap.Error(err))
+		return
+	}
+	metaBytes := p.Bytes()
+	c.vm.Logger().Debug("chunk size info", zap.Int("chunk", chunk.Size()), zap.Int("meta", chunk.AnchorMeta.Size()), zap.Int("meta real", len(metaBytes)))
+
 	msg, err := makeChunkMsg(chunk)
 	if err != nil {
 		c.vm.Logger().Warn("failed to marshal chunk", zap.Error(err))
