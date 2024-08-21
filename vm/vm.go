@@ -71,6 +71,9 @@ type VM struct {
 	config  Config
 	genesis Genesis
 
+	// builder        *builder.Builder
+	// gossiper       *gossiper.Gossiper
+
 	vmDB           database.Database
 	blobDB         *filedb.FileDB
 	stateDB        *vilmo.Vilmo

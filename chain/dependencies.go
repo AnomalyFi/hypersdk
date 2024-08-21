@@ -88,7 +88,7 @@ type VM interface {
 	Engine() *Engine
 	RequestChunks(uint64, []*ChunkCertificate, chan *Chunk)
 	SubnetID() ids.ID
-	GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (AuthBatchVerifier, bool)
+	// GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (AuthBatchVerifier, bool)
 	GetVerifyAuth() bool
 
 	IsBootstrapped() bool
@@ -100,8 +100,14 @@ type VM interface {
 	StateManager() StateManager
 	ValidatorState() validators.State
 
+	IsIssuedTx(context.Context, *Transaction) bool
+	IssueTx(context.Context, *Transaction)
+
+	GetAuthResult(ids.ID) bool
+	IsRepeatTx(context.Context, []*Transaction, set.Bits) set.Bits
+	IsRepeatChunk(context.Context, []*ChunkCertificate, set.Bits) set.Bits
+
 	Mempool() Mempool
-	IsRepeat(context.Context, []*Transaction, set.Bits, bool) set.Bits
 	GetTargetBuildDuration() time.Duration
 	GetTransactionExecutionCores() int
 	GetStateFetchConcurrency() int
@@ -150,7 +156,7 @@ type Mempool interface {
 
 	StartStreaming(context.Context)
 	PrepareStream(context.Context, int)
-	Stream(context.Context, int) []*Transaction
+	Stream(context.Context) (*Transaction, bool)
 	FinishStreaming(context.Context, []*Transaction) int
 }
 
@@ -176,6 +182,9 @@ type Rules interface {
 	GetUnitPriceChangeDenominator() fees.Dimensions
 	GetWindowTargetUnits() fees.Dimensions
 	GetMaxBlockUnits() fees.Dimensions
+
+	GetUnitPrices() fees.Dimensions // TODO: make this dynamic if we want to burn fees?
+	GetMaxChunkUnits() fees.Dimensions
 
 	GetBaseComputeUnits() uint64
 

@@ -66,6 +66,10 @@ var (
 	ErrTxNSMappingNotReceived  = errors.New("NMT tx to namespace mapping not received")
 	ErrConvertingNamespace     = errors.New("unable to convert encoded namespace id back to namespace id")
 
+	// Chunk building
+	ErrInvalidPartition = errors.New("invalid partition")
+	ErrNotAValidator    = errors.New("not a validator during this epoch, so no one will sign my chunk")
+
 	// Misc
 	ErrNotImplemented         = errors.New("not implemented")
 	ErrBlockNotProcessed      = errors.New("block is not processed")

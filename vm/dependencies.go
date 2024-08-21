@@ -29,32 +29,32 @@ type Handlers map[string]http.Handler
 type Config interface {
 	GetTraceConfig() *trace.Config
 	GetMempoolSize() int
-	GetAuthVerificationCores() int
+	GetAuthExecutionCores() int
+	GetAuthRPCCores() int
+	GetAuthRPCBacklog() int
+	GetAuthGossipCores() int
+	GetAuthGossipBacklog() int
 	GetVerifyAuth() bool
-	GetRootGenerationCores() int
-	GetTransactionExecutionCores() int
-	GetStateFetchConcurrency() int
+	GetPrecheckCores() int
+	GetActionExecutionCores() int
+	GetMissingChunkFetchers() int
+	GetChunkStorageCores() int
+	GetChunkStorageBacklog() int
+	GetBeneficiary() codec.Address
 	GetMempoolSponsorSize() int
 	GetMempoolExemptSponsors() []codec.Address
 	GetStreamingBacklogSize() int
+	GetAcceptorSize() int // how far back we can fall in processing accepted blocks.
 	GetStoreBlockResultsOnDisk() bool
-	GetStateHistoryLength() int               // how many roots back of data to keep to serve state queries
-	GetIntermediateNodeCacheSize() int        // how many bytes to keep in intermediate cache
-	GetStateIntermediateWriteBufferSize() int // how many bytes to keep unwritten in intermediate cache
-	GetStateIntermediateWriteBatchSize() int  // how many bytes to write from intermediate cache at once
-	GetValueNodeCacheSize() int               // how many bytes to keep in value cache
-	GetAcceptorSize() int                     // how far back we can fall in processing accepted blocks
-	GetStateSyncParallelism() int
-	GetStateSyncMinBlocks() uint64
-	GetStateSyncServerDelay() time.Duration
 	GetParsedBlockCacheSize() int
 	GetAcceptedBlockWindow() int
 	GetAcceptedBlockWindowCache() int
 	GetContinuousProfilerConfig() *profiler.Config
-	GetTargetBuildDuration() time.Duration
+	GetTargetChunkBuildDuration() time.Duration
+	GetChunkBuildFrequency() time.Duration
+	GetBlockBuildFrequency() time.Duration
 	GetProcessingBuildSkip() int
-	GetTargetGossipDuration() time.Duration
-	GetBlockCompactionFrequency() int
+	// GetTargetGossipDuration() time.Duration
 	GetETHL1RPC() string
 	GetETHL1WS() string
 }
