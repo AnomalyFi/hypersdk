@@ -24,26 +24,19 @@ const (
 )
 
 type AnchorMeta struct {
-	BlockType int    `json:"blockType"` // use to determine if it is TOB or ROB
-	Namespace string `json:"namespace"`
-	Url       string `json:"url"`
-
-	bytes []byte
+	BlockType           int           `json:"blockType"` // use to determine if it is TOB or ROB
+	Namespace           string        `json:"namespace"`
+	PriorityFeeReceiver codec.Address `json:"priorityFeeReceiver"`
 }
 
 func (a *AnchorMeta) Size() int {
-	return consts.IntLen + codec.StringLen(a.Namespace) + codec.StringLen(a.Url)
+	return consts.IntLen + codec.StringLen(a.Namespace) + codec.AddressLen
 }
 
 func (a *AnchorMeta) Marshal(p *codec.Packer) error {
-	if len(a.bytes) > 0 {
-		p.PackFixedBytes(a.bytes)
-		return p.Err()
-	}
-
 	p.PackInt(a.BlockType)
 	p.PackString(a.Namespace)
-	p.PackString(a.Url)
+	p.PackAddress(a.PriorityFeeReceiver)
 
 	return p.Err()
 }
@@ -52,45 +45,9 @@ func UnmarshalAnchorMeta(p *codec.Packer) (*AnchorMeta, error) {
 	ret := new(AnchorMeta)
 	ret.BlockType = p.UnpackInt(false)
 	ret.Namespace = p.UnpackString(false)
-	ret.Url = p.UnpackString(false)
+	p.UnpackAddress(&ret.PriorityFeeReceiver)
 
 	if err := p.Err(); err != nil {
-		return nil, p.Err()
-	}
-
-	return ret, nil
-}
-
-func MarshalAnchorMetas(anchors []*AnchorMeta) ([]byte, error) {
-	size := consts.IntLen
-	for _, a := range anchors {
-		size += a.Size()
-	}
-	p := codec.NewWriter(size, consts.NetworkSizeLimit)
-
-	p.PackInt(len(anchors))
-	for _, a := range anchors {
-		if err := a.Marshal(p); err != nil {
-			return nil, err
-		}
-	}
-
-	return p.Bytes(), p.Err()
-}
-
-func UnmarshalAnchorMetas(raw []byte) ([]*AnchorMeta, error) {
-	p := codec.NewReader(raw, consts.NetworkSizeLimit)
-	numAnchorMetas := p.UnpackInt(false)
-	ret := make([]*AnchorMeta, 0, numAnchorMetas)
-	for i := 0; i < numAnchorMetas; i++ {
-		a, err := UnmarshalAnchorMeta(p)
-		if err != nil {
-			return nil, err
-		}
-		ret = append(ret, a)
-	}
-
-	if p.Err() != nil {
 		return nil, p.Err()
 	}
 
@@ -103,9 +60,8 @@ type Chunk struct {
 	Slot int64          `json:"slot"` // rounded to nearest 100ms
 	Txs  []*Transaction `json:"txs"`
 
-	PriorityFeeReceiverAddr codec.Address `json:"priorityFeeReceiver"`
-	Producer                ids.NodeID    `json:"producer"`
-	Beneficiary             codec.Address `json:"beneficiary"` // used for fees
+	Producer    ids.NodeID    `json:"producer"`
+	Beneficiary codec.Address `json:"beneficiary"` // used for fees
 
 	Signer    *bls.PublicKey `json:"signer"`
 	Signature *bls.Signature `json:"signature"`
@@ -116,7 +72,11 @@ type Chunk struct {
 	authCounts map[uint8]int
 }
 
-func BuildChunkFromAnchor(ctx context.Context, vm VM, anchor *AnchorMeta, slot int64, txs []*Transaction, priorityFeeReceiver codec.Address) (*Chunk, error) {
+func BuildChunkFromAnchor(ctx context.Context, vm VM, anchor *AnchorMeta, slot int64, txs []*Transaction) (*Chunk, error) {
+	if anchor == nil {
+		return nil, fmt.Errorf("not an anchor chunk")
+	}
+
 	start := time.Now()
 	now := time.Now().UnixMilli() - consts.ClockSkewAllowance
 	sm := vm.StateManager()
@@ -205,17 +165,18 @@ func BuildChunkFromAnchor(ctx context.Context, vm VM, anchor *AnchorMeta, slot i
 	}
 
 	// Discard chunk if nothing produced
-	if len(c.Txs) == 0 {
-		return nil, ErrNoTxs
-	}
+	// TODO: restore this after testing
+	// if len(c.Txs) == 0 {
+	// 	return nil, ErrNoTxs
+	// }
 
 	// Setup chunk
-	c.PriorityFeeReceiverAddr = priorityFeeReceiver
 	c.Producer = vm.NodeID()
 	c.Beneficiary = vm.Beneficiary()
 	c.Signer = vm.Signer()
 	c.units = &chunkUnits
 	c.authCounts = authCounts
+	c.AnchorMeta = anchor
 
 	// Sign chunk
 	digest, err := c.Digest()
@@ -241,7 +202,9 @@ func BuildChunkFromAnchor(ctx context.Context, vm VM, anchor *AnchorMeta, slot i
 	c.id = utils.ToID(bytes)
 
 	vm.Logger().Info(
-		"built chunk with signature from anchor msg",
+		"built anchor chunk chunk with signature",
+		zap.Int("anchorType", c.AnchorMeta.BlockType),
+		zap.String("anchorNamespace", c.AnchorMeta.Namespace),
 		zap.Stringer("nodeID", vm.NodeID()),
 		zap.Uint32("networkID", r.NetworkID()),
 		zap.Stringer("chainID", r.ChainID()),
@@ -383,7 +346,6 @@ func BuildChunk(ctx context.Context, vm VM) (*Chunk, error) {
 	}
 
 	// Setup chunk
-	c.PriorityFeeReceiverAddr = codec.EmptyAddress
 	c.Producer = vm.NodeID()
 	c.Beneficiary = vm.Beneficiary()
 	c.Signer = vm.Signer()
@@ -460,12 +422,12 @@ func (c *Chunk) ID() ids.ID {
 }
 
 func (c *Chunk) Size() int {
-	size := consts.BoolLen + consts.Int64Len + consts.IntLen + codec.CummSize(c.Txs) + consts.NodeIDLen + codec.AddressLen + bls.PublicKeyLen + bls.SignatureLen
+	size := consts.Int64Len + consts.IntLen + codec.CummSize(c.Txs) + consts.NodeIDLen + codec.AddressLen + bls.PublicKeyLen + bls.SignatureLen
 
+	size += consts.BoolLen
 	isAnchorMeta := c.AnchorMeta != nil
 	if isAnchorMeta {
-		size += consts.IntLen
-		size += codec.StringLen(c.AnchorMeta.Namespace)
+		size += c.AnchorMeta.Size()
 	}
 	return size
 }
@@ -512,9 +474,9 @@ func (c *Chunk) Marshal() ([]byte, error) {
 	p.PackFixedBytes(bls.PublicKeyToCompressedBytes(c.Signer))
 	p.PackFixedBytes(bls.SignatureToBytes(c.Signature))
 
+	// fields introduced for anchor
 	isAnchorMetaChunk := c.AnchorMeta != nil
 	p.PackBool(isAnchorMetaChunk)
-	fmt.Printf("anchor chunk: %+v\n", isAnchorMetaChunk)
 	if isAnchorMetaChunk {
 		if err := c.AnchorMeta.Marshal(p); err != nil {
 			return nil, err
@@ -522,7 +484,6 @@ func (c *Chunk) Marshal() ([]byte, error) {
 	}
 
 	bytes, err := p.Bytes(), p.Err()
-	fmt.Printf("chunk bytes: %s\n", hex.EncodeToString(bytes))
 	if err != nil {
 		return nil, err
 	}
@@ -554,14 +515,15 @@ func UnmarshalChunk(raw []byte, parser Parser) (*Chunk, error) {
 		c                            Chunk
 		authCounts                   = make(map[uint8]int)
 	)
-	fmt.Printf("chunk bytes: %s\n", hex.EncodeToString(raw))
 
 	c.id = utils.ToID(raw)
 
 	// Parse transactions
 	c.Slot = p.UnpackInt64(false)
-	txCount := p.UnpackInt(true) // can't produce empty blocks
-	c.Txs = []*Transaction{}     // don't preallocate all to avoid DoS
+	// TODO: restore this
+	// txCount := p.UnpackInt(true) // can't produce empty blocks
+	txCount := p.UnpackInt(false) // can't produce empty blocks
+	c.Txs = []*Transaction{}      // don't preallocate all to avoid DoS
 	for i := 0; i < txCount; i++ {
 		tx, err := UnmarshalTx(p, actionRegistry, authRegistry)
 		if err != nil {
@@ -590,13 +552,14 @@ func UnmarshalChunk(raw []byte, parser Parser) (*Chunk, error) {
 	}
 	c.Signature = signature
 
+	// fields introduced for anchor
 	isAnchorMetaChunk := p.UnpackBool()
-	fmt.Printf("anchor chunk: %+v\n", isAnchorMetaChunk)
 	if isAnchorMetaChunk {
 		anchor, err := UnmarshalAnchorMeta(p)
 		if err != nil {
 			return nil, err
 		}
+		fmt.Printf("unmarshalled anchor meta: %+v\n", anchor)
 		c.AnchorMeta = anchor
 	}
 

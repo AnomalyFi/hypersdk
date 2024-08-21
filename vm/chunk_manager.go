@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"sync"
@@ -457,7 +456,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		chunk, err := chain.UnmarshalChunk(msg[1:], c.vm)
 		if err != nil {
 			c.vm.metrics.gossipChunkInvalid.Inc()
-			c.vm.Logger().Warn("unable to unmarshal chunk", zap.Stringer("nodeID", nodeID), zap.String("chunk", hex.EncodeToString(msg[1:])), zap.Error(err))
+			c.vm.Logger().Warn("unable to unmarshal chunk", zap.Stringer("nodeID", nodeID), zap.Error(err))
 			return nil
 		}
 
@@ -863,7 +862,22 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 				// if err != nil {
 				// 	c.vm.Logger().Error("unable to get header from anchor", zap.Error(err))
 				// }
+				now := time.Now().UnixMilli() - consts.ClockSkewAllowance
+				r := c.vm.Rules(now)
+				slot := utils.UnixRDeci(now, r.GetValidityWindow())
 
+				anchorChunk, err := chain.BuildChunkFromAnchor(context.TODO(), c.vm, &chain.AnchorMeta{
+					BlockType:           chain.AnchorRoB,
+					Namespace:           "t",
+					PriorityFeeReceiver: codec.BlackholeAddress,
+				}, slot, nil)
+				if err != nil {
+					c.vm.Logger().Error("unable to build a anchor chunk", zap.Error(err))
+					continue
+				}
+				c.auth.Add(anchorChunk)
+				c.PushChunk(context.TODO(), anchorChunk)
+				c.vm.Logger().Debug("anchor chunk pushed", zap.String("chunkID", anchorChunk.ID().String()))
 			case <-c.vm.stop:
 				// If engine taking too long to process message, Shutdown will not
 				// be called.
@@ -1216,6 +1230,9 @@ func makeChunkMsg(chunk *chain.Chunk) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	if len(chunkBytes) != chunk.Size() {
+		return nil, fmt.Errorf("marshalled chunk bytes len not equal to Size(), actual: %d, expected: %d", len(chunkBytes), chunk.Size())
+	}
 	copy(msg[1:], chunkBytes)
 	return msg, nil
 }
@@ -1495,7 +1512,7 @@ func (c *ChunkManager) SignAnchorDigest(ctx context.Context, digest []byte) ([]b
 // fields that are guaranteed populated:
 // Slot, Txs, PriorityFeeReceiverAddr
 func (c *ChunkManager) HandleAnchorChunk(ctx context.Context, anchor *chain.AnchorMeta, slot int64, txs []*chain.Transaction, priorityFeeReceiverAddr codec.Address) error {
-	chunk, err := chain.BuildChunkFromAnchor(ctx, c.vm, anchor, slot, txs, priorityFeeReceiverAddr)
+	chunk, err := chain.BuildChunkFromAnchor(ctx, c.vm, anchor, slot, txs)
 	if err != nil {
 		return err
 	}
