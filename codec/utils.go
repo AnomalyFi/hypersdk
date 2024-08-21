@@ -26,5 +26,5 @@ func BytesLenSize(msgSize int) int {
 }
 
 func StringLen(msg string) int {
-	return consts.IntLen + len(msg)
+	return consts.Uint16Len + len(msg)
 }

@@ -78,7 +78,7 @@ func New(file string, cfg Config) (database.Database, *prometheus.Registry, erro
 		L0CompactionThreshold:       cfg.L0CompactionThreshold,
 		L0StopWritesThreshold:       cfg.L0StopWritesThreshold,
 		MemTableStopWritesThreshold: cfg.MemTableStopWritesThreshold,
-		MemTableSize:                cfg.MemTableSize,
+		MemTableSize:                uint64(cfg.MemTableSize),
 		MaxOpenFiles:                cfg.MaxOpenFiles,
 		MaxConcurrentCompactions:    cfg.ConcurrentCompactions, // TODO: may want to tweak this?
 		Levels:                      make([]pebble.LevelOptions, 7),
@@ -247,9 +247,11 @@ type iter struct {
 }
 
 func (db *Database) newIter(args *pebble.IterOptions) *iter {
+	it, err := db.db.NewIter(args)
 	return &iter{
 		db:   db,
-		iter: db.db.NewIter(args),
+		iter: it,
+		err:  err,
 	}
 }
 

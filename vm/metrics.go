@@ -122,8 +122,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 	r := prometheus.NewRegistry()
 
 	waitRepeat, err := metric.NewAverager(
-		"chain",
-		"wait_repeat",
+		"chain_wait_repeat",
 		"time spent waiting for repeat",
 		r,
 	)
@@ -131,8 +130,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		return nil, nil, err
 	}
 	waitQueue, err := metric.NewAverager(
-		"chain",
-		"wait_queue",
+		"chain_wait_queue",
 		"time spent iterating over chunk to queue txs for execution",
 		r,
 	)
@@ -140,8 +138,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		return nil, nil, err
 	}
 	waitAuth, err := metric.NewAverager(
-		"chain",
-		"wait_auth",
+		"chain_wait_auth",
 		"time spent waiting for auth",
 		r,
 	)
@@ -149,8 +146,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		return nil, nil, err
 	}
 	waitExec, err := metric.NewAverager(
-		"chain",
-		"wait_exec",
+		"chain_wait_exec",
 		"time spent waiting for execution after auth finishes",
 		r,
 	)
@@ -158,8 +154,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		return nil, nil, err
 	}
 	waitPrecheck, err := metric.NewAverager(
-		"chain",
-		"wait_precheck",
+		"chain_wait_precheck",
 		"time spent waiting for precheck",
 		r,
 	)
@@ -167,8 +162,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		return nil, nil, err
 	}
 	waitCommit, err := metric.NewAverager(
-		"chain",
-		"wait_commit",
+		"chain_wait_commit",
 		"time spent waiting to commit state after execution",
 		r,
 	)
@@ -176,8 +170,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		return nil, nil, err
 	}
 	chunkBuild, err := metric.NewAverager(
-		"chain",
-		"chunk_build",
+		"chain_chunk_build",
 		"time spent building chunks",
 		r,
 	)
@@ -185,8 +178,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		return nil, nil, err
 	}
 	blockBuild, err := metric.NewAverager(
-		"chain",
-		"block_build",
+		"chain_block_build",
 		"time spent building blocks",
 		r,
 	)
@@ -194,8 +186,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		return nil, nil, err
 	}
 	blockParse, err := metric.NewAverager(
-		"chain",
-		"block_parse",
+		"chain_block_parse",
 		"time spent parsing blocks",
 		r,
 	)
@@ -203,8 +194,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		return nil, nil, err
 	}
 	blockVerify, err := metric.NewAverager(
-		"chain",
-		"block_verify",
+		"chain_block_verify",
 		"time spent verifying blocks",
 		r,
 	)
@@ -212,8 +202,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		return nil, nil, err
 	}
 	blockAccept, err := metric.NewAverager(
-		"chain",
-		"block_accept",
+		"chain_block_accept",
 		"time spent accepting blocks",
 		r,
 	)
@@ -221,8 +210,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		return nil, nil, err
 	}
 	blockProcess, err := metric.NewAverager(
-		"chain",
-		"block_process",
+		"chain_block_process",
 		"time spent processing accepted blocks",
 		r,
 	)
@@ -230,8 +218,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		return nil, nil, err
 	}
 	blockExecute, err := metric.NewAverager(
-		"chain",
-		"block_execute",
+		"chain_block_execute",
 		"time spent executing blocks",
 		r,
 	)
@@ -239,8 +226,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		return nil, nil, err
 	}
 	executedChunkProcess, err := metric.NewAverager(
-		"chain",
-		"executed_chunk_process",
+		"chain_executed_chunk_process",
 		"time spent processing executed chunks",
 		r,
 	)
@@ -248,8 +234,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		return nil, nil, err
 	}
 	executedBlockProcess, err := metric.NewAverager(
-		"chain",
-		"executed_block_process",
+		"chain_executed_block_process",
 		"time spent processing executed blocks",
 		r,
 	)
@@ -257,8 +242,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		return nil, nil, err
 	}
 	fetchMissingChunks, err := metric.NewAverager(
-		"chain",
-		"fetch_missing_chunks",
+		"chain_fetch_missing_chunks",
 		"time spent fetching missing chunks",
 		r,
 	)
@@ -266,8 +250,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		return nil, nil, err
 	}
 	collectChunkSignatures, err := metric.NewAverager(
-		"chain",
-		"collect_chunk_signatures",
+		"chain_collect_chunk_signatures",
 		"time spent collecting chunk signatures",
 		r,
 	)
@@ -275,8 +258,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		return nil, nil, err
 	}
 	txTimeRemainingMempool, err := metric.NewAverager(
-		"chain",
-		"tx_time_remaining_mempool",
+		"chain_tx_time_remaining_mempool",
 		"valid time for inclusion when a tx is included in the mempool",
 		r,
 	)
@@ -284,8 +266,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		return nil, nil, err
 	}
 	chunkAuth, err := metric.NewAverager(
-		"chain",
-		"chunk_auth",
+		"chain_chunk_auth",
 		"time spent authenticating chunks",
 		r,
 	)
@@ -293,8 +274,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		return nil, nil, err
 	}
 	stateChanges, err := metric.NewAverager(
-		"chain",
-		"state_changes",
+		"chain_state_changes",
 		"changes to state in a block",
 		r,
 	)
@@ -302,8 +282,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		return nil, nil, err
 	}
 	appendDBBatchInit, err := metric.NewAverager(
-		"vilmo",
-		"batch_init",
+		"vilmo_batch_init",
 		"batch initialization latency",
 		r,
 	)
@@ -311,8 +290,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		return nil, nil, err
 	}
 	appendDBBatchInitBytes, err := metric.NewAverager(
-		"vilmo",
-		"batch_init_bytes",
+		"vilmo_batch_init_bytes",
 		"bytes written during batch initialization",
 		r,
 	)
@@ -320,8 +298,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		return nil, nil, err
 	}
 	appendDBBatchPrepare, err := metric.NewAverager(
-		"vilmo",
-		"batch_prepare",
+		"vilmo_batch_prepare",
 		"batch preparation latency",
 		r,
 	)
@@ -329,8 +306,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		return nil, nil, err
 	}
 	tstateIterate, err := metric.NewAverager(
-		"chain",
-		"tstate_iterate",
+		"chain_tstate_iterate",
 		"time spent iterating over tstate",
 		r,
 	)
@@ -338,8 +314,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		return nil, nil, err
 	}
 	appendDBBatchWrite, err := metric.NewAverager(
-		"vilmo",
-		"batch_write",
+		"vilmo_batch_write",
 		"batch write latency",
 		r,
 	)

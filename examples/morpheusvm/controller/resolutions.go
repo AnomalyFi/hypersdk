@@ -6,6 +6,8 @@ package controller
 import (
 	"context"
 
+	hactions "github.com/ava-labs/hypersdk/actions"
+
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
@@ -39,4 +41,10 @@ func (c *Controller) GetBalanceFromState(
 	acct codec.Address,
 ) (uint64, error) {
 	return storage.GetBalanceFromState(ctx, c.inner.ReadState, acct)
+}
+
+func (c *Controller) GetRegisteredAnchorsFromState(
+	ctx context.Context,
+) ([][]byte, []*hactions.AnchorInfo, error) {
+	return storage.GetAnchorsFromState(ctx, c.inner.ReadState)
 }

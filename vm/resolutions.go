@@ -20,6 +20,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/ava-labs/hypersdk/anchor"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/executor"
@@ -363,6 +364,11 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock, chunks []*c
 	// Cleanup expired chunks we are tracking and chunk certificates
 	vm.cm.SetBuildableMin(ctx, b.StatefulBlock.Timestamp) // clear unnecessary certs
 
+	vm.anchorRegistry.Update(b.Anchors)
+	for _, anchor := range b.Anchors {
+		vm.Logger().Debug("registered anchor", zap.ByteString("namespace", anchor.Namespace), zap.Any("info", anchor))
+	}
+
 	// Remove from verified caches
 	//
 	// We do this after setting [lastAccepted] to avoid
@@ -414,8 +420,13 @@ func (vm *VM) CacheValidators(ctx context.Context, height uint64) {
 	vm.proposerMonitor.Fetch(ctx, height)
 }
 
-func (vm *VM) AddressPartition(ctx context.Context, epoch uint64, height uint64, ns []byte, partition uint8) (ids.NodeID, error) {
-	return vm.proposerMonitor.AddressPartition(ctx, epoch, height, ns, partition)
+func (vm *VM) AddressPartition(ctx context.Context, epoch uint64, height uint64, addr codec.Address, partition uint8) (ids.NodeID, error) {
+	return vm.proposerMonitor.AddressPartition(ctx, epoch, height, addr, partition)
+}
+
+// used for txs from Anchor
+func (vm *VM) AddressPartitionByNamespace(ctx context.Context, epoch uint64, height uint64, ns []byte, partition uint8) (ids.NodeID, error) {
+	return vm.proposerMonitor.AddressPartitionByNamespace(ctx, epoch, height, ns, partition)
 }
 
 func (vm *VM) IsValidator(ctx context.Context, height uint64, nid ids.NodeID) (bool, error) {
@@ -581,6 +592,22 @@ func (vm *VM) RestoreChunkCertificates(ctx context.Context, certs []*chain.Chunk
 
 func (vm *VM) Engine() *chain.Engine {
 	return vm.engine
+}
+
+func (vm *VM) SignAnchorDigest(ctx context.Context, digest []byte) ([]byte, error) {
+	return vm.cm.SignAnchorDigest(ctx, digest)
+}
+
+func (vm *VM) HandleAnchorChunk(ctx context.Context, anchor *chain.AnchorMeta, slot int64, txs []*chain.Transaction, priorityFeeReceiverAddr codec.Address) error {
+	return vm.cm.HandleAnchorChunk(ctx, anchor, slot, txs, priorityFeeReceiverAddr)
+}
+
+func (vm *VM) AnchorRegistry() *anchor.AnchorRegistry {
+	return vm.anchorRegistry
+}
+
+func (vm *VM) AnchorCli() *anchor.AnchorClient {
+	return vm.anchorCli
 }
 
 func (vm *VM) IsIssuedTx(_ context.Context, tx *chain.Transaction) bool {

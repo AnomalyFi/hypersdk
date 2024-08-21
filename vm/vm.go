@@ -28,6 +28,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/ava-labs/avalanchego/version"
+	"github.com/ava-labs/hypersdk/anchor"
 	hcache "github.com/ava-labs/hypersdk/cache"
 	"github.com/ava-labs/hypersdk/filedb"
 	"github.com/ava-labs/hypersdk/pebble"
@@ -78,8 +79,10 @@ type VM struct {
 	tracer trace.Tracer
 
 	// Handle chunks
-	cm     *ChunkManager
-	engine *chain.Engine
+	cm             *ChunkManager
+	anchorRegistry *anchor.AnchorRegistry
+	anchorCli      *anchor.AnchorClient
+	engine         *chain.Engine
 
 	// track all issuedTxs (to prevent wasting bandwidth)
 	//
@@ -170,7 +173,7 @@ func (vm *VM) Initialize(
 	vm.ready = make(chan struct{})
 	vm.stop = make(chan struct{})
 	gatherer := ametrics.NewMultiGatherer()
-	if err := vm.snowCtx.Metrics.Register(gatherer); err != nil {
+	if err := vm.snowCtx.Metrics.Register("hypersdk", gatherer); err != nil {
 		return err
 	}
 	defaultRegistry, metrics, err := newMetrics()
@@ -210,6 +213,12 @@ func (vm *VM) Initialize(
 	vm.cm = NewChunkManager(vm)
 	vm.networkManager.SetHandler(chunkHandler, vm.cm)
 	go vm.cm.Run(chunkSender)
+
+	anchorRegistry := anchor.NewAnchorRegistry(vm)
+	vm.anchorRegistry = anchorRegistry
+
+	anchorCli := anchor.NewAnchorClient(vm, vm.config.GetAnchorURL())
+	vm.anchorCli = anchorCli
 
 	// Setup tracer
 	vm.tracer, err = htrace.New(vm.config.GetTraceConfig())
@@ -773,6 +782,7 @@ func (vm *VM) Submit(
 
 		// Perform syntactic verification
 		if _, err := tx.SyntacticVerify(ctx, vm.StateManager(), r, now); err != nil {
+			vm.Logger().Info("synthetic verfication failed", zap.String("txID", tx.ID().String()), zap.Error(err))
 			errs = append(errs, err)
 			continue
 		}
@@ -780,6 +790,7 @@ func (vm *VM) Submit(
 		// Ensure state keys are valid
 		_, err := tx.StateKeys(vm.c.StateManager())
 		if err != nil {
+			vm.Logger().Info("state keys arent valid for tx", zap.String("txID", tx.ID().String()), zap.Error(err))
 			errs = append(errs, ErrNotAdded)
 			continue
 		}
@@ -788,6 +799,7 @@ func (vm *VM) Submit(
 		if verifyAuth && vm.config.GetVerifyAuth() {
 			msg, err := tx.Digest()
 			if err != nil {
+				vm.Logger().Info("unable to make digest of a tx", zap.Error(err))
 				// Should never fail
 				errs = append(errs, err)
 				continue
@@ -799,6 +811,7 @@ func (vm *VM) Submit(
 				if err := vm.webSocketServer.RemoveTx(txID, err); err != nil {
 					vm.snowCtx.Log.Warn("unable to remove tx from webSocketServer", zap.Error(err))
 				}
+				vm.Logger().Info("verify auth of the tx", zap.String("txID", tx.ID().String()), zap.Error(err))
 				errs = append(errs, err)
 				continue
 			}

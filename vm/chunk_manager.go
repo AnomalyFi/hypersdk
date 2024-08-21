@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"sync"
@@ -457,7 +456,7 @@ func (c *ChunkManager) AppGossip(ctx context.Context, nodeID ids.NodeID, msg []b
 		chunk, err := chain.UnmarshalChunk(msg[1:], c.vm)
 		if err != nil {
 			c.vm.metrics.gossipChunkInvalid.Inc()
-			c.vm.Logger().Warn("unable to unmarshal chunk", zap.Stringer("nodeID", nodeID), zap.String("chunk", hex.EncodeToString(msg[1:])), zap.Error(err))
+			c.vm.Logger().Warn("unable to unmarshal chunk", zap.Stringer("nodeID", nodeID), zap.Error(err))
 			return nil
 		}
 
@@ -858,6 +857,49 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 				if skipChunks {
 					continue
 				}
+				// anchorCli := c.vm.AnchorCli()
+				// _, err := anchorCli.GetHeaderV2()
+				// if err != nil {
+				// 	c.vm.Logger().Error("unable to get header from anchor", zap.Error(err))
+				// }
+				now := time.Now().UnixMilli() - consts.ClockSkewAllowance
+				r := c.vm.Rules(now)
+				slot := utils.UnixRDeci(now, r.GetValidityWindow())
+
+				anchorChunk, err := chain.BuildChunkFromAnchor(context.TODO(), c.vm, &chain.AnchorMeta{
+					BlockType:           chain.AnchorRoB,
+					Namespace:           "t",
+					PriorityFeeReceiver: codec.BlackholeAddress,
+				}, slot, nil)
+				if err != nil {
+					c.vm.Logger().Error("unable to build a anchor chunk", zap.Error(err))
+					continue
+				}
+				c.auth.Add(anchorChunk)
+				c.PushChunk(context.TODO(), anchorChunk)
+				c.vm.Logger().Debug("anchor chunk pushed", zap.String("chunkID", anchorChunk.ID().String()))
+			case <-c.vm.stop:
+				// If engine taking too long to process message, Shutdown will not
+				// be called.
+				c.vm.Logger().Info("stopping chunk manager")
+				return nil
+			}
+		}
+	})
+
+	g.Go(func() error {
+		t := time.NewTicker(c.vm.config.GetChunkBuildFrequency())
+		defer t.Stop()
+		for {
+			select {
+			case <-t.C:
+				if !c.vm.isReady() {
+					c.vm.Logger().Debug("skipping chunk loop because vm isn't ready")
+					continue
+				}
+				if skipChunks {
+					continue
+				}
 
 				// Attempt to build a chunk
 				chunkStart := time.Now()
@@ -870,6 +912,10 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 					c.vm.Logger().Error("unable to build chunk", zap.Error(err))
 					continue
 				default:
+					c.vm.Logger().Debug("chunk built", zap.Int("numTxs", len(chunk.Txs)))
+					for _, tx := range chunk.Txs {
+						c.vm.Logger().Debug("tx in chunk", zap.String("txID", tx.ID().String()))
+					}
 				}
 				c.auth.Add(chunk) // this will be a no-op because we are the producer
 				c.PushChunk(context.TODO(), chunk)
@@ -969,7 +1015,7 @@ func (c *ChunkManager) Run(appSender common.AppSender) {
 							invalid = true
 							break
 						}
-						partition, err := c.vm.proposerMonitor.AddressPartition(ctx, epoch, epochHeight, tx.Action.NMTNamespace(), tx.Partition())
+						partition, err := c.vm.proposerMonitor.AddressPartition(ctx, epoch, epochHeight, tx.Sponsor(), tx.Partition())
 						if err != nil {
 							c.vm.Logger().Debug("unable to compute address partition", zap.Error(err))
 							invalid = true
@@ -1184,11 +1230,23 @@ func makeChunkMsg(chunk *chain.Chunk) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	if len(chunkBytes) != chunk.Size() {
+		return nil, fmt.Errorf("marshalled chunk bytes len not equal to Size(), actual: %d, expected: %d", len(chunkBytes), chunk.Size())
+	}
 	copy(msg[1:], chunkBytes)
 	return msg, nil
 }
 
 func (c *ChunkManager) PushChunk(ctx context.Context, chunk *chain.Chunk) {
+	p := codec.NewWriter(chunk.AnchorMeta.Size(), consts.NetworkSizeLimit)
+	err := chunk.AnchorMeta.Marshal(p)
+	if err != nil {
+		c.vm.Logger().Error("unable to marshal meta", zap.Error(err))
+		return
+	}
+	metaBytes := p.Bytes()
+	c.vm.Logger().Debug("chunk size info", zap.Int("chunk", chunk.Size()), zap.Int("meta", chunk.AnchorMeta.Size()), zap.Int("meta real", len(metaBytes)))
+
 	msg, err := makeChunkMsg(chunk)
 	if err != nil {
 		c.vm.Logger().Warn("failed to marshal chunk", zap.Error(err))
@@ -1398,7 +1456,7 @@ func (c *ChunkManager) HandleTx(ctx context.Context, tx *chain.Transaction) {
 		c.vm.Logger().Warn("cannot lookup epoch", zap.Error(err))
 		return
 	}
-	partition, err := c.vm.proposerMonitor.AddressPartition(ctx, epoch, epochHeight, tx.Action.NMTNamespace(), tx.Partition())
+	partition, err := c.vm.proposerMonitor.AddressPartition(ctx, epoch, epochHeight, tx.Sponsor(), tx.Partition())
 	if err != nil {
 		c.vm.Logger().Warn("unable to compute address partition", zap.Error(err))
 		return
@@ -1447,6 +1505,32 @@ func (c *ChunkManager) HandleTx(ctx context.Context, tx *chain.Transaction) {
 		return
 	}
 	c.sendTxGossip(ctx, gossipable)
+}
+
+func (c *ChunkManager) SignAnchorDigest(ctx context.Context, digest []byte) ([]byte, error) {
+	now := time.Now().UnixMilli() - consts.ClockSkewAllowance
+	r := c.vm.Rules(now)
+	wm, err := warp.NewUnsignedMessage(r.NetworkID(), r.ChainID(), digest)
+	if err != nil {
+		return nil, err
+	}
+
+	return c.vm.Sign(wm)
+}
+
+// fields that are guaranteed populated:
+// Slot, Txs, PriorityFeeReceiverAddr
+func (c *ChunkManager) HandleAnchorChunk(ctx context.Context, anchor *chain.AnchorMeta, slot int64, txs []*chain.Transaction, priorityFeeReceiverAddr codec.Address) error {
+	chunk, err := chain.BuildChunkFromAnchor(ctx, c.vm, anchor, slot, txs)
+	if err != nil {
+		return err
+	}
+
+	// for gossipping & sig collecting
+	c.auth.Add(chunk)
+	c.PushChunk(ctx, chunk)
+
+	return nil
 }
 
 func (c *ChunkManager) sendTxGossip(ctx context.Context, gossip *txGossip) {

@@ -4,9 +4,10 @@
 package actions
 
 const (
-	TransferComputeUnits       = 1
-	MsgComputeUnits            = 2
 	AnchorRegisterComputeUnits = 1
 )
 
-var defaultNMTNamespace = make([]byte, 8)
+const (
+	// pre-defined actions starts from 0xf0
+	AnchorRegisterID uint8 = 0xf0
+)

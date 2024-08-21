@@ -5,8 +5,12 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/hypersdk/actions"
+	"github.com/ava-labs/hypersdk/codec"
+	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/executor"
 	"github.com/ava-labs/hypersdk/opool"
 	"github.com/ava-labs/hypersdk/state"
@@ -23,6 +27,7 @@ type Processor struct {
 
 	latestPHeight *uint64
 	epochHeights  []*uint64
+	acceptedNS    map[string]struct{} // to record accepted L2 block, we only allow one L2 block per SEQ block
 
 	timestamp  int64
 	epoch      uint64
@@ -35,6 +40,8 @@ type Processor struct {
 
 	txs     map[ids.ID]*blockLoc
 	results [][]*Result
+
+	anchors []*actions.AnchorInfo
 
 	// TODO: track frozen sponsors
 
@@ -79,8 +86,10 @@ func NewProcessor(
 		executor:   executor.New(numTxs, vm.GetActionExecutionCores(), vm.GetExecutorRecorder()),
 		ts:         tstate.New(numTxs * 2),
 
-		txs:     make(map[ids.ID]*blockLoc, numTxs),
-		results: make([][]*Result, chunks),
+		txs:        make(map[ids.ID]*blockLoc, numTxs),
+		results:    make([][]*Result, chunks),
+		anchors:    make([]*actions.AnchorInfo, 0),
+		acceptedNS: make(map[string]struct{}),
 	}
 }
 
@@ -216,6 +225,24 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 		return
 	}
 
+	// constraint on only allowing one L2 block per SEQ block
+	if chunk.AnchorMeta != nil {
+		switch chunk.AnchorMeta.BlockType {
+		case AnchorToB:
+			if _, exists := p.acceptedNS["TOB"]; exists {
+				p.markChunkTxsInvalid(chunkIndex, chunkTxs)
+				return
+			}
+			p.acceptedNS["TOB"] = struct{}{}
+		case AnchorRoB:
+			if _, exists := p.acceptedNS[chunk.AnchorMeta.Namespace]; exists {
+				p.markChunkTxsInvalid(chunkIndex, chunkTxs)
+				return
+			}
+			p.acceptedNS[chunk.AnchorMeta.Namespace] = struct{}{}
+		}
+	}
+
 	// TODO: consider doing some of these checks in parallel
 	queueStart := time.Now()
 	for rtxIndex, rtx := range chunk.Txs {
@@ -265,6 +292,7 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 				p.results[chunkIndex][txIndex] = &Result{Valid: false}
 				return nil, nil
 			}
+			p.vm.Logger().Debug("units", zap.Any("units", units), zap.Any("unitPrices", p.r.GetUnitPrices()), zap.Uint64("fee", fee), zap.Uint64("maxFee", tx.Base.MaxFee))
 			if tx.Base.MaxFee < fee {
 				// This should be checked by chunk producer before inclusion.
 				//
@@ -286,17 +314,20 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 			// If this passes, we know that latest pHeight must be non-nil
 
 			// Check that transaction is in right partition
-			parition, err := p.vm.AddressPartition(ctx, txEpoch, *epochHeight, tx.Action.NMTNamespace(), tx.Partition())
-			if err != nil {
-				p.vm.Logger().Warn("unable to compute tx partition", zap.Stringer("txID", tx.ID()), zap.Error(err))
-				p.results[chunkIndex][txIndex] = &Result{Valid: false}
-				return nil, nil
+			if chunk.AnchorMeta == nil { // from mempool
+				parition, err := p.vm.AddressPartition(ctx, txEpoch, *epochHeight, tx.Sponsor(), tx.Partition())
+				if err != nil {
+					p.vm.Logger().Warn("unable to compute tx partition", zap.Stringer("txID", tx.ID()), zap.Error(err))
+					p.results[chunkIndex][txIndex] = &Result{Valid: false}
+					return nil, nil
+				}
+				if parition != chunk.Producer {
+					p.vm.Logger().Warn("tx in wrong partition", zap.Stringer("txID", tx.ID()))
+					p.results[chunkIndex][txIndex] = &Result{Valid: false}
+					return nil, nil
+				}
 			}
-			if parition != chunk.Producer {
-				p.vm.Logger().Warn("tx in wrong partition", zap.Stringer("txID", tx.ID()))
-				p.results[chunkIndex][txIndex] = &Result{Valid: false}
-				return nil, nil
-			}
+			// TODO: some checks are needed to ensure that the Anchor chunk is issued by a correct validator
 
 			// Check that transaction isn't frozen (can avoid state lookups)
 			//
@@ -313,19 +344,49 @@ func (p *Processor) Add(ctx context.Context, chunkIndex int, chunk *Chunk) {
 	p.queueWait += time.Since(queueStart)
 }
 
-func (p *Processor) Wait() (map[ids.ID]*blockLoc, *tstate.TState, [][]*Result, error) {
+func (p *Processor) Wait() (map[ids.ID]*blockLoc, *tstate.TState, [][]*Result, []*actions.AnchorInfo, error) {
 	p.vm.RecordWaitRepeat(p.repeatWait)
 	p.vm.RecordWaitQueue(p.queueWait)
 	p.vm.RecordWaitAuth(p.authWait) // we record once so we can see how much of a block was spend waiting (this is not the same as the total time)
 	precheckStart := time.Now()
 	if err := p.prechecker.Wait(); err != nil {
-		return nil, nil, nil, fmt.Errorf("%w: prechecker failed", err)
+		return nil, nil, nil, nil, fmt.Errorf("%w: prechecker failed", err)
 	}
 	p.vm.RecordWaitPrecheck(time.Since(precheckStart))
 	exectutorStart := time.Now()
 	if err := p.executor.Wait(); err != nil {
-		return nil, nil, nil, fmt.Errorf("%w: processor failed", err)
+		return nil, nil, nil, nil, fmt.Errorf("%w: processor failed", err)
 	}
+
+	nsRaw, err := p.im.Get(context.TODO(), actions.AnchorRegistryKey())
+	switch err {
+	case database.ErrNotFound:
+		p.anchors = nil
+	case nil:
+		namespaces, err := actions.UnpackNamespaces(nsRaw)
+		if err != nil {
+			return nil, nil, nil, nil, err
+		}
+		for _, ns := range namespaces {
+			info, err := p.im.Get(context.TODO(), actions.AnchorKey(ns))
+			if err != nil {
+				// should never happen since url and namespace are paired, should be created & deleted the same time
+				return nil, nil, nil, nil, err
+			}
+
+			packer := codec.NewReader(info, consts.NetworkSizeLimit)
+			anchorInfo, err := actions.UnmarshalAnchorInfo(packer)
+			if err != nil {
+				return nil, nil, nil, nil, err
+			}
+
+			p.vm.Logger().Debug("anchor", zap.ByteString("namespace", anchorInfo.Namespace), zap.Any("info", anchorInfo))
+			p.anchors = append(p.anchors, anchorInfo)
+		}
+	default:
+		return nil, nil, nil, nil, fmt.Errorf("state: %+v", err)
+	}
+
 	p.vm.RecordWaitExec(time.Since(exectutorStart))
-	return p.txs, p.ts, p.results, nil
+	return p.txs, p.ts, p.results, p.anchors, nil
 }

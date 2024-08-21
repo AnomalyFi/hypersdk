@@ -180,10 +180,12 @@ func (cli *JSONRPCClient) GenerateTransaction(
 	if err != nil {
 		return nil, nil, 0, err
 	}
+	fmt.Printf("estimated max units: %+v\n", maxUnits)
 	maxFee, err := chain.MulSum(unitPrices, maxUnits)
 	if err != nil {
 		return nil, nil, 0, err
 	}
+	fmt.Printf("maxFee: %+v\n", maxFee)
 	f, tx, err := cli.GenerateTransactionManual(parser, wm, action, authFactory, maxFee, modifiers...)
 	if err != nil {
 		return nil, nil, 0, err

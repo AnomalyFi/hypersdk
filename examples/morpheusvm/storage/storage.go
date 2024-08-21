@@ -12,6 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	smath "github.com/ava-labs/avalanchego/utils/math"
+	hactions "github.com/ava-labs/hypersdk/actions"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
@@ -52,6 +53,10 @@ const (
 	incomingWarpPrefix = 0x5
 	outgoingWarpPrefix = 0x6
 	epochPrefix        = 0x7
+
+	// anchor related prefixs, see hypersdk/actions
+	// anchorRegistryPrefix = 0xf0
+	// anchorPrefix = 0xf1
 )
 
 const BalanceChunks uint16 = 1
@@ -281,4 +286,216 @@ func EpochKey(epoch uint64) string {
 	k[0] = epochPrefix
 	binary.BigEndian.PutUint64(k[1:], epoch)
 	return string(k)
+}
+
+func AnchorRegistryKey() string {
+	return hactions.AnchorRegistryKey()
+
+	// // state key must >= 2 bytes
+	// k := make([]byte, 1+consts.Uint16Len)
+	// k[0] = anchorRegisteryPrefix
+	// binary.BigEndian.PutUint16(k[1:], BalanceChunks) //TODO: update the BalanceChunks to AnchorChunks
+	// return string(k)
+}
+
+func PackNamespaces(namespaces [][]byte) ([]byte, error) {
+	return hactions.PackNamespaces(namespaces)
+}
+
+func UnpackNamespaces(raw []byte) ([][]byte, error) {
+	return hactions.UnpackNamespaces(raw)
+}
+
+func GetAnchors(
+	ctx context.Context,
+	im state.Immutable,
+) ([][]byte, []*hactions.AnchorInfo, error) {
+	_, namespaces, infos, _, err := getAnchors(ctx, im)
+	return namespaces, infos, err
+}
+
+func getAnchors(
+	ctx context.Context,
+	im state.Immutable,
+) (string, [][]byte, []*hactions.AnchorInfo, bool, error) {
+	k := AnchorRegistryKey()
+	namespaces, exists, err := innerGetAnchors(im.Get(ctx, k))
+	if err != nil {
+		return "", nil, nil, false, err
+	}
+
+	infos := make([]*hactions.AnchorInfo, 0, len(namespaces))
+	for _, ns := range namespaces {
+		info, err := GetAnchor(ctx, im, ns)
+		if err != nil {
+			return "", nil, nil, false, err
+		}
+		infos = append(infos, info)
+	}
+	return k, namespaces, infos, exists, err
+}
+
+// Used to serve RPC queries
+func GetAnchorsFromState(
+	ctx context.Context,
+	f ReadState,
+) ([][]byte, []*hactions.AnchorInfo, error) {
+	k := AnchorRegistryKey()
+	values, errs := f(ctx, []string{k})
+	namespaces, _, err := innerGetAnchors(values[0], errs[0])
+	if err != nil {
+		return nil, nil, err
+	}
+
+	infos := make([]*hactions.AnchorInfo, 0, len(namespaces))
+	for _, ns := range namespaces {
+		k := AnchorKey(ns)
+		values, errs := f(ctx, []string{k})
+		info, _, err := innerGetAnchor(values[0], errs[0])
+		if err != nil {
+			return nil, nil, err
+		}
+		infos = append(infos, info)
+	}
+	return namespaces, infos, err
+}
+
+func innerGetAnchors(
+	v []byte,
+	err error,
+) ([][]byte, bool, error) {
+	if errors.Is(err, database.ErrNotFound) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	namespaces, err := UnpackNamespaces(v)
+	if err != nil {
+		return nil, false, err
+	}
+
+	return namespaces, true, nil
+}
+
+func SetAnchors(
+	ctx context.Context,
+	mu state.Mutable,
+	namespaces [][]byte,
+) error {
+	return setAnchors(ctx, mu, namespaces)
+}
+
+func setAnchors(
+	ctx context.Context,
+	mu state.Mutable,
+	namespaces [][]byte,
+) error {
+	k := AnchorRegistryKey()
+	packed, err := PackNamespaces(namespaces)
+	if err != nil {
+		return err
+	}
+	return mu.Put(ctx, k, packed)
+}
+
+func AnchorKey(namespace []byte) string {
+	return hactions.AnchorKey(namespace)
+	// k := make([]byte, 1+len(namespace)+consts.Uint16Len)
+	// k[0] = anchorPrefix
+	// copy(k[1:], namespace[:])
+	// binary.BigEndian.PutUint16(k[1+len(namespace):], BalanceChunks) //TODO: update the BalanceChunks to AnchorChunks
+	// return string(k)
+}
+
+// If locked is 0, then account does not exist
+func GetAnchor(
+	ctx context.Context,
+	im state.Immutable,
+	namespace []byte,
+) (*hactions.AnchorInfo, error) {
+	_, anchor, _, err := getAnchor(ctx, im, namespace)
+	return anchor, err
+}
+
+func getAnchor(
+	ctx context.Context,
+	im state.Immutable,
+	namespace []byte,
+) (string, *hactions.AnchorInfo, bool, error) {
+	k := AnchorKey(namespace)
+	anchor, exists, err := innerGetAnchor(im.Get(ctx, k))
+	return k, anchor, exists, err
+}
+
+// Used to serve RPC queries
+func GetAnchorFromState(
+	ctx context.Context,
+	f ReadState,
+	namespace []byte,
+) (*hactions.AnchorInfo, error) {
+	k := AnchorKey(namespace)
+	values, errs := f(ctx, []string{k})
+	anchor, _, err := innerGetAnchor(values[0], errs[0])
+	return anchor, err
+}
+
+func innerGetAnchor(
+	v []byte,
+	err error,
+) (*hactions.AnchorInfo, bool, error) {
+	if errors.Is(err, database.ErrNotFound) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	p := codec.NewReader(v, consts.NetworkSizeLimit)
+	info, err := hactions.UnmarshalAnchorInfo(p)
+	if err != nil {
+		return nil, false, err
+	}
+	return info, true, nil
+}
+
+func SetAnchor(
+	ctx context.Context,
+	mu state.Mutable,
+	namespace []byte,
+	info *hactions.AnchorInfo,
+) error {
+	k := AnchorKey(namespace)
+	return setAnchor(ctx, mu, k, info)
+}
+
+func setAnchor(
+	ctx context.Context,
+	mu state.Mutable,
+	key string,
+	info *hactions.AnchorInfo,
+) error {
+	p := codec.NewWriter(info.Size(), consts.NetworkSizeLimit)
+	err := info.Marshal(p)
+	if err != nil {
+		return err
+	}
+	infoBytes := p.Bytes()
+	return mu.Put(ctx, key, infoBytes)
+}
+
+func DelAnchor(
+	ctx context.Context,
+	mu state.Mutable,
+	namespace []byte,
+) error {
+	k := AnchorKey(namespace)
+	return delAnchor(ctx, mu, k)
+}
+
+func delAnchor(
+	ctx context.Context,
+	mu state.Mutable,
+	key string,
+) error {
+	return mu.Delete(ctx, key)
 }

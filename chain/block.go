@@ -19,6 +19,7 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
+	"github.com/ava-labs/hypersdk/actions"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/utils"
@@ -42,6 +43,8 @@ type StatefulBlock struct {
 	Parent    ids.ID `json:"parent"`
 	Height    uint64 `json:"height"`
 	Timestamp int64  `json:"timestamp"`
+
+	Anchors []*actions.AnchorInfo `json:"anchors"`
 
 	// AvailableChunks is a collection of valid Chunks that will be executed in
 	// the future.
@@ -76,6 +79,13 @@ func (b *StatefulBlock) Marshal() ([]byte, error) {
 	p.PackUint64(b.Height)
 	p.PackInt64(b.Timestamp)
 
+	p.PackInt(len(b.Anchors))
+	for _, anchor := range b.Anchors {
+		if err := anchor.Marshal(p); err != nil {
+			return nil, err
+		}
+	}
+
 	p.PackInt(len(b.AvailableChunks))
 	for _, cert := range b.AvailableChunks {
 		if err := cert.MarshalPacker(p); err != nil {
@@ -107,6 +117,16 @@ func UnmarshalBlock(raw []byte) (*StatefulBlock, error) {
 	p.UnpackID(false, &b.Parent)
 	b.Height = p.UnpackUint64(false)
 	b.Timestamp = p.UnpackInt64(false)
+
+	numAnchors := p.UnpackInt(false)
+	b.Anchors = make([]*actions.AnchorInfo, 0, 16) // prevent DoS
+	for i := 0; i < numAnchors; i++ {
+		anchor, err := actions.UnmarshalAnchorInfo(p)
+		if err != nil {
+			return nil, err
+		}
+		b.Anchors = append(b.Anchors, anchor)
+	}
 
 	// Parse available chunks
 	availableChunks := p.UnpackInt(false)                // can produce empty blocks
@@ -501,11 +521,16 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 	// Prune async results (if any)
 	var filteredChunks []*FilteredChunk
 	if b.execHeight != nil {
-		_, fc, err := b.vm.Engine().PruneResults(ctx, *b.execHeight)
+		_, fc, anchors, err := b.vm.Engine().PruneResults(ctx, *b.execHeight)
 		if err != nil {
 			return fmt.Errorf("%w: cannot prune results", err)
 		}
 		filteredChunks = fc
+		b.Anchors = anchors
+		b.vm.Logger().Debug("anchors of block", zap.Uint64("blockHeight", b.Height()), zap.Int("numAnchors", len(anchors)))
+		for _, anchor := range anchors {
+			b.vm.Logger().Debug("anchor info", zap.ByteString("namespace", anchor.Namespace), zap.String("feeRecipient", string(anchor.FeeRecipient[:])))
+		}
 	}
 
 	// Notify the VM that the block has been accepted
@@ -518,6 +543,11 @@ func (b *StatelessBlock) Accept(ctx context.Context) error {
 	// Start async execution of chunks (and fetch if missing)
 	if b.StatefulBlock.Height > 0 { // nothing to execute in genesis
 		b.vm.Engine().Execute(b)
+	}
+
+	b.vm.Logger().Debug("included chunk")
+	for chunkID := range b.chunks {
+		b.vm.Logger().Debug("chunk", zap.String("chunkID", chunkID.String()))
 	}
 
 	r := b.vm.Rules(b.StatefulBlock.Timestamp)
