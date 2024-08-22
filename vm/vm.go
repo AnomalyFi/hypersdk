@@ -26,6 +26,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 
+	"github.com/AnomalyFi/hypersdk/anchor"
 	"github.com/AnomalyFi/hypersdk/builder"
 	"github.com/AnomalyFi/hypersdk/cache"
 	"github.com/AnomalyFi/hypersdk/chain"
@@ -73,6 +74,10 @@ type VM struct {
 
 	tracer  avatrace.Tracer
 	mempool *mempool.Mempool[*chain.Transaction]
+
+	// anchor
+	anchorCli      *anchor.AnchorClient
+	anchorRegistry *anchor.AnchorRegistry
 
 	// track all accepted but still valid txs (replay protection)
 	seen                   *emap.EMap[*chain.Transaction]
@@ -255,6 +260,9 @@ func (vm *VM) Initialize(
 		vm.config.GetMempoolSponsorSize(),
 		vm.config.GetMempoolExemptSponsors(),
 	)
+
+	vm.anchorCli = anchor.NewAnchorClient(vm.config.GetAnchorURL())
+	vm.anchorRegistry = anchor.NewAnchorRegistry()
 
 	// Try to load last accepted
 	has, err := vm.HasLastAccepted()

@@ -57,6 +57,7 @@ type Config interface {
 	GetBlockCompactionFrequency() int
 	GetETHL1RPC() string
 	GetETHL1WS() string
+	GetAnchorURL() string
 }
 
 type Genesis interface {
