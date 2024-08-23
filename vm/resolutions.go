@@ -16,6 +16,7 @@ import (
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"go.uber.org/zap"
 
@@ -24,6 +25,7 @@ import (
 	"github.com/AnomalyFi/hypersdk/chain"
 	"github.com/AnomalyFi/hypersdk/codec"
 	"github.com/AnomalyFi/hypersdk/consts"
+	"github.com/AnomalyFi/hypersdk/crypto/bls"
 	"github.com/AnomalyFi/hypersdk/executor"
 	"github.com/AnomalyFi/hypersdk/fees"
 	"github.com/AnomalyFi/hypersdk/gossiper"
@@ -375,6 +377,14 @@ func (vm *VM) CurrentValidators(
 
 func (vm *VM) NodeID() ids.NodeID {
 	return vm.snowCtx.NodeID
+}
+
+func (vm *VM) Signer() *bls.PublicKey {
+	return vm.snowCtx.PublicKey
+}
+
+func (vm *VM) Sign(msg *warp.UnsignedMessage) ([]byte, error) {
+	return vm.snowCtx.WarpSigner.Sign(msg)
 }
 
 func (vm *VM) PreferredBlock(ctx context.Context) (*chain.StatelessBlock, error) {

@@ -1,9 +1,13 @@
 package anchor
 
 import (
+	"crypto/rand"
 	"fmt"
 	"testing"
 
+	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/crypto/bls"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 )
@@ -44,4 +48,27 @@ func TestAnchorFlow(t *testing.T) {
 			fmt.Printf("txHash: %s\tchainID: %d\n", tx.Hash().Hex(), chainID.Int64())
 		}
 	}
+}
+
+// Avalanchego also use BLS12-381 scheme as go-eth2-client
+func TestBLSSigning(t *testing.T) {
+	chainID := ids.GenerateTestID()
+	networkID := 1337
+	sk, err := bls.NewSecretKey()
+	require.NoError(t, err)
+	pubkey := bls.PublicFromSecretKey(sk)
+
+	payload := make([]byte, 20)
+	_, err = rand.Read(payload)
+	require.NoError(t, err)
+
+	warpSigner := warp.NewSigner(sk, 1337, chainID)
+	uwm, err := warp.NewUnsignedMessage(uint32(networkID), chainID, payload)
+	require.NoError(t, err)
+	sig, err := warpSigner.Sign(uwm)
+	require.NoError(t, err)
+
+	fmt.Printf("compressed pubkey length: %d\n", len(pubkey.Compress()))
+	fmt.Printf("pubkey length: %d\n", len(pubkey.Serialize()))
+	fmt.Printf("sig length: %d\n", len(sig))
 }
