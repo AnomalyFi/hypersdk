@@ -15,6 +15,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 
+	"github.com/AnomalyFi/hypersdk/anchor"
 	"github.com/AnomalyFi/hypersdk/codec"
 	"github.com/AnomalyFi/hypersdk/executor"
 	"github.com/AnomalyFi/hypersdk/fees"
@@ -63,6 +64,8 @@ type VM interface {
 	AuthVerifiers() workers.Workers
 	GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (AuthBatchVerifier, bool)
 	GetVerifyAuth() bool
+
+	AnchorClient() *anchor.AnchorClient
 
 	IsBootstrapped() bool
 	LastAcceptedBlock() *StatelessBlock

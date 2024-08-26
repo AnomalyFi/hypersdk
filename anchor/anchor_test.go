@@ -8,7 +8,6 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
-	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -23,31 +22,8 @@ func TestAnchorFlow(t *testing.T) {
 	require.NoError(t, err)
 	fmt.Printf("%+v\n", header)
 
-	payload, err := cli.GetPayloadV2(slot)
+	_, err = cli.GetPayloadV2(slot)
 	require.NoError(t, err)
-
-	tobPayload := payload.ToBPayload
-	txs := tobPayload.Transactions
-	fmt.Printf("ToB txs: ")
-	for _, txRaw := range txs {
-		var tx ethtypes.Transaction
-		err := tx.UnmarshalBinary(txRaw)
-		require.NoError(t, err)
-		chainID := tx.ChainId()
-		fmt.Printf("txHash: %s\tchainID: %d\n", tx.Hash().Hex(), chainID.Int64())
-	}
-
-	for chainID, robPayload := range payload.RoBPayloads {
-		fmt.Printf("RoB-%s txs\n", chainID)
-		txs := robPayload.Transactions
-		for _, txRaw := range txs {
-			var tx ethtypes.Transaction
-			err := tx.UnmarshalBinary(txRaw)
-			require.NoError(t, err)
-			chainID := tx.ChainId()
-			fmt.Printf("txHash: %s\tchainID: %d\n", tx.Hash().Hex(), chainID.Int64())
-		}
-	}
 }
 
 // Avalanchego also use BLS12-381 scheme as go-eth2-client

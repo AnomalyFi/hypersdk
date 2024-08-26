@@ -21,6 +21,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/AnomalyFi/hypersdk/actions"
+	"github.com/AnomalyFi/hypersdk/anchor"
 	"github.com/AnomalyFi/hypersdk/builder"
 	"github.com/AnomalyFi/hypersdk/chain"
 	"github.com/AnomalyFi/hypersdk/codec"
@@ -60,6 +61,14 @@ func (vm *VM) ValidatorState() validators.State {
 
 func (vm *VM) Registry() (chain.ActionRegistry, chain.AuthRegistry) {
 	return vm.actionRegistry, vm.authRegistry
+}
+
+func (vm *VM) AnchorClient() *anchor.AnchorClient {
+	return vm.anchorCli
+}
+
+func (vm *VM) AnchorRegistry() *anchor.AnchorRegistry {
+	return vm.anchorRegistry
 }
 
 func (vm *VM) AuthVerifiers() workers.Workers {

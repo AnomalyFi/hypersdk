@@ -153,8 +153,155 @@ func BuildBlock(
 	)
 
 	// Batch fetch items from mempool to unblock incoming RPC/Gossip traffic
-	mempool.StartStreaming(ctx)
 	b.Txs = []*Transaction{}
+
+	// TOOD: separate this part to an isolated function
+	// txs from anchor
+	anchorCli := vm.AnchorClient()
+	if anchorCli != nil {
+		currentHeight := parent.Height() + 1
+		header, err := anchorCli.GetHeaderV2(int64(currentHeight))
+		if err != nil {
+			vm.Logger().Error("unable to get header from anchor", zap.Error(err))
+		}
+		payload, err := anchorCli.GetPayloadV2(int64(header.Slot))
+		if err != nil {
+			vm.Logger().Error("unable to get payload from anchor", zap.Error(err))
+		}
+		actionRegistry, authRegistry := vm.Registry()
+		_, txs, err := UnmarshalTxs(payload.ToBPayload.Transactions, 10, actionRegistry, authRegistry)
+		if err != nil {
+			vm.Logger().Error("unable to unmarshal txs from anchor", zap.Error(err))
+		}
+		// unlike txs from mempool, we don't check duplicates
+		ctx, executeSpan := vm.Tracer().Start(ctx, "chain.BuildBlock.ExecuteAnchor") //nolint:spancheck
+		anchorBatch := len(txs)
+
+		// aggregate all the state keys used in the anchor chunk
+		var anchorStateKeys state.Keys
+		for _, tx := range txs {
+			statekeys, err := tx.StateKeys(sm)
+			if err != nil {
+				continue
+			}
+			for k, perm := range statekeys {
+				anchorStateKeys.Add(k, perm)
+			}
+		}
+		var (
+			storage  = make(map[string][]byte, len(anchorStateKeys))
+			toLookup = make([]string, 0, len(anchorStateKeys))
+		)
+		cacheLock.RLock()
+		for k := range anchorStateKeys {
+			if v, ok := cache[k]; ok {
+				if v.exists {
+					storage[k] = v.v
+				}
+				continue
+			}
+			toLookup = append(toLookup, k)
+		}
+		cacheLock.RUnlock()
+
+		// Fetch keys from disk
+		var toCache map[string]*fetchData
+		if len(toLookup) > 0 {
+			toCache = make(map[string]*fetchData, len(toLookup))
+			for _, k := range toLookup {
+				v, err := parentView.GetValue(ctx, []byte(k))
+				if errors.Is(err, database.ErrNotFound) {
+					toCache[k] = &fetchData{nil, false, 0}
+					continue
+				} else if err != nil {
+					// TODO: anchor exit
+					continue
+				}
+				// We verify that the [NumChunks] is already less than the number
+				// added on the write path, so we don't need to do so again here.
+				numChunks, ok := keys.NumChunks(v)
+				if !ok {
+					// TODO: anchor exit
+					continue
+				}
+				toCache[k] = &fetchData{v, true, numChunks}
+				storage[k] = v
+			}
+
+			// Update key cache regardless of whether exit is graceful
+			cacheLock.Lock()
+			for k := range toCache {
+				cache[k] = toCache[k]
+			}
+			cacheLock.Unlock()
+		}
+
+		anchorTxs := make([]*Transaction, 0, len(txs))
+		anchorTxResults := make([]*Result, 0, len(results))
+		e := executor.New(anchorBatch, vm.GetTransactionExecutionCores(), MaxKeyDependencies, vm.GetExecutorBuildRecorder())
+		// start a new view here, only commit when all txs succeed
+		tsv := ts.NewView(anchorStateKeys, storage)
+		for _, ltx := range txs {
+			txsAttempted++
+			tx := ltx
+			// most of the txs are SequencerMsgTx, which is stateless, so most of them will be executing in parallel
+			e.Run(anchorStateKeys, func() error {
+				if err := tx.PreExecute(ctx, feeManager, sm, r, tsv, nextTime); err != nil {
+					return err
+				}
+				result, err := tx.Execute(
+					ctx,
+					feeManager,
+					sm,
+					r,
+					tsv,
+					nextTime,
+				)
+				if err != nil {
+					log.Warn("unexpected post-execution error", zap.Error(err))
+					return err
+				}
+
+				blockLock.Lock()
+				defer blockLock.Unlock()
+
+				// Ensure block isn't too big
+				if ok, dimension := feeManager.Consume(result.Units, maxUnits); !ok {
+					log.Debug(
+						"skipping tx: too many units",
+						zap.Int("dimension", int(dimension)),
+						zap.Uint64("tx", result.Units[dimension]),
+						zap.Uint64("block units", feeManager.LastConsumed(dimension)),
+						zap.Uint64("max block units", maxUnits[dimension]),
+					)
+					// If we are above the target for the dimension we can't consume, we will
+					// stop building. This prevents a full mempool iteration looking for the
+					// "perfect fit".
+					if feeManager.LastConsumed(dimension) >= targetUnits[dimension] {
+						stop = true
+						return errBlockFull
+					}
+				}
+
+				return nil
+			})
+		}
+		execErr := e.Wait()
+		executeSpan.End()
+
+		// Handle execution result
+		if execErr != nil {
+			vm.Logger().Error("error executing anchor txs", zap.Error(err))
+		} else {
+			// only do state transition when all the txs in the anchor chunk have succeed
+			tsv.Commit()
+			b.Txs = append(b.Txs, anchorTxs...)
+			results = append(results, anchorTxResults...)
+		}
+	}
+
+	// txs from mempool
+	mempool.StartStreaming(ctx)
 	for time.Since(start) < vm.GetTargetBuildDuration() && !stop {
 		prepareStreamLock.Lock()
 		txs := mempool.Stream(ctx, streamBatch)
@@ -460,4 +607,7 @@ func BuildBlock(
 		zap.Int64("block (t)", b.Tmstmp),
 	)
 	return b, nil
+}
+
+func BuildAnchorOnTopOfBlock(ctx context.Context, vm VM, parent *StatelessBlock) {
 }

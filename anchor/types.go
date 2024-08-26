@@ -70,5 +70,5 @@ type ExecutionPayload2 struct {
 	BlockHash common.Hash `json:"blockHash"`
 	// Array of transaction objects, each object is a byte list (DATA) representing
 	// TransactionType || TransactionPayload or LegacyTransaction as defined in EIP-2718
-	Transactions []Data `json:"transactions"`
+	Transactions []byte `json:"transactions"`
 }

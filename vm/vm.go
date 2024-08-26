@@ -262,7 +262,12 @@ func (vm *VM) Initialize(
 		vm.config.GetMempoolExemptSponsors(),
 	)
 
-	vm.anchorCli = anchor.NewAnchorClient(vm.config.GetAnchorURL())
+	if vm.config.GetAnchorURL() == "" {
+		snowCtx.Log.Info("no anchor configured")
+		vm.anchorCli = nil
+	} else {
+		vm.anchorCli = anchor.NewAnchorClient(vm.config.GetAnchorURL())
+	}
 	vm.anchorRegistry = anchor.NewAnchorRegistry()
 
 	// Try to load last accepted
