@@ -12,7 +12,7 @@ require (
 	github.com/bytecodealliance/wasmtime-go/v14 v14.0.0
 	github.com/celestiaorg/nmt v0.20.0
 	github.com/cockroachdb/pebble v0.0.0-20230928194634-aa077af62593
-	github.com/ethereum/go-ethereum v1.13.8
+	github.com/ethereum/go-ethereum v1.13.10
 	github.com/gorilla/mux v1.8.0
 	github.com/gorilla/rpc v1.2.0
 	github.com/gorilla/websocket v1.5.0
