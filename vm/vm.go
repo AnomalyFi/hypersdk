@@ -77,6 +77,7 @@ type VM struct {
 	mempool *mempool.Mempool[*chain.Transaction]
 
 	// anchor
+	anchorCliL     sync.Mutex
 	anchorCli      *anchor.AnchorClient
 	anchorRegistry *anchor.AnchorRegistry
 

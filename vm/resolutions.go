@@ -64,6 +64,9 @@ func (vm *VM) Registry() (chain.ActionRegistry, chain.AuthRegistry) {
 }
 
 func (vm *VM) AnchorClient() *anchor.AnchorClient {
+	vm.anchorCliL.Lock()
+	defer vm.anchorCliL.Unlock()
+
 	return vm.anchorCli
 }
 
@@ -110,6 +113,14 @@ func (vm *VM) State() (merkledb.MerkleDB, error) {
 
 func (vm *VM) Mempool() chain.Mempool {
 	return vm.mempool
+}
+
+func (vm *VM) ReplaceAnchor(url string) bool {
+	vm.anchorCliL.Lock()
+	defer vm.anchorCliL.Unlock()
+
+	vm.anchorCli = anchor.NewAnchorClient(url)
+	return true
 }
 
 func (vm *VM) IsRepeat(ctx context.Context, txs []*chain.Transaction, marker set.Bits, stop bool) set.Bits {

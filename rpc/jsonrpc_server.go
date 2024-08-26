@@ -141,5 +141,17 @@ func (j *JSONRPCServer) NameSpacesPrice(
 	if err != nil && err != feemarket.ErrNamespaceNotFound {
 		return err
 	}
+type ReplaceAnchorArgs struct {
+	URL string `json:"url"`
+}
+
+type ReplaceAnchorReply struct {
+	Success bool `json:"success"`
+}
+
+// TODO: make it permissioned
+func (j *JSONRPCServer) ReplaceAnchor(req *http.Request, args *ReplaceAnchorArgs, reply *ReplaceAnchorReply) error {
+	replaced := j.vm.ReplaceAnchor(args.URL)
+	reply.Success = replaced
 	return nil
 }
