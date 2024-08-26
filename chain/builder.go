@@ -163,26 +163,30 @@ func BuildBlock(
 		header, err := anchorCli.GetHeaderV2(int64(currentHeight))
 		if err != nil {
 			vm.Logger().Error("unable to get header from anchor", zap.Error(err))
+			goto skipAnchor
 		}
 		payload, err := anchorCli.GetPayloadV2(int64(header.Slot))
 		if err != nil {
 			vm.Logger().Error("unable to get payload from anchor", zap.Error(err))
+			goto skipAnchor
 		}
 		actionRegistry, authRegistry := vm.Registry()
 		_, txs, err := UnmarshalTxs(payload.ToBPayload.Transactions, 10, actionRegistry, authRegistry)
 		if err != nil {
 			vm.Logger().Error("unable to unmarshal txs from anchor", zap.Error(err))
+			goto skipAnchor
 		}
 		// unlike txs from mempool, we don't check duplicates
 		ctx, executeSpan := vm.Tracer().Start(ctx, "chain.BuildBlock.ExecuteAnchor") //nolint:spancheck
 		anchorBatch := len(txs)
 
 		// aggregate all the state keys used in the anchor chunk
-		var anchorStateKeys state.Keys
+		anchorStateKeys := make(state.Keys)
 		for _, tx := range txs {
 			statekeys, err := tx.StateKeys(sm)
 			if err != nil {
-				continue
+				vm.Logger().Error("unable to get statekeys of tx", zap.Error(err))
+				goto skipAnchor
 			}
 			for k, perm := range statekeys {
 				anchorStateKeys.Add(k, perm)
@@ -214,15 +218,15 @@ func BuildBlock(
 					toCache[k] = &fetchData{nil, false, 0}
 					continue
 				} else if err != nil {
-					// TODO: anchor exit
-					continue
+					vm.Logger().Error("unable to get key", zap.String("key", k), zap.Error(err))
+					goto skipAnchor
 				}
 				// We verify that the [NumChunks] is already less than the number
 				// added on the write path, so we don't need to do so again here.
 				numChunks, ok := keys.NumChunks(v)
 				if !ok {
-					// TODO: anchor exit
-					continue
+					vm.Logger().Error("unable to calculate num of chunks for k", zap.String("key", k))
+					goto skipAnchor
 				}
 				toCache[k] = &fetchData{v, true, numChunks}
 				storage[k] = v
@@ -236,6 +240,7 @@ func BuildBlock(
 			cacheLock.Unlock()
 		}
 
+		var anchorL sync.Mutex
 		anchorTxs := make([]*Transaction, 0, len(txs))
 		anchorTxResults := make([]*Result, 0, len(results))
 		e := executor.New(anchorBatch, vm.GetTransactionExecutionCores(), MaxKeyDependencies, vm.GetExecutorBuildRecorder())
@@ -244,7 +249,7 @@ func BuildBlock(
 		for _, ltx := range txs {
 			txsAttempted++
 			tx := ltx
-			// most of the txs are SequencerMsgTx, which is stateless, so most of them will be executing in parallel
+			// TODO: parallem this, currently `TState` can't be rolled back while `TState_View` can
 			e.Run(anchorStateKeys, func() error {
 				if err := tx.PreExecute(ctx, feeManager, sm, r, tsv, nextTime); err != nil {
 					return err
@@ -261,9 +266,6 @@ func BuildBlock(
 					log.Warn("unexpected post-execution error", zap.Error(err))
 					return err
 				}
-
-				blockLock.Lock()
-				defer blockLock.Unlock()
 
 				// Ensure block isn't too big
 				if ok, dimension := feeManager.Consume(result.Units, maxUnits); !ok {
@@ -283,6 +285,12 @@ func BuildBlock(
 					}
 				}
 
+				anchorL.Lock()
+				defer anchorL.Unlock()
+
+				anchorTxs = append(anchorTxs, tx)
+				anchorTxResults = append(anchorTxResults, result)
+
 				return nil
 			})
 		}
@@ -293,6 +301,7 @@ func BuildBlock(
 		if execErr != nil {
 			vm.Logger().Error("error executing anchor txs", zap.Error(err))
 		} else {
+			vm.Logger().Info("anchor txs has been added", zap.Int("numTxs", len(anchorTxs)))
 			// only do state transition when all the txs in the anchor chunk have succeed
 			tsv.Commit()
 			b.Txs = append(b.Txs, anchorTxs...)
@@ -300,6 +309,7 @@ func BuildBlock(
 		}
 	}
 
+skipAnchor:
 	// txs from mempool
 	mempool.StartStreaming(ctx)
 	for time.Since(start) < vm.GetTargetBuildDuration() && !stop {
