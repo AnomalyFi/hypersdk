@@ -469,12 +469,21 @@ func (vm *VM) UnitPrices(context.Context) (fees.Dimensions, error) {
 	return fees.NewManager(v).UnitPrices(), nil
 }
 
-func (vm *VM) NameSpacePrice(ctx context.Context, namespace string) (uint64, error) {
+func (vm *VM) NameSpacesPrice(ctx context.Context, namespaces []string) ([]uint64, error) {
 	v, err := vm.stateDB.Get(chain.FeeMarketKey(vm.StateManager().FeeMarketKey()))
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	return feemarket.NewMarket(v, vm.c.Rules(0)).UnitPrice(namespace)
+	fm := feemarket.NewMarket(v, vm.c.Rules(0))
+	var prices []uint64
+	for _, ns := range namespaces {
+		price, err := fm.UnitPrice(ns)
+		if err != nil && err != feemarket.ErrNamespaceNotFound {
+			return nil, err
+		}
+		prices = append(prices, price)
+	}
+	return prices, nil
 }
 
 func (vm *VM) GetTransactionExecutionCores() int {

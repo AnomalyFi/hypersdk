@@ -120,23 +120,23 @@ func (j *JSONRPCServer) UnitPrices(
 	return nil
 }
 
-type NameSpacePriceArgs struct {
-	NameSpace string `json:"namespace"`
+type NameSpacesPriceArgs struct {
+	NameSpace []string `json:"namespace"`
 }
 
-type NameSpacePriceReply struct {
-	Price uint64 `json:"price"`
+type NameSpacesPriceReply struct {
+	Price []uint64 `json:"price"`
 }
 
-func (j *JSONRPCServer) NameSpacePrice(
+func (j *JSONRPCServer) NameSpacesPrice(
 	req *http.Request,
-	args *NameSpacePriceArgs,
-	reply *NameSpacePriceReply,
+	args *NameSpacesPriceArgs,
+	reply *NameSpacesPriceReply,
 ) error {
-	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.NameSpacePrice")
+	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.NameSpacesPrice")
 	defer span.End()
 
-	price, err := j.vm.NameSpacePrice(ctx, args.NameSpace)
+	price, err := j.vm.NameSpacesPrice(ctx, args.NameSpace)
 	reply.Price = price
 	if err != nil && err != feemarket.ErrNamespaceNotFound {
 		return err
