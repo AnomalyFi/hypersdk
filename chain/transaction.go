@@ -12,7 +12,6 @@ import (
 	"github.com/AnomalyFi/hypersdk/codec"
 	"github.com/AnomalyFi/hypersdk/consts"
 	"github.com/AnomalyFi/hypersdk/emap"
-	feemarket "github.com/AnomalyFi/hypersdk/fee_market"
 	"github.com/AnomalyFi/hypersdk/fees"
 	"github.com/AnomalyFi/hypersdk/keys"
 	"github.com/AnomalyFi/hypersdk/math"
@@ -20,6 +19,8 @@ import (
 	"github.com/AnomalyFi/hypersdk/state"
 	"github.com/AnomalyFi/hypersdk/tstate"
 	"github.com/AnomalyFi/hypersdk/utils"
+
+	feemarket "github.com/AnomalyFi/hypersdk/fee_market"
 )
 
 var (

@@ -20,10 +20,11 @@ import (
 	"github.com/AnomalyFi/hypersdk/builder"
 	"github.com/AnomalyFi/hypersdk/chain"
 	"github.com/AnomalyFi/hypersdk/executor"
-	feemarket "github.com/AnomalyFi/hypersdk/fee_market"
 	"github.com/AnomalyFi/hypersdk/fees"
 	"github.com/AnomalyFi/hypersdk/gossiper"
 	"github.com/AnomalyFi/hypersdk/workers"
+
+	feemarket "github.com/AnomalyFi/hypersdk/fee_market"
 )
 
 var (
@@ -469,19 +470,19 @@ func (vm *VM) UnitPrices(context.Context) (fees.Dimensions, error) {
 	return fees.NewManager(v).UnitPrices(), nil
 }
 
-func (vm *VM) NameSpacesPrice(ctx context.Context, namespaces []string) ([]uint64, error) {
+func (vm *VM) NameSpacesPrice(_ context.Context, namespaces []string) ([]uint64, error) {
 	v, err := vm.stateDB.Get(chain.FeeMarketKey(vm.StateManager().FeeMarketKey()))
 	if err != nil {
 		return nil, err
 	}
 	fm := feemarket.NewMarket(v, vm.c.Rules(0))
-	var prices []uint64
-	for _, ns := range namespaces {
+	prices := make([]uint64, 0, len(namespaces))
+	for i, ns := range namespaces {
 		price, err := fm.UnitPrice(ns)
 		if err != nil && err != feemarket.ErrNamespaceNotFound {
 			return nil, err
 		}
-		prices = append(prices, price)
+		prices[i] = price
 	}
 	return prices, nil
 }

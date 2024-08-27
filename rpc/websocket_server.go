@@ -171,18 +171,18 @@ func (w *WebSocketServer) MessageCallback(vm VM) pubsub.Callback {
 					for i := blockNumber; i <= currentBlockHeight; i++ {
 						blk, err := vm.GetDiskBlock(ctx, i)
 						if err != nil {
-							w.logger.Error("Couldnot find block on disk", zap.Uint64("height", i))
+							w.logger.Error("Couldnt find block on disk", zap.Uint64("height", i))
 							return
 						}
 						blkResults, err := vm.GetDiskBlockResults(ctx, i)
 						if err != nil {
-							w.logger.Error("Couldnot find block results on disk", zap.Uint64("height", i))
+							w.logger.Error("Couldnt find block results on disk", zap.Uint64("height", i))
 							return
 						}
 						feeBytes, err := vm.GetDiskFeeManager(ctx, i)
 						if err != nil {
-							w.logger.Error("Something went wrong, couldnot find block results on disk")
-							w.logger.Error("Couldnot get feeBytes on disk", zap.Uint64("height", i))
+							w.logger.Error("Something went wrong, Couldnt find block results on disk")
+							w.logger.Error("Couldnt get feeBytes on disk", zap.Uint64("height", i))
 							return
 						}
 						bytes, err := PackBlockMessageLegacy(blk.StatefulBlock, blkResults, feeBytes)
@@ -194,7 +194,6 @@ func (w *WebSocketServer) MessageCallback(vm VM) pubsub.Callback {
 						}
 					}
 				}
-
 			}
 		case TxMode:
 			msgBytes = msgBytes[1:]

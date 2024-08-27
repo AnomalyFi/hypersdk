@@ -13,8 +13,9 @@ import (
 	"github.com/AnomalyFi/hypersdk/chain"
 	"github.com/AnomalyFi/hypersdk/codec"
 	"github.com/AnomalyFi/hypersdk/consts"
-	feemarket "github.com/AnomalyFi/hypersdk/fee_market"
 	"github.com/AnomalyFi/hypersdk/fees"
+
+	feemarket "github.com/AnomalyFi/hypersdk/fee_market"
 )
 
 type JSONRPCServer struct {

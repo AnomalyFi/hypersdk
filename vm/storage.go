@@ -231,7 +231,7 @@ func (vm *VM) HasDiskBlock(height uint64) (bool, error) {
 	return vm.vmDB.Has(PrefixBlockKey(height))
 }
 
-func (vm *VM) GetDiskBlockResults(ctx context.Context, height uint64) ([]*chain.Result, error) {
+func (vm *VM) GetDiskBlockResults(_ context.Context, height uint64) ([]*chain.Result, error) {
 	r, err := vm.vmDB.Get(PrefixBlockResultsKey(height))
 	if err != nil {
 		return nil, err
@@ -239,7 +239,7 @@ func (vm *VM) GetDiskBlockResults(ctx context.Context, height uint64) ([]*chain.
 	return chain.UnmarshalResults(r)
 }
 
-func (vm *VM) GetDiskFeeManager(ctx context.Context, height uint64) ([]byte, error) {
+func (vm *VM) GetDiskFeeManager(_ context.Context, height uint64) ([]byte, error) {
 	f, err := vm.vmDB.Get(PrefixFeeManagerKey(height))
 	if err != nil {
 		return nil, err
@@ -247,7 +247,7 @@ func (vm *VM) GetDiskFeeManager(ctx context.Context, height uint64) ([]byte, err
 	return f, nil
 }
 
-func (vm *VM) GetDiskFeeMarket(ctx context.Context, height uint64) ([]byte, error) {
+func (vm *VM) GetDiskFeeMarket(_ context.Context, height uint64) ([]byte, error) {
 	f, err := vm.vmDB.Get(PrefixFeeMarketKey(height))
 	if err != nil {
 		return nil, err

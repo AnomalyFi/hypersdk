@@ -12,9 +12,9 @@ if ! [[ "$0" =~ scripts/fix.lint.sh ]]; then
   exit 255
 fi
 
-echo "adding license header"
-go install -v github.com/palantir/go-license@latest
-go-license --config=./license.yml -- **/*.go
+# echo "adding license header"
+# go install -v github.com/palantir/go-license@latest
+# go-license --config=./license.yml -- **/*.go
 
 echo "gofumpt files"
 go install -v mvdan.cc/gofumpt@latest
