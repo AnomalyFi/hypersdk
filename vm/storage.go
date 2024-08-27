@@ -36,6 +36,7 @@ const (
 	// not consecutive only because this fork is far behind, left for future merging
 	blockResultsPrefix = 0x5
 	feeManagerPrefix   = 0x6
+	feeMarketPrefix    = 0x7
 )
 
 var (
@@ -74,6 +75,13 @@ func PrefixBlockResultsKey(height uint64) []byte {
 func PrefixFeeManagerKey(height uint64) []byte {
 	k := make([]byte, 1+consts.Uint64Len)
 	k[0] = feeManagerPrefix
+	binary.BigEndian.PutUint64(k[1:], height)
+	return k
+}
+
+func PrefixFeeMarketKey(height uint64) []byte {
+	k := make([]byte, 1+consts.Uint64Len)
+	k[0] = feeMarketPrefix
 	binary.BigEndian.PutUint64(k[1:], height)
 	return k
 }
@@ -181,11 +189,15 @@ func (vm *VM) StoreBlockResultsOnDisk(blk *chain.StatelessBlock) error {
 	if err != nil {
 		return err
 	}
+	fmBytes := blk.FeeMarket().Bytes()
 	batch := vm.vmDB.NewBatch()
 	if err := batch.Put(PrefixBlockResultsKey(blk.Height()), blockResultBytes); err != nil {
 		return err
 	}
 	if err := batch.Put(PrefixFeeManagerKey(blk.Height()), feeManagerBytes); err != nil {
+		return err
+	}
+	if err := batch.Put(PrefixFeeMarketKey(blk.Height()), fmBytes); err != nil {
 		return err
 	}
 	expiryHeight := blk.Height() - uint64(vm.config.GetAcceptedBlockWindow())
@@ -196,9 +208,12 @@ func (vm *VM) StoreBlockResultsOnDisk(blk *chain.StatelessBlock) error {
 		if err := batch.Delete(PrefixFeeManagerKey(expiryHeight)); err != nil {
 			return err
 		}
+		if err := batch.Delete(PrefixFeeMarketKey(expiryHeight)); err != nil {
+			return err
+		}
 	}
 	if err := batch.Write(); err != nil {
-		return fmt.Errorf("%w: unable to update block.Results", zap.Uint64("height", expiryHeight))
+		return fmt.Errorf("Error: height: %d: unable to update block.Results", expiryHeight)
 	}
 	vm.Logger().Info("written block.Results to disk", zap.Uint64("block.height", blk.Height()))
 	return nil
@@ -226,6 +241,14 @@ func (vm *VM) GetDiskBlockResults(ctx context.Context, height uint64) ([]*chain.
 
 func (vm *VM) GetDiskFeeManager(ctx context.Context, height uint64) ([]byte, error) {
 	f, err := vm.vmDB.Get(PrefixFeeManagerKey(height))
+	if err != nil {
+		return nil, err
+	}
+	return f, nil
+}
+
+func (vm *VM) GetDiskFeeMarket(ctx context.Context, height uint64) ([]byte, error) {
+	f, err := vm.vmDB.Get(PrefixFeeMarketKey(height))
 	if err != nil {
 		return nil, err
 	}
