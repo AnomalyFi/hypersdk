@@ -91,6 +91,7 @@ func (m *Market) SetLastConsumed(namespace string, consumed uint64) {
 	m.NameSpaceToUtilityMap[namespace] = utility
 }
 
+// returns last consumed bytes by namespace.
 func (m *Market) LastConsumed(namespace string) uint64 {
 	m.l.RLock()
 	utility, ok := m.NameSpaceToUtilityMap[namespace]
