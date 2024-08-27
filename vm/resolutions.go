@@ -203,6 +203,15 @@ func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock) {
 	vm.metrics.storageReadPrice.Set(float64(feeManager.UnitPrice(fees.StorageRead)))
 	vm.metrics.storageAllocatePrice.Set(float64(feeManager.UnitPrice(fees.StorageAllocate)))
 	vm.metrics.storageWritePrice.Set(float64(feeManager.UnitPrice(fees.StorageWrite)))
+	// Update fee market metrics
+	feeMarket := b.FeeMarket()
+	for namespace := range feeMarket.NameSpaceToUtilityMap {
+		price, _ := feeMarket.UnitPrice(namespace)
+		vm.metrics.namespacePrice.WithLabelValues(namespace).Set(float64(price))
+		if feeMarket.LastTimeStamp(namespace) == b.Tmstmp {
+			vm.metrics.namespaceUsage.WithLabelValues(namespace).Set(float64(feeMarket.LastConsumed(namespace)))
+		}
+	}
 }
 
 func (vm *VM) processAcceptedBlocks() {
