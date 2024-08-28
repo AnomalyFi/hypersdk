@@ -27,6 +27,10 @@ func (*StateManager) FeeKey() []byte {
 	return FeeKey()
 }
 
+func (*StateManager) FeeMarketKey() []byte {
+	return FeeMarketKey()
+}
+
 func (*StateManager) SponsorStateKeys(addr codec.Address) state.Keys {
 	return state.Keys{
 		string(BalanceKey(addr)): state.Read | state.Write,

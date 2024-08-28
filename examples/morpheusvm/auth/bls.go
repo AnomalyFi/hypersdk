@@ -112,6 +112,10 @@ func (*BLSFactory) MaxUnits() (uint64, uint64) {
 	return BLSSize, BLSComputeUnits
 }
 
+func (b *BLSFactory) Address() codec.Address {
+	return NewBLSAddress(bls.PublicFromPrivateKey(b.priv))
+}
+
 func NewBLSAddress(pk *bls.PublicKey) codec.Address {
 	return codec.CreateAddress(consts.BLSID, utils.ToID(bls.PublicKeyToBytes(pk)))
 }

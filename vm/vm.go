@@ -19,6 +19,7 @@ import (
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/utils/crypto/bls"
+	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/profiler"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/version"
@@ -1156,11 +1157,9 @@ func (vm *VM) ETHL1HeadSubscribe() {
 
 	// Ensure that subch receives the latest block.
 	go func() {
-		for i := 0; ; i++ {
-			if i > 0 {
-				time.Sleep(500 * time.Millisecond)
-			}
-			subscribeBlocks(client, vm.subCh)
+		for {
+			subscribeBlocks(client, vm.subCh, vm.Logger())
+			time.Sleep(500 * time.Millisecond)
 		}
 	}()
 
@@ -1183,14 +1182,14 @@ func (vm *VM) ETHL1HeadSubscribe() {
 
 // subscribeBlocks runs in its own goroutine and maintains
 // a subscription for new blocks.
-func subscribeBlocks(client *ethrpc.Client, subch chan chain.ETHBlock) {
+func subscribeBlocks(client *ethrpc.Client, subch chan chain.ETHBlock, logger logging.Logger) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	// Subscribe to new blocks.
 	sub, err := client.EthSubscribe(ctx, subch, "newHeads")
 	if err != nil {
-		fmt.Println("subscribe error:", err)
+		logger.Error("subscribe error:", zap.Error(err))
 		return
 	}
 
@@ -1199,7 +1198,7 @@ func subscribeBlocks(client *ethrpc.Client, subch chan chain.ETHBlock) {
 	var lastBlock chain.ETHBlock
 	err = client.CallContext(ctx, &lastBlock, "eth_getBlockByNumber", "latest", false)
 	if err != nil {
-		fmt.Println("can't get latest block:", err)
+		logger.Error("can't get latest block:", zap.Error(err))
 		return
 	}
 
@@ -1208,5 +1207,5 @@ func subscribeBlocks(client *ethrpc.Client, subch chan chain.ETHBlock) {
 	// The subscription will deliver events to the channel. Wait for the
 	// subscription to end for any reason, then loop around to re-establish
 	// the connection.
-	fmt.Println("connection lost: ", <-sub.Err())
+	logger.Error("connection lost: ", zap.Error(<-sub.Err()))
 }

@@ -47,6 +47,12 @@ var transferCmd = &cobra.Command{
 			return err
 		}
 
+		// Set priority fee
+		priorityFee, err := handler.Root().PromptAmount("priority fee", consts.Decimals, balance-amount, nil)
+		if err != nil {
+			return err
+		}
+
 		// Confirm action
 		cont, err := handler.Root().PromptContinue()
 		if !cont || err != nil {
@@ -57,7 +63,7 @@ var transferCmd = &cobra.Command{
 		_, _, err = sendAndWait(ctx, []chain.Action{&actions.Transfer{
 			To:    recipient,
 			Value: amount,
-		}}, cli, bcli, ws, factory, true)
+		}}, cli, bcli, ws, factory, priorityFee, true)
 		return err
 	},
 }

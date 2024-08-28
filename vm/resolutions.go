@@ -476,7 +476,7 @@ func (vm *VM) NameSpacesPrice(_ context.Context, namespaces []string) ([]uint64,
 		return nil, err
 	}
 	fm := feemarket.NewMarket(v, vm.c.Rules(0))
-	prices := make([]uint64, 0, len(namespaces))
+	prices := make([]uint64, len(namespaces))
 	for i, ns := range namespaces {
 		price, err := fm.UnitPrice(ns)
 		if err != nil && err != feemarket.ErrNamespaceNotFound {

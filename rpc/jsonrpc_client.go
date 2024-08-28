@@ -109,7 +109,7 @@ func (cli *JSONRPCClient) NameSpacesPrice(ctx context.Context, namespaces []stri
 	err := cli.requester.SendRequest(
 		ctx,
 		"nameSpacesPrice",
-		&NameSpacesPriceArgs{NameSpace: namespaces},
+		&NameSpacesPriceArgs{NameSpaces: namespaces},
 		resp,
 	)
 	return resp.Price, err

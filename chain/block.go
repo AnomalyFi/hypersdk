@@ -252,20 +252,18 @@ func (b *StatelessBlock) initializeBuilt(
 
 	// NMT generation must before block marshal
 	_, nmtSpan := b.vm.Tracer().Start(ctx, "StatelessBlock.NMTGen")
+	defer nmtSpan.End()
 	txsDataToProve, nmtNSs, nmtNamespaceToTxIndexes, err := ExtractTxsDataToApproveFromTxs(b.Txs, results)
 	if err != nil {
 		b.vm.Logger().Error("unable to extract data from txs", zap.Error(err))
-		nmtSpan.End()
 		return err
 	}
 
 	_, nmtRoot, nmtProofs, err := BuildNMTTree(txsDataToProve, nmtNSs)
 	if err != nil {
 		b.vm.Logger().Error("unable to build NMT tree", zap.Error(err))
-		nmtSpan.End()
 		return err
 	}
-	nmtSpan.End()
 
 	b.NMTRoot = nmtRoot
 	b.NMTNamespaceToTxIndexes = nmtNamespaceToTxIndexes
@@ -484,7 +482,6 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 		b.vm.Logger().Error("unable to extract data from txs", zap.Error(err))
 		return err
 	}
-	b.vm.Logger().Info("nmt info", zap.ByteStrings("txsDataToProve", txsDataToProve), zap.ByteStrings("nmtNSs", nmtNSs), zap.Error(err))
 
 	_, nmtRoot, nmtProofs, err := BuildNMTTree(txsDataToProve, nmtNSs)
 	if err != nil {
@@ -968,16 +965,14 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
 	p.UnpackBytes(consts.MaxNMTProofBytes, false, &proofsBytes)
 	err := json.Unmarshal(proofsBytes, &proofs)
 	if err != nil {
-		fmt.Println("unable to json.unmarshal proofs")
-		return nil, err
+		return nil, fmt.Errorf("unable to json.unmarshal nmt proofs: %w", err)
 	}
 	txNSMappingBytes := make([]byte, 0, 256)
 	txNsMapping := make(map[string][][2]int)
 	p.UnpackBytes(consts.MaxNSTxMappingBytes, false, &txNSMappingBytes)
 	err = json.Unmarshal(txNSMappingBytes, &txNsMapping)
 	if err != nil {
-		fmt.Println("unable to json.unmarshal tx to ns mapping")
-		return nil, err
+		return nil, fmt.Errorf("unable to json.unmarshal tx to ns mapping: %w", err)
 	}
 
 	b.NMTProofs = proofs

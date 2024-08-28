@@ -111,7 +111,7 @@ var runSpamCmd = &cobra.Command{
 					_, _, err = sendAndWait(ictx, []chain.Action{&actions.Transfer{
 						To:    priv.Address,
 						Value: count, // prevent duplicate txs
-					}}, cli, bclient, wclient, factory, false)
+					}}, cli, bclient, wclient, factory, 0, false)
 					return err
 				}
 			},
