@@ -5,6 +5,7 @@ package vm
 
 import (
 	"context"
+	"encoding/hex"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -208,9 +209,10 @@ func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock) {
 	feeMarket := b.FeeMarket()
 	for namespace := range feeMarket.NameSpaceToUtilityMap {
 		price, _ := feeMarket.UnitPrice(namespace)
-		vm.metrics.namespacePrice.WithLabelValues(namespace).Set(float64(price))
+		nsHex := hex.EncodeToString([]byte(namespace))
+		vm.metrics.namespacePrice.WithLabelValues(nsHex).Set(float64(price))
 		if feeMarket.LastTimeStamp(namespace) == b.Tmstmp {
-			vm.metrics.namespaceUsage.WithLabelValues(namespace).Set(float64(feeMarket.LastConsumed(namespace)))
+			vm.metrics.namespaceUsage.WithLabelValues(nsHex).Set(float64(feeMarket.LastConsumed(namespace)))
 		}
 	}
 }
