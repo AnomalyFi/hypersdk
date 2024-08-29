@@ -104,6 +104,7 @@ func (cli *JSONRPCClient) UnitPrices(ctx context.Context, useCache bool) (fees.D
 	return resp.UnitPrices, nil
 }
 
+// Returns the fee market price per unit for the provided namespaces.
 func (cli *JSONRPCClient) NameSpacesPrice(ctx context.Context, namespaces []string) ([]uint64, error) {
 	resp := new(NameSpacesPriceReply)
 	err := cli.requester.SendRequest(
