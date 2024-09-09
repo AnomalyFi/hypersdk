@@ -62,8 +62,8 @@ func UnpackBlockMessage(
 	parser chain.Parser,
 ) (*chain.StatefulBlock, []*chain.Result, fees.Dimensions, *ids.ID, error) {
 	p := codec.NewReader(msg, consts.MaxInt)
-	var realId ids.ID
-	p.UnpackID(false, &realId)
+	var realID ids.ID
+	p.UnpackID(false, &realID)
 
 	var blkMsg []byte
 	p.UnpackBytes(-1, true, &blkMsg)
@@ -86,7 +86,7 @@ func UnpackBlockMessage(
 	if !p.Empty() {
 		return nil, nil, fees.Dimensions{}, nil, chain.ErrInvalidObject
 	}
-	return blk, results, prices, &realId, p.Err()
+	return blk, results, prices, &realID, p.Err()
 }
 
 // Could be a better place for these methods

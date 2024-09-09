@@ -70,6 +70,8 @@ var (
 	trackSubnetsOpt runner_sdk.OpOption
 
 	numValidators uint
+
+	priorityFee uint64
 )
 
 func init() {
@@ -445,6 +447,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 					Value: sendAmount,
 				}},
 				factory,
+				priorityFee,
 			)
 			require.NoError(err)
 			utils.Outf("{{yellow}}generated transaction{{/}}\n")
@@ -455,7 +458,7 @@ var _ = ginkgo.Describe("[Test]", func() {
 			ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
 			success, fee, err := instances[0].lcli.WaitForTransaction(ctx, tx.ID())
 			cancel()
-			require.NoError(err)
+			require.NoError(err) // @todo test failed here.
 			require.True(success)
 			utils.Outf("{{yellow}}found transaction{{/}}\n")
 
@@ -739,6 +742,7 @@ func generateBlocks(
 				Value: 1,
 			}},
 			factory,
+			priorityFee,
 		)
 		if failOnError {
 			require.NoError(err)
@@ -809,6 +813,7 @@ func acceptTransaction(cli *rpc.JSONRPCClient, lcli *lrpc.JSONRPCClient) {
 				Value: 1,
 			}},
 			factory,
+			priorityFee,
 		)
 		require.NoError(err)
 		utils.Outf("{{yellow}}generated transaction{{/}} prices: %+v maxFee: %d\n", unitPrices, maxFee)

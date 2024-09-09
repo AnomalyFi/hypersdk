@@ -136,7 +136,9 @@ type Rules interface {
 	GetUnitPriceChangeDenominator() fees.Dimensions
 	GetWindowTargetUnits() fees.Dimensions
 	GetMaxBlockUnits() fees.Dimensions
-
+	GetFeeMarketPriceChangeDenominator() uint64
+	GetFeeMarketWindowTargetUnits() uint64
+	GetFeeMarketMinUnitPrice() uint64
 	GetBaseComputeUnits() uint64
 
 	// Invariants:
@@ -160,6 +162,7 @@ type MetadataManager interface {
 	HeightKey() []byte
 	TimestampKey() []byte
 	FeeKey() []byte
+	FeeMarketKey() []byte
 }
 
 type FeeHandler interface {
@@ -212,7 +215,7 @@ type Action interface {
 
 	// ComputeUnits is the amount of compute required to call [Execute]. This is used to determine
 	// whether the [Action] can be included in a given block and to compute the required fee to execute.
-	ComputeUnits(Rules) uint64
+	ComputeUnits(actor codec.Address, rules Rules) uint64
 
 	// StateKeysMaxChunks is used to estimate the fee a transaction should pay. It includes the max
 	// chunks each state key could use without requiring the state keys to actually be provided (may
@@ -231,6 +234,7 @@ type Action interface {
 
 	NMTNamespace() []byte
 
+	UseFeeMarket() bool
 	// Execute actually runs the [Action]. Any state changes that the [Action] performs should
 	// be done here.
 	//
@@ -286,6 +290,7 @@ type AuthBatchVerifier interface {
 }
 
 type AuthFactory interface {
+	Address() codec.Address
 	// Sign is used by helpers, auth object should store internally to be ready for marshaling
 	Sign(msg []byte) (Auth, error)
 	MaxUnits() (bandwidth uint64, compute uint64)

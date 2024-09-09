@@ -14,6 +14,8 @@ import (
 	"github.com/AnomalyFi/hypersdk/codec"
 	"github.com/AnomalyFi/hypersdk/consts"
 	"github.com/AnomalyFi/hypersdk/fees"
+
+	feemarket "github.com/AnomalyFi/hypersdk/fee_market"
 )
 
 type JSONRPCServer struct {
@@ -116,5 +118,28 @@ func (j *JSONRPCServer) UnitPrices(
 		return err
 	}
 	reply.UnitPrices = unitPrices
+	return nil
+}
+
+type NameSpacesPriceArgs struct {
+	NameSpaces []string `json:"namespaces"`
+}
+
+type NameSpacesPriceReply struct {
+	Price []uint64 `json:"price"`
+}
+
+func (j *JSONRPCServer) NameSpacesPrice(
+	req *http.Request,
+	args *NameSpacesPriceArgs,
+	reply *NameSpacesPriceReply,
+) error {
+	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.NameSpacesPrice")
+	defer span.End()
+	price, err := j.vm.NameSpacesPrice(ctx, args.NameSpaces)
+	reply.Price = price
+	if err != nil && err != feemarket.ErrNamespaceNotFound {
+		return err
+	}
 	return nil
 }

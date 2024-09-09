@@ -17,6 +17,7 @@ import (
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/x/merkledb"
+	"github.com/celestiaorg/nmt"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -29,7 +30,7 @@ import (
 	"github.com/AnomalyFi/hypersdk/window"
 	"github.com/AnomalyFi/hypersdk/workers"
 
-	"github.com/celestiaorg/nmt"
+	feemarket "github.com/AnomalyFi/hypersdk/fee_market"
 	ethhex "github.com/ethereum/go-ethereum/common/hexutil"
 )
 
@@ -116,9 +117,9 @@ type StatelessBlock struct {
 
 	results    []*Result
 	feeManager *fees.Manager
-
-	vm   VM
-	view merkledb.View
+	feeMarket  *feemarket.Market
+	vm         VM
+	view       merkledb.View
 
 	sigJob workers.Job
 }
@@ -244,28 +245,29 @@ func (b *StatelessBlock) initializeBuilt(
 	view merkledb.View,
 	results []*Result,
 	feeManager *fees.Manager,
+	feeMarket *feemarket.Market,
 ) error {
 	ctx, span := b.vm.Tracer().Start(ctx, "StatelessBlock.initializeBuilt")
 	defer span.End()
 
 	// NMT generation must before block marshal
 	_, nmtSpan := b.vm.Tracer().Start(ctx, "StatelessBlock.NMTGen")
-	txsDataToProve, nmtNSs, NMTNamespaceToTxIndexes, err := ExtractTxsDataToApproveFromTxs(b.Txs, results)
+	defer nmtSpan.End()
+	txsDataToProve, nmtNSs, nmtNamespaceToTxIndexes, err := ExtractTxsDataToApproveFromTxs(b.Txs, results)
 	if err != nil {
 		b.vm.Logger().Error("unable to extract data from txs", zap.Error(err))
 		return err
 	}
 
-	_, nmtRoot, NMTProofs, err := BuildNMTTree(txsDataToProve, nmtNSs)
+	_, nmtRoot, nmtProofs, err := BuildNMTTree(txsDataToProve, nmtNSs)
 	if err != nil {
 		b.vm.Logger().Error("unable to build NMT tree", zap.Error(err))
 		return err
 	}
-	nmtSpan.End()
 
 	b.NMTRoot = nmtRoot
-	b.NMTNamespaceToTxIndexes = NMTNamespaceToTxIndexes
-	b.NMTProofs = NMTProofs
+	b.NMTNamespaceToTxIndexes = nmtNamespaceToTxIndexes
+	b.NMTProofs = nmtProofs
 
 	blk, err := b.StatefulBlock.Marshal()
 	if err != nil {
@@ -277,6 +279,7 @@ func (b *StatelessBlock) initializeBuilt(
 	b.t = time.UnixMilli(b.StatefulBlock.Tmstmp)
 	b.results = results
 	b.feeManager = feeManager
+	b.feeMarket = feeMarket
 	b.txsSet = set.NewSet[ids.ID](len(b.Txs))
 	for _, tx := range b.Txs {
 		b.txsSet.Add(tx.ID())
@@ -454,24 +457,33 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 		return err
 	}
 
+	feeMarketKey := FeeMarketKey(b.vm.StateManager().FeeMarketKey())
+	feeMarketRaw, err := parentView.GetValue(ctx, feeMarketKey)
+	if err != nil {
+		return err
+	}
+	parentFeeMarket := feemarket.NewMarket(feeMarketRaw, r)
+	feeMarket, err := parentFeeMarket.ComputeNext(parentTimestamp, b.Tmstmp, r)
+	if err != nil {
+		return err
+	}
 	// Process transactions
-	results, ts, err := b.Execute(ctx, b.vm.Tracer(), parentView, feeManager, r)
+	results, ts, err := b.Execute(ctx, b.vm.Tracer(), parentView, feeManager, feeMarket, r)
 	if err != nil {
 		log.Error("failed to execute block", zap.Error(err))
 		return err
 	}
 	b.results = results
 	b.feeManager = feeManager
-
+	b.feeMarket = feeMarket
 	// NMT root verification
-	txsDataToProve, nmtNSs, NMTNamespaceToTxIndexes, err := ExtractTxsDataToApproveFromTxs(b.Txs, b.results)
+	txsDataToProve, nmtNSs, nmtNamespaceToTxIndexes, err := ExtractTxsDataToApproveFromTxs(b.Txs, b.results)
 	if err != nil {
 		b.vm.Logger().Error("unable to extract data from txs", zap.Error(err))
 		return err
 	}
-	b.vm.Logger().Info("nmt info", zap.ByteStrings("txsDataToProve", txsDataToProve), zap.ByteStrings("nmtNSs", nmtNSs), zap.Error(err))
 
-	_, nmtRoot, NMTProofs, err := BuildNMTTree(txsDataToProve, nmtNSs)
+	_, nmtRoot, nmtProofs, err := BuildNMTTree(txsDataToProve, nmtNSs)
 	if err != nil {
 		b.vm.Logger().Error("unable to build NMT tree", zap.Error(err))
 		return err
@@ -486,15 +498,17 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 	heightKeyStr := string(heightKey)
 	timestampKeyStr := string(timestampKey)
 	feeKeyStr := string(feeKey)
-
+	feeMarketKeystr := string(feeMarketKey)
 	keys := make(state.Keys)
 	keys.Add(heightKeyStr, state.Write)
 	keys.Add(timestampKeyStr, state.Write)
 	keys.Add(feeKeyStr, state.Write)
+	keys.Add(feeMarketKeystr, state.All)
 	tsv := ts.NewView(keys, map[string][]byte{
 		heightKeyStr:    parentHeightRaw,
 		timestampKeyStr: parentTimestampRaw,
 		feeKeyStr:       parentFeeManager.Bytes(),
+		// feeMarketKeystr: parentFeeMarket.Bytes(),
 	})
 	if err := tsv.Insert(ctx, heightKey, binary.BigEndian.AppendUint64(nil, b.Hght)); err != nil {
 		return err
@@ -503,6 +517,9 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 		return err
 	}
 	if err := tsv.Insert(ctx, feeKey, feeManager.Bytes()); err != nil {
+		return err
+	}
+	if err := tsv.Insert(ctx, feeMarketKey, feeMarket.Bytes()); err != nil {
 		return err
 	}
 	tsv.Commit()
@@ -547,8 +564,8 @@ func (b *StatelessBlock) innerVerify(ctx context.Context, vctx VerifyContext) er
 	}
 	b.view = view
 	// values are regenerated by NMTTree, safe to use as root is verified
-	b.NMTNamespaceToTxIndexes = NMTNamespaceToTxIndexes
-	b.NMTProofs = NMTProofs
+	b.NMTNamespaceToTxIndexes = nmtNamespaceToTxIndexes
+	b.NMTProofs = nmtProofs
 
 	// Kickoff root generation
 	go func() {
@@ -862,6 +879,10 @@ func (b *StatelessBlock) FeeManager() *fees.Manager {
 	return b.feeManager
 }
 
+func (b *StatelessBlock) FeeMarket() *feemarket.Market {
+	return b.feeMarket
+}
+
 func (b *StatefulBlock) Marshal() ([]byte, error) {
 	size := ids.IDLen + consts.Uint64Len + consts.Uint64Len +
 		consts.Uint64Len + window.WindowSliceSize +
@@ -889,11 +910,11 @@ func (b *StatefulBlock) Marshal() ([]byte, error) {
 
 	p.PackBytes(b.NMTRoot)
 
-	proofsJson, err := json.Marshal(b.NMTProofs)
+	proofsJSON, err := json.Marshal(b.NMTProofs)
 	if err != nil {
 		return nil, err
 	}
-	p.PackBytes(proofsJson)
+	p.PackBytes(proofsJSON)
 	nmtNSTxMapping, err := json.Marshal(b.NMTNamespaceToTxIndexes)
 	if err != nil {
 		return nil, err
@@ -944,16 +965,14 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
 	p.UnpackBytes(consts.MaxNMTProofBytes, false, &proofsBytes)
 	err := json.Unmarshal(proofsBytes, &proofs)
 	if err != nil {
-		fmt.Println("unable to json.unmarshal proofs")
-		return nil, err
+		return nil, fmt.Errorf("unable to json.unmarshal nmt proofs: %w", err)
 	}
 	txNSMappingBytes := make([]byte, 0, 256)
 	txNsMapping := make(map[string][][2]int)
 	p.UnpackBytes(consts.MaxNSTxMappingBytes, false, &txNSMappingBytes)
 	err = json.Unmarshal(txNSMappingBytes, &txNsMapping)
 	if err != nil {
-		fmt.Println("unable to json.unmarshal tx to ns mapping")
-		return nil, err
+		return nil, fmt.Errorf("unable to json.unmarshal tx to ns mapping: %w", err)
 	}
 
 	b.NMTProofs = proofs

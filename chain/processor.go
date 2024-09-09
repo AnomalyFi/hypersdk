@@ -14,6 +14,8 @@ import (
 	"github.com/AnomalyFi/hypersdk/fetcher"
 	"github.com/AnomalyFi/hypersdk/state"
 	"github.com/AnomalyFi/hypersdk/tstate"
+
+	feemarket "github.com/AnomalyFi/hypersdk/fee_market"
 )
 
 type fetchData struct {
@@ -28,6 +30,7 @@ func (b *StatelessBlock) Execute(
 	tracer trace.Tracer, //nolint:interfacer
 	im state.Immutable,
 	feeManager *fees.Manager,
+	feeMarket *feemarket.Market,
 	r Rules,
 ) ([]*Result, *tstate.TState, error) {
 	ctx, span := tracer.Start(ctx, "Processor.Execute")
@@ -88,11 +91,11 @@ func (b *StatelessBlock) Execute(
 			tsv := ts.NewView(stateKeys, storage)
 
 			// Ensure we have enough funds to pay fees
-			if err := tx.PreExecute(ctx, feeManager, sm, r, tsv, t); err != nil {
+			if err := tx.PreExecute(ctx, feeManager, feeMarket, sm, r, tsv, t); err != nil {
 				return err
 			}
 
-			result, err := tx.Execute(ctx, feeManager, sm, r, tsv, t)
+			result, err := tx.Execute(ctx, feeManager, feeMarket, sm, r, tsv, t)
 			if err != nil {
 				return err
 			}

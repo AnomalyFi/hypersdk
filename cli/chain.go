@@ -234,7 +234,7 @@ func (h *Handler) WatchChain(hideTxs bool, pastBlocks bool, startBlock uint64, g
 		tpsWindow         = window.Window{}
 	)
 	for ctx.Err() == nil {
-		blk, results, prices, realId, err := scli.ListenBlock(ctx, parser)
+		blk, results, prices, realID, err := scli.ListenBlock(ctx, parser)
 		if err != nil {
 			utils.Outf("{{red}}unable to listen block: %s\n", err.Error())
 			return err
@@ -263,13 +263,13 @@ func (h *Handler) WatchChain(hideTxs bool, pastBlocks bool, startBlock uint64, g
 			runningDuration := time.Since(start)
 			tpsDivisor := min(window.WindowSize, runningDuration.Seconds())
 			utils.Outf(
-				"{{green}}height:{{/}}%d l1head:{{/}}%s {{green}}txs:{{/}}%d {{green}}root:{{/}}%s {{green}}nmtRoot:{{/}}%s {{green}}blockId:{{/}}%s {{green}}size:{{/}}%.2fKB {{green}}units consumed:{{/}} [%s] {{green}}unit prices:{{/}} [%s] [{{green}}TPS:{{/}}%.2f {{green}}latency:{{/}}%dms {{green}}gap:{{/}}%dms]\n",
+				"{{green}}height:{{/}}%d l1head:{{/}}%d {{green}}txs:{{/}}%d {{green}}root:{{/}}%s {{green}}nmtRoot:{{/}}%s {{green}}blockId:{{/}}%s {{green}}size:{{/}}%.2fKB {{green}}units consumed:{{/}} [%s] {{green}}unit prices:{{/}} [%s] [{{green}}TPS:{{/}}%.2f {{green}}latency:{{/}}%dms {{green}}gap:{{/}}%dms]\n",
 				blk.Hght,
 				blk.L1Head,
 				len(blk.Txs),
 				blk.StateRoot,
 				nmtRootStr,
-				realId,
+				realID,
 				float64(blk.Size())/units.KiB,
 				ParseDimensions(consumed),
 				ParseDimensions(prices),
@@ -279,13 +279,13 @@ func (h *Handler) WatchChain(hideTxs bool, pastBlocks bool, startBlock uint64, g
 			)
 		} else {
 			utils.Outf(
-				"{{green}}height:{{/}}%d l1head:{{/}}%s {{green}}txs:{{/}}%d {{green}}root:{{/}}%s {{green}}root:{{/}}%s {{green}}blockId:{{/}}%s {{green}}size:{{/}}%.2fKB {{green}}units consumed:{{/}} [%s] {{green}}unit prices:{{/}} [%s]\n",
+				"{{green}}height:{{/}}%d l1head:{{/}}%d {{green}}txs:{{/}}%d {{green}}root:{{/}}%s {{green}}root:{{/}}%s {{green}}blockId:{{/}}%s {{green}}size:{{/}}%.2fKB {{green}}units consumed:{{/}} [%s] {{green}}unit prices:{{/}} [%s]\n",
 				blk.Hght,
 				blk.L1Head,
 				len(blk.Txs),
 				blk.StateRoot,
 				nmtRootStr,
-				realId,
+				realID,
 				float64(blk.Size())/units.KiB,
 				ParseDimensions(consumed),
 				ParseDimensions(prices),

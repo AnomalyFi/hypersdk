@@ -3,15 +3,14 @@ package actions
 import (
 	"context"
 
+	"github.com/ava-labs/avalanchego/ids"
+
 	"github.com/AnomalyFi/hypersdk/chain"
 	"github.com/AnomalyFi/hypersdk/codec"
 	"github.com/AnomalyFi/hypersdk/consts"
 	"github.com/AnomalyFi/hypersdk/crypto/ed25519"
 	"github.com/AnomalyFi/hypersdk/examples/morpheusvm/storage"
-
 	"github.com/AnomalyFi/hypersdk/state"
-	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 )
 
 var _ chain.Action = (*NMTTestAction)(nil)
@@ -47,7 +46,7 @@ func (t *NMTTestAction) Execute(
 	return nil, nil
 }
 
-func (*NMTTestAction) ComputeUnits(chain.Rules) uint64 {
+func (*NMTTestAction) ComputeUnits(codec.Address, chain.Rules) uint64 {
 	return TransferComputeUnits
 }
 
@@ -59,7 +58,7 @@ func (t *NMTTestAction) Marshal(p *codec.Packer) {
 	p.PackUint64(t.Value)
 }
 
-func UnmarshalNMTTestAction(p *codec.Packer, _ *warp.Message) (chain.Action, error) {
+func UnmarshalNMTTestAction(p *codec.Packer) (chain.Action, error) {
 	var transfer NMTTestAction
 	transfer.Value = p.UnpackUint64(true)
 	if err := p.Err(); err != nil {
@@ -79,4 +78,8 @@ func (na *NMTTestAction) NMTNamespace() []byte {
 	// hence we can direclty using chain id as namespace id (8 bytes)
 
 	return na.ChainID
+}
+
+func (na *NMTTestAction) UseFeeMarket() bool {
+	return true
 }

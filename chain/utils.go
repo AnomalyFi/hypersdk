@@ -26,7 +26,7 @@ func CreateActionID(txID ids.ID, i uint8) ids.ID {
 // return all tx data & a mapping from indexes from namespace to actions position(paired in (i, j), i-th tx and j-th action)
 func ExtractTxsDataToApproveFromTxs(txs []*Transaction, results []*Result) ([][]byte, [][]byte, map[string][][2]int, error) {
 	data2prove := make([][]byte, 0, len(txs))
-	NMTNamespaceToTxIndexes := make(map[string][][2]int)
+	nmtNamespaceToTxIndexes := make(map[string][][2]int)
 	nmtNSs := make([][]byte, 0, 10)
 
 	for i := 0; i < len(txs); i++ {
@@ -40,18 +40,18 @@ func ExtractTxsDataToApproveFromTxs(txs []*Transaction, results []*Result) ([][]
 		for j := 0; j < len(tx.Actions); j++ {
 			// record
 			nID := tx.Actions[j].NMTNamespace()
-			if _, ok := NMTNamespaceToTxIndexes[hex.EncodeToString(nID)]; !ok {
-				NMTNamespaceToTxIndexes[hex.EncodeToString(nID)] = make([][2]int, 0, 1)
+			if _, ok := nmtNamespaceToTxIndexes[hex.EncodeToString(nID)]; !ok {
+				nmtNamespaceToTxIndexes[hex.EncodeToString(nID)] = make([][2]int, 0, 1)
 			}
-			a := NMTNamespaceToTxIndexes[hex.EncodeToString(nID)]
+			a := nmtNamespaceToTxIndexes[hex.EncodeToString(nID)]
 			a = append(a, [2]int{i, j})
-			NMTNamespaceToTxIndexes[hex.EncodeToString(nID)] = a
+			nmtNamespaceToTxIndexes[hex.EncodeToString(nID)] = a
 
 			txData := make([]byte, 0, 1+len(txID[:])+len(txResult.Outputs[j]))
 			txData = append(txData, nID...)
 			txData = append(txData, txID[:]...)
 			for k := 0; k < len(txResult.Outputs[j]); k++ {
-				txData = append(txData, txResult.Outputs[j][k][:]...)
+				txData = append(txData, txResult.Outputs[j][k]...)
 			}
 			data2prove = append(data2prove, txData)
 		}
@@ -62,7 +62,7 @@ func ExtractTxsDataToApproveFromTxs(txs []*Transaction, results []*Result) ([][]
 		return bytes.Compare(a[0:8], b[0:8])
 	})
 
-	for ns := range NMTNamespaceToTxIndexes {
+	for ns := range nmtNamespaceToTxIndexes {
 		nID, err := hex.DecodeString(ns)
 		if err != nil {
 			return nil, nil, nil, ErrConvertingNamespace
@@ -70,7 +70,7 @@ func ExtractTxsDataToApproveFromTxs(txs []*Transaction, results []*Result) ([][]
 		nmtNSs = append(nmtNSs, nID)
 	}
 
-	return data2prove, nmtNSs, NMTNamespaceToTxIndexes, nil
+	return data2prove, nmtNSs, nmtNamespaceToTxIndexes, nil
 }
 
 // return (tree, root, proofs, error)
@@ -87,15 +87,15 @@ func BuildNMTTree(data [][]byte, namespaces [][]byte) (*nmt.NamespacedMerkleTree
 		return nil, nil, nil, ErrComputingNMTRoot
 	}
 
-	NMTProofs := make(map[string]nmt.Proof)
+	nmtProofs := make(map[string]nmt.Proof)
 	for _, nID := range namespaces {
 		proof, err := nmtTree.ProveNamespace(nID)
 		if err != nil {
 			continue
 		}
 
-		NMTProofs[hex.EncodeToString(nID)] = proof
+		nmtProofs[hex.EncodeToString(nID)] = proof
 	}
 
-	return nmtTree, nmtRoot, NMTProofs, nil
+	return nmtTree, nmtRoot, nmtProofs, nil
 }

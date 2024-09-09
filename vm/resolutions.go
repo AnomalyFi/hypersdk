@@ -5,6 +5,7 @@ package vm
 
 import (
 	"context"
+	"encoding/hex"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -23,6 +24,8 @@ import (
 	"github.com/AnomalyFi/hypersdk/fees"
 	"github.com/AnomalyFi/hypersdk/gossiper"
 	"github.com/AnomalyFi/hypersdk/workers"
+
+	feemarket "github.com/AnomalyFi/hypersdk/fee_market"
 )
 
 var (
@@ -202,6 +205,16 @@ func (vm *VM) processAcceptedBlock(b *chain.StatelessBlock) {
 	vm.metrics.storageReadPrice.Set(float64(feeManager.UnitPrice(fees.StorageRead)))
 	vm.metrics.storageAllocatePrice.Set(float64(feeManager.UnitPrice(fees.StorageAllocate)))
 	vm.metrics.storageWritePrice.Set(float64(feeManager.UnitPrice(fees.StorageWrite)))
+	// Update fee market metrics
+	feeMarket := b.FeeMarket()
+	for namespace := range feeMarket.NameSpaceToUtilityMap {
+		price, _ := feeMarket.UnitPrice(namespace)
+		nsHex := hex.EncodeToString([]byte(namespace))
+		vm.metrics.namespacePrice.WithLabelValues(nsHex).Set(float64(price))
+		if feeMarket.LastTimeStamp(namespace) == b.Tmstmp {
+			vm.metrics.namespaceUsage.WithLabelValues(nsHex).Set(float64(feeMarket.LastConsumed(namespace)))
+		}
+	}
 }
 
 func (vm *VM) processAcceptedBlocks() {
@@ -457,6 +470,23 @@ func (vm *VM) UnitPrices(context.Context) (fees.Dimensions, error) {
 		return fees.Dimensions{}, err
 	}
 	return fees.NewManager(v).UnitPrices(), nil
+}
+
+func (vm *VM) NameSpacesPrice(_ context.Context, namespaces []string) ([]uint64, error) {
+	v, err := vm.stateDB.Get(chain.FeeMarketKey(vm.StateManager().FeeMarketKey()))
+	if err != nil {
+		return nil, err
+	}
+	fm := feemarket.NewMarket(v, vm.c.Rules(0))
+	prices := make([]uint64, len(namespaces))
+	for i, ns := range namespaces {
+		price, err := fm.UnitPrice(ns)
+		if err != nil && err != feemarket.ErrNamespaceNotFound {
+			return nil, err
+		}
+		prices[i] = price
+	}
+	return prices, nil
 }
 
 func (vm *VM) GetTransactionExecutionCores() int {

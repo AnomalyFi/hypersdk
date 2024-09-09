@@ -274,6 +274,10 @@ GetUnitPriceChangeDenominator() Dimensions
 GetWindowTargetUnits() Dimensions
 GetMaxBlockUnits() Dimensions
 
+GetFeeMarketPriceChangeDenominator() uint64
+GetFeeMarketWindowTargetUnits() uint64
+GetFeeMarketMinUnitPrice() uint64
+
 GetBaseComputeUnits() uint64
 
 GetStorageKeyReadUnits() uint64
@@ -290,6 +294,11 @@ MinUnitPrice:               chain.Dimensions{100, 100, 100, 100, 100},
 UnitPriceChangeDenominator: chain.Dimensions{48, 48, 48, 48, 48},
 WindowTargetUnits:          chain.Dimensions{20_000_000, 1_000, 1_000, 1_000, 1_000},
 MaxBlockUnits:              chain.Dimensions{1_800_000, 2_000, 2_000, 2_000, 2_000},
+
+// Fee Market Parameters
+FeeMarketMinUnits:               100,
+FeeMarketWindowTargetUnits:      600 * 1024,
+FeeMarketPriceChangeDenominator: 48,
 
 BaseComputeUnits:          1,
 
@@ -632,7 +641,7 @@ type Action interface {
 
 	// ComputeUnits is the amount of compute required to call [Execute]. This is used to determine
 	// whether the [Action] can be included in a given block and to compute the required fee to execute.
-	ComputeUnits(Rules) uint64
+	ComputeUnits(codec.Address, Rules) uint64
 
 	// StateKeysMaxChunks is used to estimate the fee a transaction should pay. It includes the max
 	// chunks each state key could use without requiring the state keys to actually be provided (may
@@ -649,6 +658,9 @@ type Action interface {
 	// If any key is removed and then re-created, this will count as a creation instead of a modification.
 	StateKeys(actor codec.Address, actionID ids.ID) state.Keys
 
+	NMTNamespace() []byte
+
+	UseFeeMarket() bool
 	// Execute actually runs the [Action]. Any state changes that the [Action] performs should
 	// be done here.
 	//
@@ -753,6 +765,10 @@ type Rules interface {
 	GetUnitPriceChangeDenominator() fees.Dimensions
 	GetWindowTargetUnits() fees.Dimensions
 	GetMaxBlockUnits() fees.Dimensions
+
+	GetFeeMarketPriceChangeDenominator() uint64
+	GetFeeMarketWindowTargetUnits() uint64
+	GetFeeMarketMinUnitPrice() uint64
 
 	GetBaseComputeUnits() uint64
 

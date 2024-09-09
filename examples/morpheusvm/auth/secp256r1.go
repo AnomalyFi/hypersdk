@@ -102,6 +102,10 @@ func (*SECP256R1Factory) MaxUnits() (uint64, uint64) {
 	return SECP256R1Size, SECP256R1ComputeUnits
 }
 
+func (s *SECP256R1Factory) Address() codec.Address {
+	return NewSECP256R1Address(s.priv.PublicKey())
+}
+
 func NewSECP256R1Address(pk secp256r1.PublicKey) codec.Address {
 	return codec.CreateAddress(consts.SECP256R1ID, utils.ToID(pk[:]))
 }

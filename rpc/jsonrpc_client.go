@@ -104,6 +104,18 @@ func (cli *JSONRPCClient) UnitPrices(ctx context.Context, useCache bool) (fees.D
 	return resp.UnitPrices, nil
 }
 
+// Returns the fee market price per unit for the provided namespaces.
+func (cli *JSONRPCClient) NameSpacesPrice(ctx context.Context, namespaces []string) ([]uint64, error) {
+	resp := new(NameSpacesPriceReply)
+	err := cli.requester.SendRequest(
+		ctx,
+		"nameSpacesPrice",
+		&NameSpacesPriceArgs{NameSpaces: namespaces},
+		resp,
+	)
+	return resp.Price, err
+}
+
 func (cli *JSONRPCClient) SubmitTx(ctx context.Context, d []byte) (ids.ID, error) {
 	resp := new(SubmitTxReply)
 	err := cli.requester.SendRequest(
@@ -124,6 +136,7 @@ func (cli *JSONRPCClient) GenerateTransaction(
 	parser chain.Parser,
 	actions []chain.Action,
 	authFactory chain.AuthFactory,
+	priorityFee uint64,
 	modifiers ...Modifier,
 ) (func(context.Context) error, *chain.Transaction, uint64, error) {
 	// Get latest fee info
@@ -132,7 +145,7 @@ func (cli *JSONRPCClient) GenerateTransaction(
 		return nil, nil, 0, err
 	}
 
-	units, err := chain.EstimateUnits(parser.Rules(time.Now().UnixMilli()), actions, authFactory)
+	units, fmUnits, err := chain.EstimateUnits(parser.Rules(time.Now().UnixMilli()), actions, authFactory)
 	if err != nil {
 		return nil, nil, 0, err
 	}
@@ -140,7 +153,28 @@ func (cli *JSONRPCClient) GenerateTransaction(
 	if err != nil {
 		return nil, nil, 0, err
 	}
-	f, tx, err := cli.GenerateTransactionManual(parser, actions, authFactory, maxFee, modifiers...)
+
+	nss := make([]string, 0)
+	// Add namespace fees
+	for ns := range fmUnits {
+		nss = append(nss, ns)
+	}
+
+	nsPrices, err := cli.NameSpacesPrice(ctx, nss)
+	if err != nil {
+		return nil, nil, 0, err
+	}
+
+	for i, ns := range nss {
+		maxFee += nsPrices[i] * fmUnits[ns]
+	}
+
+	// add priority fee(if any) into the max Fee.
+	maxFee += priorityFee
+	// set max fee 20% higher than the pessimistic estimation.
+	maxFee += (maxFee / 5)
+
+	f, tx, err := cli.GenerateTransactionManual(parser, actions, authFactory, maxFee, priorityFee, modifiers...)
 	if err != nil {
 		return nil, nil, 0, err
 	}
@@ -152,15 +186,17 @@ func (cli *JSONRPCClient) GenerateTransactionManual(
 	actions []chain.Action,
 	authFactory chain.AuthFactory,
 	maxFee uint64,
+	priorityFee uint64,
 	modifiers ...Modifier,
 ) (func(context.Context) error, *chain.Transaction, error) {
 	// Construct transaction
 	now := time.Now().UnixMilli()
 	rules := parser.Rules(now)
 	base := &chain.Base{
-		Timestamp: utils.UnixRMilli(now, rules.GetValidityWindow()),
-		ChainID:   rules.ChainID(),
-		MaxFee:    maxFee,
+		Timestamp:   utils.UnixRMilli(now, rules.GetValidityWindow()),
+		ChainID:     rules.ChainID(),
+		MaxFee:      maxFee,
+		PriorityFee: priorityFee,
 	}
 
 	// Modify gathered data

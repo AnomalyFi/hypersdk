@@ -19,7 +19,6 @@ import (
 	"github.com/ava-labs/avalanchego/database/memdb"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow"
-	"github.com/ava-labs/avalanchego/snow/choices"
 	"github.com/ava-labs/avalanchego/snow/consensus/snowman"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/snow/validators"
@@ -81,8 +80,9 @@ var (
 	instances    []instance
 	blocks       []snowman.Block
 
-	networkID uint32
-	gen       *genesis.Genesis
+	networkID   uint32
+	gen         *genesis.Genesis
+	priorityFee uint64
 )
 
 func init() {
@@ -205,7 +205,7 @@ var _ = ginkgo.BeforeSuite(func() {
 			NodeID:         nodeID,
 			Log:            l,
 			ChainDataDir:   dname,
-			Metrics:        metrics.NewOptionalGatherer(),
+			Metrics:        metrics.NewPrefixGatherer(),
 			PublicKey:      bls.PublicFromSecretKey(sk),
 			ValidatorState: &validators.TestState{},
 		}
@@ -221,7 +221,7 @@ var _ = ginkgo.BeforeSuite(func() {
 			genesisBytes,
 			nil,
 			[]byte(
-				`{"parallelism":3, "testMode":true, "logLevel":"debug"}`,
+				`{"parallelism":3, "testMode":true, "logLevel":"debug","ethRPCAddr": "http://localhost:8545", "ethWSAddr":"ws://localhost:8546"}`,
 			),
 			toEngine,
 			nil,
@@ -354,6 +354,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 					Value: 100_000, // must be more than StateLockup
 				}},
 				factory,
+				priorityFee,
 			)
 			transferTxRoot = transferTx
 			require.NoError(err)
@@ -422,13 +423,11 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			require.NoError(err)
 
 			require.NoError(blk.Verify(ctx))
-			require.Equal(blk.Status(), choices.Processing)
 
-			err = instances[1].vm.SetPreference(ctx, blk.ID())
-			require.NoError(err)
+			require.NoError(instances[1].vm.SetPreference(ctx, blk.ID()))
 
 			require.NoError(blk.Accept(ctx))
-			require.Equal(blk.Status(), choices.Accepted)
+
 			blocks = append(blocks, blk)
 
 			lastAccepted, err := instances[1].vm.LastAccepted(ctx)
@@ -465,6 +464,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 					Value: 101,
 				}},
 				factory,
+				priorityFee,
 			)
 			require.NoError(err)
 			require.NoError(submit(context.Background()))
@@ -492,6 +492,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 					Value: 102,
 				}},
 				factory,
+				priorityFee,
 			)
 			require.NoError(err)
 			require.NoError(submit(context.Background()))
@@ -503,6 +504,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 					Value: 103,
 				}},
 				factory,
+				priorityFee,
 			)
 			require.NoError(err)
 			require.NoError(submit(context.Background()))
@@ -514,6 +516,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 					Value: 104,
 				}},
 				factory,
+				priorityFee,
 			)
 			require.NoError(err)
 			require.NoError(submit(context.Background()))
@@ -525,6 +528,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 					Value: 105,
 				}},
 				factory,
+				priorityFee,
 			)
 			require.NoError(err)
 			require.NoError(submit(context.Background()))
@@ -569,6 +573,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 					Value: 200,
 				}},
 				factory,
+				priorityFee,
 			)
 			require.NoError(err)
 			require.NoError(submit(context.Background()))
@@ -582,6 +587,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 					Value: 201,
 				}},
 				factory,
+				priorityFee,
 			)
 			require.NoError(err)
 			require.NoError(submit(context.Background()))
@@ -610,6 +616,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 					Value: 203,
 				}},
 				factory,
+				priorityFee,
 			)
 			require.NoError(err)
 			require.NoError(submit(context.Background()))
@@ -697,6 +704,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			parser,
 			transfer,
 			factory,
+			priorityFee,
 		)
 		require.NoError(err)
 		require.NoError(submit(context.Background()))
@@ -708,7 +716,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 		require.True(results[0].Success)
 
 		// Read item from connection
-		blk, lresults, prices, err := cli.ListenBlock(context.TODO(), parser)
+		blk, lresults, prices, _, err := cli.ListenBlock(context.TODO(), parser)
 		require.NoError(err)
 		require.Len(blk.Txs, 1)
 		tx := blk.Txs[0].Actions[0].(*actions.Transfer)
@@ -744,6 +752,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 			parser,
 			transfer,
 			factory,
+			priorityFee,
 		)
 		require.NoError(err)
 
@@ -795,6 +804,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 					Value: 2000,
 				}},
 				factory,
+				priorityFee,
 			)
 			require.NoError(err)
 			require.NoError(submit(context.Background()))
@@ -819,6 +829,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 					Value: 100,
 				}},
 				r1factory,
+				priorityFee,
 			)
 			require.NoError(err)
 			require.NoError(submit(context.Background()))
@@ -847,6 +858,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 					Value: 2000,
 				}},
 				factory,
+				priorityFee,
 			)
 			require.NoError(err)
 			require.NoError(submit(context.Background()))
@@ -880,6 +892,7 @@ var _ = ginkgo.Describe("[Tx Processing]", func() {
 					},
 				},
 				r1factory,
+				priorityFee,
 			)
 			require.NoError(err)
 			require.NoError(submit(context.Background()))
@@ -910,14 +923,12 @@ func expectBlk(i instance) func(bool) []*chain.Result {
 	require.NotNil(blk)
 
 	require.NoError(blk.Verify(ctx))
-	require.Equal(blk.Status(), choices.Processing)
 
 	err = i.vm.SetPreference(ctx, blk.ID())
 	require.NoError(err)
 
 	return func(add bool) []*chain.Result {
 		require.NoError(blk.Accept(ctx))
-		require.Equal(blk.Status(), choices.Accepted)
 
 		if add {
 			blocks = append(blocks, blk)

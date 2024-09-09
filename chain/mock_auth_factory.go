@@ -15,6 +15,7 @@ package chain
 import (
 	reflect "reflect"
 
+	codec "github.com/AnomalyFi/hypersdk/codec"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -39,6 +40,20 @@ func NewMockAuthFactory(ctrl *gomock.Controller) *MockAuthFactory {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockAuthFactory) EXPECT() *MockAuthFactoryMockRecorder {
 	return m.recorder
+}
+
+// Address mocks base method.
+func (m *MockAuthFactory) Address() codec.Address {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Address")
+	ret0, _ := ret[0].(codec.Address)
+	return ret0
+}
+
+// Address indicates an expected call of Address.
+func (mr *MockAuthFactoryMockRecorder) Address() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Address", reflect.TypeOf((*MockAuthFactory)(nil).Address))
 }
 
 // MaxUnits mocks base method.

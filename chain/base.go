@@ -22,6 +22,11 @@ type Base struct {
 	// ChainID protects against replay attacks on different VM instances.
 	ChainID ids.ID `json:"chainId"`
 
+	// PriorityFee is the fee the user is willing to pay to have the transaction prioritized during block building.
+	// PriorityFee is charged in excess to the multidimensional fee and feeMarket fee.
+	// There can be zero priority fee specified for a transaction.
+	PriorityFee uint64 `json:"priorityFee"`
+
 	// MaxFee is the max fee the user will pay for the transaction to be executed. The chain
 	// will charge anything up to this price if the transaction makes it on-chain.
 	//
@@ -52,6 +57,7 @@ func (*Base) Size() int {
 func (b *Base) Marshal(p *codec.Packer) {
 	p.PackInt64(b.Timestamp)
 	p.PackID(b.ChainID)
+	p.PackUint64(b.PriorityFee)
 	p.PackUint64(b.MaxFee)
 }
 
@@ -63,6 +69,7 @@ func UnmarshalBase(p *codec.Packer) (*Base, error) {
 		return nil, fmt.Errorf("%w: timestamp=%d", ErrMisalignedTime, base.Timestamp)
 	}
 	p.UnpackID(true, &base.ChainID)
+	base.PriorityFee = p.UnpackUint64(false)
 	base.MaxFee = p.UnpackUint64(true)
 	return &base, p.Err()
 }

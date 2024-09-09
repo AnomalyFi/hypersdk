@@ -30,6 +30,7 @@ type VM interface {
 	LastAcceptedBlock() *chain.StatelessBlock
 	LastL1Head() int64
 	UnitPrices(context.Context) (fees.Dimensions, error)
+	NameSpacesPrice(ctx context.Context, namespace []string) ([]uint64, error)
 	CurrentValidators(
 		context.Context,
 	) (map[ids.NodeID]*validators.GetValidatorOutput, map[string]struct{})
