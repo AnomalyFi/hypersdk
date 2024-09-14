@@ -141,6 +141,10 @@ func (j *JSONRPCServer) NameSpacesPrice(
 	if err != nil && err != feemarket.ErrNamespaceNotFound {
 		return err
 	}
+
+	return nil
+}
+
 type ReplaceAnchorArgs struct {
 	URL string `json:"url"`
 }

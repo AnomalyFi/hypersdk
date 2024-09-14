@@ -251,12 +251,13 @@ func BuildBlock(
 			tx := ltx
 			// TODO: parallem this, currently `TState` can't be rolled back while `TState_View` can
 			e.Run(anchorStateKeys, func() error {
-				if err := tx.PreExecute(ctx, feeManager, sm, r, tsv, nextTime); err != nil {
+				if err := tx.PreExecute(ctx, feeManager, feeMarket, sm, r, tsv, nextTime); err != nil {
 					return err
 				}
 				result, err := tx.Execute(
 					ctx,
 					feeManager,
+					feeMarket,
 					sm,
 					r,
 					tsv,
