@@ -4,6 +4,8 @@
 package rpc
 
 import (
+	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -157,5 +159,41 @@ type ReplaceAnchorReply struct {
 func (j *JSONRPCServer) ReplaceAnchor(req *http.Request, args *ReplaceAnchorArgs, reply *ReplaceAnchorReply) error {
 	replaced := j.vm.ReplaceAnchor(args.URL)
 	reply.Success = replaced
+	return nil
+}
+
+type NextProposerReply struct {
+	PublicKey []byte     `json:"publicKey"`
+	NodeID    ids.NodeID `json:"nodeID"`
+}
+
+func (j *JSONRPCServer) NextProposer(req *http.Request, args *struct{}, reply *NextProposerReply) error {
+	ctx := context.TODO()
+	validators, _ := j.vm.CurrentValidators(ctx)
+	proposerNodeIDs, err := j.vm.Proposers(ctx, 1, 1)
+	if err != nil {
+		return err
+	}
+
+	proposers := proposerNodeIDs.List()
+	nextProposer := proposers[0]
+
+	populated := false
+	for _, validator := range validators {
+		if bytes.Equal(nextProposer[:], validator.NodeID[:]) {
+			populated = true
+
+			reply.NodeID = validator.NodeID
+			pkBytes := validator.PublicKey.Compress()
+			reply.PublicKey = pkBytes
+			break
+		}
+	}
+
+	// shouldn't happen
+	if !populated {
+		return fmt.Errorf("unable to fetch next proposer")
+	}
+
 	return nil
 }

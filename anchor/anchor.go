@@ -2,11 +2,14 @@ package anchor
 
 import (
 	"bytes"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/AnomalyFi/hypersdk/crypto/bls"
 )
 
 // TODO: this file to define anchor client
@@ -20,6 +23,31 @@ func NewAnchorClient(url string) *AnchorClient {
 	return &AnchorClient{
 		Url: url,
 	}
+}
+
+func (cli *AnchorClient) GetHeader(slot int64, parentHash string, pubkey bls.PublicKey) (*SEQHeaderResponse, error) {
+	pubkeyBytes := pubkey.Compress()
+	path := fmt.Sprintf("/eth/v1/builder/header/%d/%s/%s", slot, parentHash, hex.EncodeToString(pubkeyBytes))
+	url := cli.Url + path
+
+	var client http.Client
+
+	resp, err := client.Get(url)
+	if err != nil {
+		return nil, err
+	}
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var header SEQHeaderResponse
+	if err := json.Unmarshal(bodyBytes, &header); err != nil {
+		return nil, err
+	}
+
+	return &header, nil
 }
 
 // TODO: implement client methods below
@@ -52,6 +80,30 @@ func (cli *AnchorClient) GetHeaderV2(slot int64) (*SEQHeaderResponse, error) {
 	}
 
 	return &header, nil
+}
+
+func (cli *AnchorClient) GetPayload(req *AnchorGetPayloadRequest) (*AnchorGetPayloadResponse, error) {
+	path := "/eth/v1/builder/blinded_blocks"
+	url := cli.Url + path
+
+	var client http.Client
+
+	resp, err := client.Get(url)
+	if err != nil {
+		return nil, err
+	}
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var payload AnchorGetPayloadResponse
+	if err := json.Unmarshal(bodyBytes, &payload); err != nil {
+		return nil, err
+	}
+
+	return &payload, nil
 }
 
 func (cli *AnchorClient) GetPayloadV2(slot int64) (*SEQPayloadResponse, error) {

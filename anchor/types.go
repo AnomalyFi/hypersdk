@@ -72,3 +72,29 @@ type ExecutionPayload2 struct {
 	// TransactionType || TransactionPayload or LegacyTransaction as defined in EIP-2718
 	Transactions []byte `json:"transactions"`
 }
+
+type AnchorGetPayloadRequest struct {
+	Slot          uint64 `json:"slot"`
+	ProposerIndex uint64 `json:"proposer_index"`
+	// Hash of exec headers. Must match the value sent by AnchorGetHeaderResponse.
+	HeadersHash string `json:"headers_hash"`
+	// Exec headers signed by validator's private key. Should be [48]byte signature.
+	SignedHeaders []byte `json:"signed_headers"`
+}
+
+// Note ExecPayloadsSig is the execpayloads with Baton's private key. It is verified by Anchor.
+type AnchorGetPayloadResponse struct {
+	Slot            uint64           `json:"slot"`
+	ExecPayloads    ExecPayloadsInfo `json:"execpayloads"`
+	ExecPayloadsSig []byte           `json:"execpayloads_sig"`
+}
+
+type ExecPayloadsInfo struct {
+	ToBPayload  *ExecutionPayload           `json:"tobpayload"`
+	RoBPayloads map[string]ExecutionPayload `json:"robpayloads"`
+}
+
+type ExecutionPayload struct {
+	// hypersdk transactions in byte slice format
+	Transactions []byte `json:"transactions"`
+}

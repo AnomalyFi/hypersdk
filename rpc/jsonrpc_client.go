@@ -138,6 +138,17 @@ func (cli *JSONRPCClient) ReplaceAnchor(ctx context.Context, url string) (bool, 
 	return resp.Success, err
 }
 
+func (cli *JSONRPCClient) NextProposer(ctx context.Context) (*NextProposerReply, error) {
+	resp := new(NextProposerReply)
+	err := cli.requester.SendRequest(
+		ctx,
+		"nextProposer",
+		nil,
+		resp,
+	)
+	return resp, err
+}
+
 type Modifier interface {
 	Base(*chain.Base)
 }
