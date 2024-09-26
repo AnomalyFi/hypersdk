@@ -162,9 +162,16 @@ func (j *JSONRPCServer) ReplaceAnchor(req *http.Request, args *ReplaceAnchorArgs
 	return nil
 }
 
+type Validator struct {
+	NodeID    ids.NodeID `json:"publicKey"`
+	PublicKey []byte     `json:"nodeID"`
+	Weight    uint64     `json:"weight"`
+}
+
 type NextProposerReply struct {
-	PublicKey []byte     `json:"publicKey"`
-	NodeID    ids.NodeID `json:"nodeID"`
+	PublicKey  []byte       `json:"publicKey"`
+	NodeID     ids.NodeID   `json:"nodeID"`
+	Validators []*Validator `json:"validators"`
 }
 
 func (j *JSONRPCServer) NextProposer(req *http.Request, args *struct{}, reply *NextProposerReply) error {
@@ -178,6 +185,7 @@ func (j *JSONRPCServer) NextProposer(req *http.Request, args *struct{}, reply *N
 	proposers := proposerNodeIDs.List()
 	nextProposer := proposers[0]
 
+	// populate next proposer
 	populated := false
 	for _, validator := range validators {
 		if bytes.Equal(nextProposer[:], validator.NodeID[:]) {
@@ -189,6 +197,18 @@ func (j *JSONRPCServer) NextProposer(req *http.Request, args *struct{}, reply *N
 			break
 		}
 	}
+
+	// populate current validators
+	wValidators := make([]*Validator, 0, len(validators))
+	for _, validator := range validators {
+		wVal := new(Validator)
+		wVal.NodeID = validator.NodeID
+		wVal.PublicKey = validator.PublicKey.Compress()
+		wVal.Weight = validator.Weight
+
+		wValidators = append(wValidators, wVal)
+	}
+	reply.Validators = wValidators
 
 	// shouldn't happen
 	if !populated {
