@@ -25,7 +25,7 @@ func NewAnchorClient(url string) *AnchorClient {
 	}
 }
 
-func (cli *AnchorClient) GetHeader(slot int64, parentHash string, pubkey bls.PublicKey) (*SEQHeaderResponse, error) {
+func (cli *AnchorClient) GetHeader(slot int64, parentHash string, pubkey bls.PublicKey) (*AnchorGetHeaderResponse, error) {
 	pubkeyBytes := pubkey.Compress()
 	path := fmt.Sprintf("/eth/v1/builder/header/%d/%s/%s", slot, parentHash, hex.EncodeToString(pubkeyBytes))
 	url := cli.Url + path
@@ -42,7 +42,7 @@ func (cli *AnchorClient) GetHeader(slot int64, parentHash string, pubkey bls.Pub
 		return nil, err
 	}
 
-	var header SEQHeaderResponse
+	var header AnchorGetHeaderResponse
 	if err := json.Unmarshal(bodyBytes, &header); err != nil {
 		return nil, err
 	}

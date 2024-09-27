@@ -1,12 +1,18 @@
 package anchor
 
 import (
+	"crypto/sha256"
+	"encoding/json"
+	"fmt"
+	"math/big"
+
 	"github.com/AnomalyFi/hypersdk/codec"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/flashbots/go-boost-utils/bls"
 )
 
 type Data = hexutil.Bytes
@@ -15,6 +21,45 @@ type SEQPayloadRequest struct {
 	Slot                   uint64                                    `json:"slot"`
 	ToBBlindedBeaconBlock  AnchorSignedBlindedBeaconBlock            `json:"tobblindedbeaconblock"`
 	RoBBlindedBeaconBlocks map[string]AnchorSignedBlindedBeaconBlock `json:"robblindedbeaconblocks"`
+}
+
+type AnchorHeader struct {
+	Header    *common.Hash `json:"header"`
+	BlockHash string       `json:"block_hash"`
+	Value     *big.Int     `json:"value"`
+}
+
+type ExecHeadersInfo struct {
+	// Make signature based off ToBHash + RoBHashes then we use this signature for Baton/Anchor to check against
+	ToBHash   *AnchorHeader            `json:"tobhash"`
+	RoBHashes map[string]*AnchorHeader `json:"robhashes"`
+}
+
+func HashExecHeaders(headers *ExecHeadersInfo) ([32]byte, error) {
+	// Use JSON serialization to hash the struct
+	payloadBytes, err := json.Marshal(*headers)
+	if err != nil {
+		return [32]byte{}, fmt.Errorf("failed to serialize ExecHeaders: %w", err)
+	}
+
+	// Use sha256 to hash the serialized ExecHeaders data
+	hash := sha256.Sum256(payloadBytes)
+	return hash, nil
+}
+
+type AnchorGetHeaderResponse struct {
+	ExecHeaders ExecHeadersInfo `json:"exec_headers"`
+	BlockInfo   AnchorBlockInfo `json:"block_info"`
+	ParentHash  common.Hash     `json:"parent_hash"`
+	// Exec headers signed by baton's key.
+	ExecHeadersSig []byte `json:"exec_headers_sig"`
+}
+
+type AnchorBlockInfo struct {
+	Slot uint64 `json:"slot"`
+	// nodeID of chunk producing validator.
+	Producer       ids.NodeID    `json:"producer"`
+	ProposerPubkey bls.PublicKey `json:"proposer_pubkey"`
 }
 
 type SEQHeaderResponse struct {
@@ -74,10 +119,9 @@ type ExecutionPayload2 struct {
 }
 
 type AnchorGetPayloadRequest struct {
-	Slot          uint64 `json:"slot"`
-	ProposerIndex uint64 `json:"proposer_index"`
-	// Hash of exec headers. Must match the value sent by AnchorGetHeaderResponse.
-	HeadersHash string `json:"headers_hash"`
+	Slot           uint64 `json:"slot"`
+	ProposerPubKey []byte `json:"proposer_pubkey"`
+	ParentHash     string `json:"parent_hash"`
 	// Exec headers signed by validator's private key. Should be [48]byte signature.
 	SignedHeaders []byte `json:"signed_headers"`
 }

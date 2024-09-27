@@ -15,9 +15,11 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 
+	"github.com/AnomalyFi/hypersdk/anchor"
 	"github.com/AnomalyFi/hypersdk/executor"
 	"github.com/AnomalyFi/hypersdk/fees"
 	"github.com/AnomalyFi/hypersdk/keys"
@@ -160,22 +162,55 @@ func BuildBlock(
 	anchorCli := vm.AnchorClient()
 	if anchorCli != nil {
 		currentHeight := parent.Height() + 1
-		header, err := anchorCli.GetHeaderV2(int64(currentHeight))
+		header, err := anchorCli.GetHeader(int64(currentHeight), parent.id.String(), *vm.Signer())
 		if err != nil {
 			vm.Logger().Error("unable to get header from anchor", zap.Error(err))
 			goto skipAnchor
 		}
-		payload, err := anchorCli.GetPayloadV2(int64(header.Slot))
+		executionHeaderHash, err := anchor.HashExecHeaders(&header.ExecHeaders)
+		if err != nil {
+			vm.Logger().Error("unable to hash execution header", zap.Error(err))
+			goto skipAnchor
+		}
+		uwm, err := warp.NewUnsignedMessage(r.NetworkID(), r.ChainID(), executionHeaderHash[:])
+		if err != nil {
+			vm.Logger().Error("unable to create uwm", zap.Error(err))
+			goto skipAnchor
+		}
+		sig, err := vm.Sign(uwm)
+		if err != nil {
+			vm.Logger().Error("unable to sign uwm of execution headers", zap.Error(err))
+			goto skipAnchor
+		}
+		payloadReq := anchor.AnchorGetPayloadRequest{
+			Slot:           header.BlockInfo.Slot,
+			ProposerPubKey: vm.Signer().Compress(),
+			ParentHash:     parent.id.String(),
+			SignedHeaders:  sig,
+		}
+
+		payload, err := anchorCli.GetPayload(&payloadReq)
 		if err != nil {
 			vm.Logger().Error("unable to get payload from anchor", zap.Error(err))
 			goto skipAnchor
 		}
+		txs := make([]*Transaction, 0) // TODO: need a const to control initial txs volume
 		actionRegistry, authRegistry := vm.Registry()
-		_, txs, err := UnmarshalTxs(payload.ToBPayload.Transactions, 10, actionRegistry, authRegistry)
+		_, tobTxs, err := UnmarshalTxs(payload.ExecPayloads.ToBPayload.Transactions, 10, actionRegistry, authRegistry)
 		if err != nil {
 			vm.Logger().Error("unable to unmarshal txs from anchor", zap.Error(err))
 			goto skipAnchor
 		}
+		txs = append(txs, tobTxs...)
+		for _, execPayload := range payload.ExecPayloads.RoBPayloads {
+			_, robTxs, err := UnmarshalTxs(execPayload.Transactions, 10, actionRegistry, authRegistry)
+			if err != nil {
+				vm.Logger().Error("unable to unmarshal txs from anchor", zap.Error(err))
+				goto skipAnchor
+			}
+			txs = append(txs, robTxs...)
+		}
+
 		// unlike txs from mempool, we don't check duplicates
 		ctx, executeSpan := vm.Tracer().Start(ctx, "chain.BuildBlock.ExecuteAnchor") //nolint:spancheck
 		anchorBatch := len(txs)
