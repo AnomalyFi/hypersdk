@@ -2,7 +2,6 @@ package anchor
 
 import (
 	"bytes"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/AnomalyFi/hypersdk/crypto/bls"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
 // TODO: this file to define anchor client
@@ -27,7 +27,7 @@ func NewAnchorClient(url string) *AnchorClient {
 
 func (cli *AnchorClient) GetHeader(slot int64, parentHash string, pubkey bls.PublicKey) (*AnchorGetHeaderResponse, error) {
 	pubkeyBytes := pubkey.Compress()
-	path := fmt.Sprintf("/eth/v1/builder/header/%d/%s/%s", slot, parentHash, hex.EncodeToString(pubkeyBytes))
+	path := fmt.Sprintf("/eth/v1/builder/header/%d/%s/%s", slot, parentHash, hexutil.Encode(pubkeyBytes))
 	url := cli.Url + path
 
 	var client http.Client
@@ -40,6 +40,14 @@ func (cli *AnchorClient) GetHeader(slot int64, parentHash string, pubkey bls.Pub
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
+	}
+
+	if resp.StatusCode != 200 {
+		errMsg := new(httpErrorResp)
+		if err := json.Unmarshal(bodyBytes, errMsg); err != nil {
+			return nil, fmt.Errorf("unable to parse error message from a bad response: %d", resp.StatusCode)
+		}
+		return nil, fmt.Errorf("error from anchor: %s", errMsg.Message)
 	}
 
 	var header AnchorGetHeaderResponse
@@ -88,7 +96,12 @@ func (cli *AnchorClient) GetPayload(req *AnchorGetPayloadRequest) (*AnchorGetPay
 
 	var client http.Client
 
-	resp, err := client.Get(url)
+	reqRaw, err := json.Marshal(req)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := client.Post(url, "application/json", bytes.NewBuffer(reqRaw))
 	if err != nil {
 		return nil, err
 	}
@@ -96,6 +109,13 @@ func (cli *AnchorClient) GetPayload(req *AnchorGetPayloadRequest) (*AnchorGetPay
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
+	}
+	if resp.StatusCode != 200 {
+		errMsg := new(httpErrorResp)
+		if err := json.Unmarshal(bodyBytes, errMsg); err != nil {
+			return nil, fmt.Errorf("unable to parse error message from a bad response: %d", resp.StatusCode)
+		}
+		return nil, fmt.Errorf("error from anchor: %s", errMsg.Message)
 	}
 
 	var payload AnchorGetPayloadResponse

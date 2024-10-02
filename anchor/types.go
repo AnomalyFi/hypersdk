@@ -17,6 +17,11 @@ import (
 
 type Data = hexutil.Bytes
 
+type httpErrorResp struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+}
+
 type SEQPayloadRequest struct {
 	Slot                   uint64                                    `json:"slot"`
 	ToBBlindedBeaconBlock  AnchorSignedBlindedBeaconBlock            `json:"tobblindedbeaconblock"`
@@ -50,7 +55,7 @@ func HashExecHeaders(headers *ExecHeadersInfo) ([32]byte, error) {
 type AnchorGetHeaderResponse struct {
 	ExecHeaders ExecHeadersInfo `json:"exec_headers"`
 	BlockInfo   AnchorBlockInfo `json:"block_info"`
-	ParentHash  common.Hash     `json:"parent_hash"`
+	ParentHash  ids.ID          `json:"parent_hash"`
 	// Exec headers signed by baton's key.
 	ExecHeadersSig []byte `json:"exec_headers_sig"`
 }

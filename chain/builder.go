@@ -167,9 +167,10 @@ func BuildBlock(
 			vm.Logger().Error("unable to get header from anchor", zap.Error(err))
 			goto skipAnchor
 		}
+		vm.Logger().Debug("header received", zap.Uint64("slot", header.BlockInfo.Slot))
 		executionHeaderHash, err := anchor.HashExecHeaders(&header.ExecHeaders)
 		if err != nil {
-			vm.Logger().Error("unable to hash execution header", zap.Error(err))
+			vm.Logger().Error("unable to hash execution header", zap.Uint64("slot", header.BlockInfo.Slot), zap.Error(err))
 			goto skipAnchor
 		}
 		uwm, err := warp.NewUnsignedMessage(r.NetworkID(), r.ChainID(), executionHeaderHash[:])
@@ -179,7 +180,7 @@ func BuildBlock(
 		}
 		sig, err := vm.Sign(uwm)
 		if err != nil {
-			vm.Logger().Error("unable to sign uwm of execution headers", zap.Error(err))
+			vm.Logger().Error("unable to sign uwm of execution headers", zap.Uint64("slot", header.BlockInfo.Slot), zap.Error(err))
 			goto skipAnchor
 		}
 		payloadReq := anchor.AnchorGetPayloadRequest{
@@ -191,17 +192,19 @@ func BuildBlock(
 
 		payload, err := anchorCli.GetPayload(&payloadReq)
 		if err != nil {
-			vm.Logger().Error("unable to get payload from anchor", zap.Error(err))
+			vm.Logger().Error("unable to get payload from anchor", zap.Uint64("slot", header.BlockInfo.Slot), zap.Error(err))
 			goto skipAnchor
 		}
 		txs := make([]*Transaction, 0) // TODO: need a const to control initial txs volume
 		actionRegistry, authRegistry := vm.Registry()
-		_, tobTxs, err := UnmarshalTxs(payload.ExecPayloads.ToBPayload.Transactions, 10, actionRegistry, authRegistry)
-		if err != nil {
-			vm.Logger().Error("unable to unmarshal txs from anchor", zap.Error(err))
-			goto skipAnchor
+		if payload.ExecPayloads.ToBPayload != nil {
+			_, tobTxs, err := UnmarshalTxs(payload.ExecPayloads.ToBPayload.Transactions, 10, actionRegistry, authRegistry)
+			if err != nil {
+				vm.Logger().Error("unable to unmarshal txs from anchor", zap.Error(err))
+				goto skipAnchor
+			}
+			txs = append(txs, tobTxs...)
 		}
-		txs = append(txs, tobTxs...)
 		for _, execPayload := range payload.ExecPayloads.RoBPayloads {
 			_, robTxs, err := UnmarshalTxs(execPayload.Transactions, 10, actionRegistry, authRegistry)
 			if err != nil {
@@ -211,9 +214,9 @@ func BuildBlock(
 			txs = append(txs, robTxs...)
 		}
 
-		// unlike txs from mempool, we don't check duplicates
 		ctx, executeSpan := vm.Tracer().Start(ctx, "chain.BuildBlock.ExecuteAnchor") //nolint:spancheck
 		anchorBatch := len(txs)
+		vm.Logger().Debug("anchor batch info", zap.Int("size", anchorBatch))
 
 		// aggregate all the state keys used in the anchor chunk
 		anchorStateKeys := make(state.Keys)
