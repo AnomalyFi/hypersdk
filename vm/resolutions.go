@@ -395,6 +395,13 @@ func (vm *VM) CurrentValidators(
 	return vm.proposerMonitor.Validators(ctx)
 }
 
+func (vm *VM) ProposerAtHeight(
+	ctx context.Context,
+	blockHeight uint64,
+) (ids.NodeID, error) {
+	return vm.proposerMonitor.ProposerAtHeight(ctx, blockHeight)
+}
+
 func (vm *VM) NodeID() ids.NodeID {
 	return vm.snowCtx.NodeID
 }

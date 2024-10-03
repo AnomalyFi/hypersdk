@@ -130,6 +130,26 @@ func (p *ProposerMonitor) Proposers(
 	return proposersToGossip, nil
 }
 
+func (p *ProposerMonitor) ProposerAtHeight(
+	ctx context.Context,
+	blockHeight uint64,
+) (ids.NodeID, error) {
+	key := fmt.Sprintf("%d-%d", blockHeight, p.currentPHeight)
+	var proposers []ids.NodeID
+	if v, ok := p.proposerCache.Get(key); ok {
+		proposers = v
+	} else {
+		proposers, err := p.proposer.Proposers(ctx, blockHeight, p.currentPHeight, 1)
+		if err != nil {
+			return ids.EmptyNodeID, err
+		}
+		p.proposerCache.Put(key, proposers)
+	}
+	arrLen := min(1, uint64(len(proposers)))
+	nextProposers := proposers[:arrLen]
+	return nextProposers[0], nil
+}
+
 func (p *ProposerMonitor) Validators(
 	ctx context.Context,
 ) (map[ids.NodeID]*validators.GetValidatorOutput, map[string]struct{}) {

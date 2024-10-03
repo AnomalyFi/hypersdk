@@ -4,7 +4,6 @@
 package rpc
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -168,35 +167,30 @@ type Validator struct {
 	Weight    uint64     `json:"weight"`
 }
 
+type NextProposerArgs struct {
+	Height uint64 `json:"height"`
+}
 type NextProposerReply struct {
 	PublicKey  []byte       `json:"publicKey"`
 	NodeID     ids.NodeID   `json:"nodeID"`
 	Validators []*Validator `json:"validators"`
 }
 
-func (j *JSONRPCServer) NextProposer(req *http.Request, args *struct{}, reply *NextProposerReply) error {
+func (j *JSONRPCServer) NextProposer(req *http.Request, args *NextProposerArgs, reply *NextProposerReply) error {
 	ctx := context.TODO()
 	validators, _ := j.vm.CurrentValidators(ctx)
-	proposerNodeIDs, err := j.vm.Proposers(ctx, 1, 1)
+
+	nextProposer, err := j.vm.ProposerAtHeight(ctx, args.Height)
 	if err != nil {
 		return err
 	}
 
-	proposers := proposerNodeIDs.List()
-	nextProposer := proposers[0]
-
-	// populate next proposer
-	populated := false
-	for _, validator := range validators {
-		if bytes.Equal(nextProposer[:], validator.NodeID[:]) {
-			populated = true
-
-			reply.NodeID = validator.NodeID
-			pkBytes := validator.PublicKey.Compress()
-			reply.PublicKey = pkBytes
-			break
-		}
+	if _, ok := validators[nextProposer]; !ok {
+		return fmt.Errorf("validator set not containing proposer")
 	}
+
+	reply.NodeID = nextProposer
+	reply.PublicKey = validators[reply.NodeID].PublicKey.Compress()
 
 	// populate current validators
 	wValidators := make([]*Validator, 0, len(validators))
@@ -209,11 +203,6 @@ func (j *JSONRPCServer) NextProposer(req *http.Request, args *struct{}, reply *N
 		wValidators = append(wValidators, wVal)
 	}
 	reply.Validators = wValidators
-
-	// shouldn't happen
-	if !populated {
-		return fmt.Errorf("unable to fetch next proposer")
-	}
 
 	return nil
 }
