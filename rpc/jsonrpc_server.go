@@ -10,6 +10,8 @@ import (
 	"net/http"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"go.uber.org/zap"
 
 	"github.com/AnomalyFi/hypersdk/chain"
 	"github.com/AnomalyFi/hypersdk/codec"
@@ -179,18 +181,20 @@ type NextProposerReply struct {
 func (j *JSONRPCServer) NextProposer(req *http.Request, args *NextProposerArgs, reply *NextProposerReply) error {
 	ctx := context.TODO()
 	validators, _ := j.vm.CurrentValidators(ctx)
-
 	nextProposer, err := j.vm.ProposerAtHeight(ctx, args.Height)
 	if err != nil {
 		return err
 	}
 
 	if _, ok := validators[nextProposer]; !ok {
+		j.vm.Logger().Debug("validator set not containing proposer")
 		return fmt.Errorf("validator set not containing proposer")
 	}
 
 	reply.NodeID = nextProposer
 	reply.PublicKey = validators[reply.NodeID].PublicKey.Compress()
+
+	j.vm.Logger().Debug("proposer info returned", zap.Uint64("height", args.Height), zap.String("nodeID", reply.NodeID.String()), zap.String("pubkey", hexutil.Encode(reply.PublicKey)))
 
 	// populate current validators
 	wValidators := make([]*Validator, 0, len(validators))

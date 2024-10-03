@@ -80,6 +80,7 @@ type VM interface {
 	StateManager() StateManager
 	ValidatorState() validators.State
 
+	NodeID() ids.NodeID
 	Signer() *bls.PublicKey
 	Sign(msg *warp.UnsignedMessage) ([]byte, error)
 

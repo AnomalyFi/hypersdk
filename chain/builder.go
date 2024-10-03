@@ -16,6 +16,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 
@@ -161,8 +162,8 @@ func BuildBlock(
 	// txs from anchor
 	anchorCli := vm.AnchorClient()
 	if anchorCli != nil {
-		currentHeight := parent.Height() + 1
-		header, err := anchorCli.GetHeader(int64(currentHeight), parent.id.String(), *vm.Signer())
+		header, err := anchorCli.GetHeader(int64(b.Hght), parent.id.String(), *vm.Signer())
+		vm.Logger().Debug(fmt.Sprintf("producing block at height(%d)", b.Hght), zap.String("nodeID", vm.NodeID().String()), zap.String("pubkey", hexutil.Encode(vm.Signer().Compress())))
 		if err != nil {
 			vm.Logger().Error("unable to get header from anchor", zap.Error(err))
 			goto skipAnchor
