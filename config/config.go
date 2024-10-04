@@ -53,3 +53,6 @@ func (c *Config) GetBlockCompactionFrequency() int       { return 32 } // 64 MB 
 func (c *Config) GetETHL1RPC() string                    { return "http://localhost:8545" }
 func (c *Config) GetETHL1WS() string                     { return "ws://localhost:8546" }
 func (c *Config) GetAnchorURL() string                   { return "" }
+func (c *Config) GetAnchorManager() string {
+	return "0x987647e360d340fa0224bf2c2c11919fd0d90e3797c9869994c22a52b4d901fd9450795a9a9aa9562639359ed0fdc19e"
+} // default bls pubkey for anchor manager

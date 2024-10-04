@@ -158,61 +158,13 @@ func BuildBlock(
 	// Batch fetch items from mempool to unblock incoming RPC/Gossip traffic
 	b.Txs = []*Transaction{}
 
-	// TOOD: separate this part to an isolated function
-	// txs from anchor
-	anchorCli := vm.AnchorClient()
+	actx, cancel := context.WithTimeout(ctx, 500*time.Millisecond) // make a const or configurable
+	anchorCli := vm.AnchorClient(actx)
 	if anchorCli != nil {
-		header, err := anchorCli.GetHeader(int64(b.Hght), parent.id.String(), *vm.Signer())
-		vm.Logger().Debug(fmt.Sprintf("producing block at height(%d)", b.Hght), zap.String("nodeID", vm.NodeID().String()), zap.String("pubkey", hexutil.Encode(vm.Signer().Compress())))
+		defer cancel()
+		txs, err := GetAnchorTxs(actx, vm, r, parent)
 		if err != nil {
-			vm.Logger().Error("unable to get header from anchor", zap.Error(err))
 			goto skipAnchor
-		}
-		vm.Logger().Debug("header received", zap.Uint64("slot", header.BlockInfo.Slot))
-		executionHeaderHash, err := anchor.HashExecHeaders(&header.ExecHeaders)
-		if err != nil {
-			vm.Logger().Error("unable to hash execution header", zap.Uint64("slot", header.BlockInfo.Slot), zap.Error(err))
-			goto skipAnchor
-		}
-		uwm, err := warp.NewUnsignedMessage(r.NetworkID(), r.ChainID(), executionHeaderHash[:])
-		if err != nil {
-			vm.Logger().Error("unable to create uwm", zap.Error(err))
-			goto skipAnchor
-		}
-		sig, err := vm.Sign(uwm)
-		if err != nil {
-			vm.Logger().Error("unable to sign uwm of execution headers", zap.Uint64("slot", header.BlockInfo.Slot), zap.Error(err))
-			goto skipAnchor
-		}
-		payloadReq := anchor.AnchorGetPayloadRequest{
-			Slot:           header.BlockInfo.Slot,
-			ProposerPubKey: vm.Signer().Compress(),
-			ParentHash:     parent.id.String(),
-			SignedHeaders:  sig,
-		}
-
-		payload, err := anchorCli.GetPayload(&payloadReq)
-		if err != nil {
-			vm.Logger().Error("unable to get payload from anchor", zap.Uint64("slot", header.BlockInfo.Slot), zap.Error(err))
-			goto skipAnchor
-		}
-		txs := make([]*Transaction, 0) // TODO: need a const to control initial txs volume
-		actionRegistry, authRegistry := vm.Registry()
-		if payload.ExecPayloads.ToBPayload != nil {
-			_, tobTxs, err := UnmarshalTxs(payload.ExecPayloads.ToBPayload.Transactions, 10, actionRegistry, authRegistry)
-			if err != nil {
-				vm.Logger().Error("unable to unmarshal txs from anchor", zap.Error(err))
-				goto skipAnchor
-			}
-			txs = append(txs, tobTxs...)
-		}
-		for _, execPayload := range payload.ExecPayloads.RoBPayloads {
-			_, robTxs, err := UnmarshalTxs(execPayload.Transactions, 10, actionRegistry, authRegistry)
-			if err != nil {
-				vm.Logger().Error("unable to unmarshal txs from anchor", zap.Error(err))
-				goto skipAnchor
-			}
-			txs = append(txs, robTxs...)
 		}
 
 		ctx, executeSpan := vm.Tracer().Start(ctx, "chain.BuildBlock.ExecuteAnchor") //nolint:spancheck
@@ -659,5 +611,86 @@ skipAnchor:
 	return b, nil
 }
 
-func BuildAnchorOnTopOfBlock(ctx context.Context, vm VM, parent *StatelessBlock) {
+func GetAnchorTxs(
+	ctx context.Context,
+	vm VM,
+	r Rules,
+	parent *StatelessBlock,
+) ([]*Transaction, error) {
+	txsCh := make(chan []*Transaction)
+	errCh := make(chan error)
+	anchorCli := vm.AnchorClient(ctx)
+	slot := parent.Height() + 1
+	go func() {
+		header, err := anchorCli.GetHeader(int64(slot), parent.id.String(), *vm.Signer())
+		vm.Logger().Debug(fmt.Sprintf("producing block at height(%d)", slot), zap.String("anchor", anchorCli.Url), zap.String("nodeID", vm.NodeID().String()), zap.String("pubkey", hexutil.Encode(vm.Signer().Compress())))
+		if err != nil {
+			vm.Logger().Error("unable to get header from anchor", zap.Error(err))
+			errCh <- fmt.Errorf("unable to get header from anchor: %w", err)
+			return
+		}
+		vm.Logger().Debug("header received", zap.Uint64("slot", header.BlockInfo.Slot))
+		executionHeaderHash, err := anchor.HashExecHeaders(&header.ExecHeaders)
+		if err != nil {
+			vm.Logger().Error("unable to hash execution header", zap.Uint64("slot", header.BlockInfo.Slot), zap.Error(err))
+			errCh <- fmt.Errorf("unable to hash execution header: %w", err)
+			return
+		}
+		uwm, err := warp.NewUnsignedMessage(r.NetworkID(), r.ChainID(), executionHeaderHash[:])
+		if err != nil {
+			vm.Logger().Error("unable to create uwm", zap.Error(err))
+			errCh <- fmt.Errorf("unable to create uwm: %w", err)
+			return
+		}
+		sig, err := vm.Sign(uwm)
+		if err != nil {
+			vm.Logger().Error("unable to sign uwm of execution headers", zap.Uint64("slot", header.BlockInfo.Slot), zap.Error(err))
+			errCh <- fmt.Errorf("unable to sign uwm of execution headers: %w", err)
+			return
+		}
+		payloadReq := anchor.AnchorGetPayloadRequest{
+			Slot:           header.BlockInfo.Slot,
+			ProposerPubKey: vm.Signer().Compress(),
+			ParentHash:     parent.id.String(),
+			SignedHeaders:  sig,
+		}
+
+		payload, err := anchorCli.GetPayload(&payloadReq)
+		if err != nil {
+			vm.Logger().Error("unable to get payload from anchor", zap.Uint64("slot", header.BlockInfo.Slot), zap.Error(err))
+			errCh <- fmt.Errorf("unable to get payload from anchor: %w", err)
+			return
+		}
+		txs := make([]*Transaction, 0) // TODO: need a const to control initial txs volume
+		actionRegistry, authRegistry := vm.Registry()
+		if payload.ExecPayloads.ToBPayload != nil {
+			_, tobTxs, err := UnmarshalTxs(payload.ExecPayloads.ToBPayload.Transactions, 10, actionRegistry, authRegistry)
+			if err != nil {
+				vm.Logger().Error("unable to unmarshal txs from anchor", zap.Error(err))
+				errCh <- fmt.Errorf("unable to unmarshal txs from anchor: %w", err)
+				return
+			}
+			txs = append(txs, tobTxs...)
+		}
+		for _, execPayload := range payload.ExecPayloads.RoBPayloads {
+			_, robTxs, err := UnmarshalTxs(execPayload.Transactions, 10, actionRegistry, authRegistry)
+			if err != nil {
+				vm.Logger().Error("unable to unmarshal txs from anchor", zap.Error(err))
+				errCh <- fmt.Errorf("unable to unmarshal txs from anchor: %w", err)
+				return
+			}
+			txs = append(txs, robTxs...)
+		}
+
+		txsCh <- txs
+	}()
+
+	select {
+	case txs := <-txsCh:
+		return txs, nil
+	case err := <-errCh:
+		return nil, err
+	case <-ctx.Done():
+		return nil, fmt.Errorf("timeout on waiting anchor txs")
+	}
 }

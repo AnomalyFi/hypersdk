@@ -67,7 +67,7 @@ type VM interface {
 	GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (AuthBatchVerifier, bool)
 	GetVerifyAuth() bool
 
-	AnchorClient() *anchor.AnchorClient
+	AnchorClient(context.Context) *anchor.AnchorClient
 
 	IsBootstrapped() bool
 	LastAcceptedBlock() *StatelessBlock

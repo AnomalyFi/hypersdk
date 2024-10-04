@@ -4,8 +4,10 @@
 package vm
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
+	"fmt"
 	"time"
 
 	"github.com/ava-labs/avalanchego/database"
@@ -18,6 +20,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/avalanchego/x/merkledb"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"go.uber.org/zap"
 
 	"github.com/AnomalyFi/hypersdk/actions"
@@ -63,7 +66,7 @@ func (vm *VM) Registry() (chain.ActionRegistry, chain.AuthRegistry) {
 	return vm.actionRegistry, vm.authRegistry
 }
 
-func (vm *VM) AnchorClient() *anchor.AnchorClient {
+func (vm *VM) AnchorClient(ctx context.Context) *anchor.AnchorClient {
 	vm.anchorCliL.Lock()
 	defer vm.anchorCliL.Unlock()
 
@@ -115,12 +118,28 @@ func (vm *VM) Mempool() chain.Mempool {
 	return vm.mempool
 }
 
-func (vm *VM) ReplaceAnchor(url string) bool {
+func (vm *VM) ReplaceAnchor(url string, pk *bls.PublicKey, sig *bls.Signature) (bool, error) {
+	pkHex := vm.config.GetAnchorManager()
+	pkBytes, err := hexutil.Decode(pkHex)
+	if err != nil {
+		return false, err
+	}
+
+	if !bytes.Equal(pk.Compress(), pkBytes) {
+		return false, err
+	}
+
+	payload := []byte(url) // default encoding is utf-8
+	if verified := bls.Verify(payload, pk, sig); !verified {
+		return false, fmt.Errorf("invalid signature against payload")
+	}
+
 	vm.anchorCliL.Lock()
 	defer vm.anchorCliL.Unlock()
-
 	vm.anchorCli = anchor.NewAnchorClient(url)
-	return true
+	vm.Logger().Debug("setting anchor url to", zap.String("url", url))
+
+	return true, nil
 }
 
 func (vm *VM) IsRepeat(ctx context.Context, txs []*chain.Transaction, marker set.Bits, stop bool) set.Bits {
