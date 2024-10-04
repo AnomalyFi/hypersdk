@@ -4,15 +4,19 @@
 package rpc
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"go.uber.org/zap"
 
 	"github.com/AnomalyFi/hypersdk/chain"
 	"github.com/AnomalyFi/hypersdk/codec"
 	"github.com/AnomalyFi/hypersdk/consts"
+	"github.com/AnomalyFi/hypersdk/crypto/bls"
 	"github.com/AnomalyFi/hypersdk/fees"
 
 	feemarket "github.com/AnomalyFi/hypersdk/fee_market"
@@ -141,5 +145,83 @@ func (j *JSONRPCServer) NameSpacesPrice(
 	if err != nil && err != feemarket.ErrNamespaceNotFound {
 		return err
 	}
+
+	return nil
+}
+
+type ReplaceAnchorArgs struct {
+	URL       string `json:"url"`
+	Pubkey    []byte `json:"pubkey"`
+	Signature []byte `json:"signature"`
+}
+
+type ReplaceAnchorReply struct {
+	Success bool `json:"success"`
+}
+
+// TODO: make it permissioned
+func (j *JSONRPCServer) ReplaceAnchor(req *http.Request, args *ReplaceAnchorArgs, reply *ReplaceAnchorReply) error {
+	pk, err := bls.PublicKeyFromBytes(args.Pubkey)
+	if err != nil {
+		return err
+	}
+	sig, err := bls.SignatureFromBytes(args.Signature)
+	if err != nil {
+		return err
+	}
+
+	replaced, err := j.vm.ReplaceAnchor(args.URL, pk, sig)
+	if err != nil {
+		return err
+	}
+	reply.Success = replaced
+	return nil
+}
+
+type Validator struct {
+	NodeID    ids.NodeID `json:"publicKey"`
+	PublicKey []byte     `json:"nodeID"`
+	Weight    uint64     `json:"weight"`
+}
+
+type NextProposerArgs struct {
+	Height uint64 `json:"height"`
+}
+type NextProposerReply struct {
+	PublicKey  []byte       `json:"publicKey"`
+	NodeID     ids.NodeID   `json:"nodeID"`
+	Validators []*Validator `json:"validators"`
+}
+
+func (j *JSONRPCServer) NextProposer(req *http.Request, args *NextProposerArgs, reply *NextProposerReply) error {
+	ctx := context.TODO()
+	validators, _ := j.vm.CurrentValidators(ctx)
+	nextProposer, err := j.vm.ProposerAtHeight(ctx, args.Height)
+	if err != nil {
+		return err
+	}
+
+	if _, ok := validators[nextProposer]; !ok {
+		j.vm.Logger().Debug("validator set not containing proposer")
+		return fmt.Errorf("validator set not containing proposer")
+	}
+
+	reply.NodeID = nextProposer
+	reply.PublicKey = validators[reply.NodeID].PublicKey.Compress()
+
+	j.vm.Logger().Debug("proposer info returned", zap.Uint64("height", args.Height), zap.String("nodeID", reply.NodeID.String()), zap.String("pubkey", hexutil.Encode(reply.PublicKey)))
+
+	// populate current validators
+	wValidators := make([]*Validator, 0, len(validators))
+	for _, validator := range validators {
+		wVal := new(Validator)
+		wVal.NodeID = validator.NodeID
+		wVal.PublicKey = validator.PublicKey.Compress()
+		wVal.Weight = validator.Weight
+
+		wValidators = append(wValidators, wVal)
+	}
+	reply.Validators = wValidators
+
 	return nil
 }

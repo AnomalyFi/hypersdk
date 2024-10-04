@@ -10,8 +10,10 @@ import (
 	"github.com/ava-labs/avalanchego/snow/validators"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/utils/set"
 
 	"github.com/AnomalyFi/hypersdk/chain"
+	"github.com/AnomalyFi/hypersdk/crypto/bls"
 	"github.com/AnomalyFi/hypersdk/fees"
 )
 
@@ -31,6 +33,8 @@ type VM interface {
 	LastL1Head() int64
 	UnitPrices(context.Context) (fees.Dimensions, error)
 	NameSpacesPrice(ctx context.Context, namespace []string) ([]uint64, error)
+	Proposers(ctx context.Context, diff int, depth int) (set.Set[ids.NodeID], error)
+	ProposerAtHeight(ctx context.Context, blockHeight uint64) (ids.NodeID, error)
 	CurrentValidators(
 		context.Context,
 	) (map[ids.NodeID]*validators.GetValidatorOutput, map[string]struct{})
@@ -39,4 +43,5 @@ type VM interface {
 	GetDiskBlockResults(ctx context.Context, height uint64) ([]*chain.Result, error)
 	GetDiskFeeManager(ctx context.Context, height uint64) ([]byte, error)
 	GetVerifyAuth() bool
+	ReplaceAnchor(url string, pk *bls.PublicKey, sig *bls.Signature) (bool, error)
 }

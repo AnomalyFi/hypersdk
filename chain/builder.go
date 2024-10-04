@@ -15,9 +15,12 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 
+	"github.com/AnomalyFi/hypersdk/anchor"
 	"github.com/AnomalyFi/hypersdk/executor"
 	"github.com/AnomalyFi/hypersdk/fees"
 	"github.com/AnomalyFi/hypersdk/keys"
@@ -153,8 +156,154 @@ func BuildBlock(
 	)
 
 	// Batch fetch items from mempool to unblock incoming RPC/Gossip traffic
-	mempool.StartStreaming(ctx)
 	b.Txs = []*Transaction{}
+
+	actx, cancel := context.WithTimeout(ctx, 500*time.Millisecond) // make a const or configurable
+	anchorCli := vm.AnchorClient(actx)
+	if anchorCli != nil {
+		defer cancel()
+		txs, err := GetAnchorTxs(actx, vm, r, parent)
+		if err != nil {
+			goto skipAnchor
+		}
+
+		ctx, executeSpan := vm.Tracer().Start(ctx, "chain.BuildBlock.ExecuteAnchor") //nolint:spancheck
+		anchorBatch := len(txs)
+		vm.Logger().Debug("anchor batch info", zap.Int("size", anchorBatch))
+
+		// aggregate all the state keys used in the anchor chunk
+		anchorStateKeys := make(state.Keys)
+		for _, tx := range txs {
+			statekeys, err := tx.StateKeys(sm)
+			if err != nil {
+				vm.Logger().Error("unable to get statekeys of tx", zap.Error(err))
+				goto skipAnchor
+			}
+			for k, perm := range statekeys {
+				anchorStateKeys.Add(k, perm)
+			}
+		}
+		var (
+			storage  = make(map[string][]byte, len(anchorStateKeys))
+			toLookup = make([]string, 0, len(anchorStateKeys))
+		)
+		cacheLock.RLock()
+		for k := range anchorStateKeys {
+			if v, ok := cache[k]; ok {
+				if v.exists {
+					storage[k] = v.v
+				}
+				continue
+			}
+			toLookup = append(toLookup, k)
+		}
+		cacheLock.RUnlock()
+
+		// Fetch keys from disk
+		var toCache map[string]*fetchData
+		if len(toLookup) > 0 {
+			toCache = make(map[string]*fetchData, len(toLookup))
+			for _, k := range toLookup {
+				v, err := parentView.GetValue(ctx, []byte(k))
+				if errors.Is(err, database.ErrNotFound) {
+					toCache[k] = &fetchData{nil, false, 0}
+					continue
+				} else if err != nil {
+					vm.Logger().Error("unable to get key", zap.String("key", k), zap.Error(err))
+					goto skipAnchor
+				}
+				// We verify that the [NumChunks] is already less than the number
+				// added on the write path, so we don't need to do so again here.
+				numChunks, ok := keys.NumChunks(v)
+				if !ok {
+					vm.Logger().Error("unable to calculate num of chunks for k", zap.String("key", k))
+					goto skipAnchor
+				}
+				toCache[k] = &fetchData{v, true, numChunks}
+				storage[k] = v
+			}
+
+			// Update key cache regardless of whether exit is graceful
+			cacheLock.Lock()
+			for k := range toCache {
+				cache[k] = toCache[k]
+			}
+			cacheLock.Unlock()
+		}
+
+		var anchorL sync.Mutex
+		anchorTxs := make([]*Transaction, 0, len(txs))
+		anchorTxResults := make([]*Result, 0, len(results))
+		e := executor.New(anchorBatch, vm.GetTransactionExecutionCores(), MaxKeyDependencies, vm.GetExecutorBuildRecorder())
+		// start a new view here, only commit when all txs succeed
+		tsv := ts.NewView(anchorStateKeys, storage)
+		for _, ltx := range txs {
+			txsAttempted++
+			tx := ltx
+			// TODO: parallem this, currently `TState` can't be rolled back while `TState_View` can
+			e.Run(anchorStateKeys, func() error {
+				if err := tx.PreExecute(ctx, feeManager, feeMarket, sm, r, tsv, nextTime); err != nil {
+					return err
+				}
+				result, err := tx.Execute(
+					ctx,
+					feeManager,
+					feeMarket,
+					sm,
+					r,
+					tsv,
+					nextTime,
+				)
+				if err != nil {
+					log.Warn("unexpected post-execution error", zap.Error(err))
+					return err
+				}
+
+				// Ensure block isn't too big
+				if ok, dimension := feeManager.Consume(result.Units, maxUnits); !ok {
+					log.Debug(
+						"skipping tx: too many units",
+						zap.Int("dimension", int(dimension)),
+						zap.Uint64("tx", result.Units[dimension]),
+						zap.Uint64("block units", feeManager.LastConsumed(dimension)),
+						zap.Uint64("max block units", maxUnits[dimension]),
+					)
+					// If we are above the target for the dimension we can't consume, we will
+					// stop building. This prevents a full mempool iteration looking for the
+					// "perfect fit".
+					if feeManager.LastConsumed(dimension) >= targetUnits[dimension] {
+						stop = true
+						return errBlockFull
+					}
+				}
+
+				anchorL.Lock()
+				defer anchorL.Unlock()
+
+				anchorTxs = append(anchorTxs, tx)
+				anchorTxResults = append(anchorTxResults, result)
+
+				return nil
+			})
+		}
+		execErr := e.Wait()
+		executeSpan.End()
+
+		// Handle execution result
+		if execErr != nil {
+			vm.Logger().Error("error executing anchor txs", zap.Error(err))
+		} else {
+			vm.Logger().Info("anchor txs has been added", zap.Int("numTxs", len(anchorTxs)))
+			// only do state transition when all the txs in the anchor chunk have succeed
+			tsv.Commit()
+			b.Txs = append(b.Txs, anchorTxs...)
+			results = append(results, anchorTxResults...)
+		}
+	}
+
+skipAnchor:
+	// txs from mempool
+	mempool.StartStreaming(ctx)
 	for time.Since(start) < vm.GetTargetBuildDuration() && !stop {
 		prepareStreamLock.Lock()
 		txs := mempool.Stream(ctx, streamBatch)
@@ -460,4 +609,88 @@ func BuildBlock(
 		zap.Int64("block (t)", b.Tmstmp),
 	)
 	return b, nil
+}
+
+func GetAnchorTxs(
+	ctx context.Context,
+	vm VM,
+	r Rules,
+	parent *StatelessBlock,
+) ([]*Transaction, error) {
+	txsCh := make(chan []*Transaction)
+	errCh := make(chan error)
+	anchorCli := vm.AnchorClient(ctx)
+	slot := parent.Height() + 1
+	go func() {
+		header, err := anchorCli.GetHeader(int64(slot), parent.id.String(), *vm.Signer())
+		vm.Logger().Debug(fmt.Sprintf("producing block at height(%d)", slot), zap.String("anchor", anchorCli.Url), zap.String("nodeID", vm.NodeID().String()), zap.String("pubkey", hexutil.Encode(vm.Signer().Compress())))
+		if err != nil {
+			vm.Logger().Error("unable to get header from anchor", zap.Error(err))
+			errCh <- fmt.Errorf("unable to get header from anchor: %w", err)
+			return
+		}
+		vm.Logger().Debug("header received", zap.Uint64("slot", header.BlockInfo.Slot))
+		executionHeaderHash, err := anchor.HashExecHeaders(&header.ExecHeaders)
+		if err != nil {
+			vm.Logger().Error("unable to hash execution header", zap.Uint64("slot", header.BlockInfo.Slot), zap.Error(err))
+			errCh <- fmt.Errorf("unable to hash execution header: %w", err)
+			return
+		}
+		uwm, err := warp.NewUnsignedMessage(r.NetworkID(), r.ChainID(), executionHeaderHash[:])
+		if err != nil {
+			vm.Logger().Error("unable to create uwm", zap.Error(err))
+			errCh <- fmt.Errorf("unable to create uwm: %w", err)
+			return
+		}
+		sig, err := vm.Sign(uwm)
+		if err != nil {
+			vm.Logger().Error("unable to sign uwm of execution headers", zap.Uint64("slot", header.BlockInfo.Slot), zap.Error(err))
+			errCh <- fmt.Errorf("unable to sign uwm of execution headers: %w", err)
+			return
+		}
+		payloadReq := anchor.AnchorGetPayloadRequest{
+			Slot:           header.BlockInfo.Slot,
+			ProposerPubKey: vm.Signer().Compress(),
+			ParentHash:     parent.id.String(),
+			SignedHeaders:  sig,
+		}
+
+		payload, err := anchorCli.GetPayload(&payloadReq)
+		if err != nil {
+			vm.Logger().Error("unable to get payload from anchor", zap.Uint64("slot", header.BlockInfo.Slot), zap.Error(err))
+			errCh <- fmt.Errorf("unable to get payload from anchor: %w", err)
+			return
+		}
+		txs := make([]*Transaction, 0) // TODO: need a const to control initial txs volume
+		actionRegistry, authRegistry := vm.Registry()
+		if payload.ExecPayloads.ToBPayload != nil {
+			_, tobTxs, err := UnmarshalTxs(payload.ExecPayloads.ToBPayload.Transactions, 10, actionRegistry, authRegistry)
+			if err != nil {
+				vm.Logger().Error("unable to unmarshal txs from anchor", zap.Error(err))
+				errCh <- fmt.Errorf("unable to unmarshal txs from anchor: %w", err)
+				return
+			}
+			txs = append(txs, tobTxs...)
+		}
+		for _, execPayload := range payload.ExecPayloads.RoBPayloads {
+			_, robTxs, err := UnmarshalTxs(execPayload.Transactions, 10, actionRegistry, authRegistry)
+			if err != nil {
+				vm.Logger().Error("unable to unmarshal txs from anchor", zap.Error(err))
+				errCh <- fmt.Errorf("unable to unmarshal txs from anchor: %w", err)
+				return
+			}
+			txs = append(txs, robTxs...)
+		}
+
+		txsCh <- txs
+	}()
+
+	select {
+	case txs := <-txsCh:
+		return txs, nil
+	case err := <-errCh:
+		return nil, err
+	case <-ctx.Done():
+		return nil, fmt.Errorf("timeout on waiting anchor txs")
+	}
 }

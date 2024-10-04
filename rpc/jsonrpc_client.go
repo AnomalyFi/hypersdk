@@ -127,6 +127,30 @@ func (cli *JSONRPCClient) SubmitTx(ctx context.Context, d []byte) (ids.ID, error
 	return resp.TxID, err
 }
 
+func (cli *JSONRPCClient) ReplaceAnchor(ctx context.Context, url string) (bool, error) {
+	resp := new(ReplaceAnchorReply)
+	err := cli.requester.SendRequest(
+		ctx,
+		"replaceAnchor",
+		&ReplaceAnchorArgs{URL: url},
+		resp,
+	)
+	return resp.Success, err
+}
+
+func (cli *JSONRPCClient) NextProposer(ctx context.Context, height uint64) (*NextProposerReply, error) {
+	resp := new(NextProposerReply)
+	err := cli.requester.SendRequest(
+		ctx,
+		"nextProposer",
+		&NextProposerArgs{
+			Height: height,
+		},
+		resp,
+	)
+	return resp, err
+}
+
 type Modifier interface {
 	Base(*chain.Base)
 }

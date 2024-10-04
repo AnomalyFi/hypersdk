@@ -315,7 +315,7 @@ func (g *Proposer) Run(appSender common.AppSender) {
 				)
 				if err == nil && proposers.Contains(g.vm.NodeID()) {
 					g.Queue(tctx) // requeue later in case peer validator
-					g.vm.Logger().Debug("not gossiping because soon to propose")
+					// g.vm.Logger().Debug("not gossiping because soon to propose")
 					continue
 				} else if err != nil {
 					g.vm.Logger().Warn("unable to determine if will propose soon, gossiping anyways", zap.Error(err))

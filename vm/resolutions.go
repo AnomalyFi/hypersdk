@@ -4,10 +4,13 @@
 package vm
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
+	"fmt"
 	"time"
 
+	"github.com/ava-labs/avalanchego/database"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/snow/engine/common"
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
@@ -15,11 +18,18 @@ import (
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/avalanchego/x/merkledb"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"go.uber.org/zap"
 
+	"github.com/AnomalyFi/hypersdk/actions"
+	"github.com/AnomalyFi/hypersdk/anchor"
 	"github.com/AnomalyFi/hypersdk/builder"
 	"github.com/AnomalyFi/hypersdk/chain"
+	"github.com/AnomalyFi/hypersdk/codec"
+	"github.com/AnomalyFi/hypersdk/consts"
+	"github.com/AnomalyFi/hypersdk/crypto/bls"
 	"github.com/AnomalyFi/hypersdk/executor"
 	"github.com/AnomalyFi/hypersdk/fees"
 	"github.com/AnomalyFi/hypersdk/gossiper"
@@ -54,6 +64,17 @@ func (vm *VM) ValidatorState() validators.State {
 
 func (vm *VM) Registry() (chain.ActionRegistry, chain.AuthRegistry) {
 	return vm.actionRegistry, vm.authRegistry
+}
+
+func (vm *VM) AnchorClient(ctx context.Context) *anchor.AnchorClient {
+	vm.anchorCliL.Lock()
+	defer vm.anchorCliL.Unlock()
+
+	return vm.anchorCli
+}
+
+func (vm *VM) AnchorRegistry() *anchor.AnchorRegistry {
+	return vm.anchorRegistry
 }
 
 func (vm *VM) AuthVerifiers() workers.Workers {
@@ -95,6 +116,30 @@ func (vm *VM) State() (merkledb.MerkleDB, error) {
 
 func (vm *VM) Mempool() chain.Mempool {
 	return vm.mempool
+}
+
+func (vm *VM) ReplaceAnchor(url string, pk *bls.PublicKey, sig *bls.Signature) (bool, error) {
+	pkHex := vm.config.GetAnchorManager()
+	pkBytes, err := hexutil.Decode(pkHex)
+	if err != nil {
+		return false, err
+	}
+
+	if !bytes.Equal(pk.Compress(), pkBytes) {
+		return false, err
+	}
+
+	payload := []byte(url) // default encoding is utf-8
+	if verified := bls.Verify(payload, pk, sig); !verified {
+		return false, fmt.Errorf("invalid signature against payload")
+	}
+
+	vm.anchorCliL.Lock()
+	defer vm.anchorCliL.Unlock()
+	vm.anchorCli = anchor.NewAnchorClient(url)
+	vm.Logger().Debug("setting anchor url to", zap.String("url", url))
+
+	return true, nil
 }
 
 func (vm *VM) IsRepeat(ctx context.Context, txs []*chain.Transaction, marker set.Bits, stop bool) set.Bits {
@@ -238,6 +283,47 @@ func (vm *VM) processAcceptedBlocks() {
 	}
 }
 
+func (vm *VM) updateAnchorRegistry(ctx context.Context, b *chain.StatelessBlock) error {
+	view, err := b.View(ctx, false)
+	if err != nil {
+		return err
+	}
+	registryKey := actions.AnchorRegistryKey()
+	registryBytes, err := view.GetValue(ctx, registryKey)
+	if err != nil {
+		if err == database.ErrNotFound {
+			vm.Logger().Debug("no anchor registered yet")
+			return nil
+		}
+		return err
+	}
+	namespaces, err := actions.UnpackNamespaces(registryBytes)
+	if err != nil {
+		return err
+	}
+	anchors := make([]*actions.AnchorInfo, 0)
+	vm.Logger().Debug("anchor list")
+	for _, ns := range namespaces {
+		anchorKey := actions.AnchorKey(ns)
+		anchorBytes, err := view.GetValue(ctx, anchorKey)
+		if err != nil {
+			vm.Logger().Error("unable to get value of anchor", zap.String("namespace", hex.EncodeToString(ns)))
+			continue
+		}
+		p := codec.NewReader(anchorBytes, consts.NetworkSizeLimit)
+		anchor, err := actions.UnmarshalAnchorInfo(p)
+		if err != nil {
+			vm.Logger().Error("unable to unmarshal anchor info", zap.Error(err))
+			continue
+		}
+		vm.Logger().Debug("anchor info", zap.String("namespace", hex.EncodeToString(anchor.Namespace)))
+		anchors = append(anchors, anchor)
+	}
+
+	vm.anchorRegistry.Update(anchors)
+	return nil
+}
+
 func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
 	ctx, span := vm.tracer.Start(ctx, "VM.Accepted")
 	defer span.End()
@@ -265,6 +351,10 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
 	evicted := vm.seen.SetMin(blkTime)
 	vm.Logger().Debug("txs evicted from seen", zap.Int("len", len(evicted)))
 	vm.seen.Add(b.Txs)
+
+	if err := vm.updateAnchorRegistry(ctx, b); err != nil {
+		vm.Logger().Error("unable to update registry", zap.Error(err))
+	}
 
 	// Verify if emap is now sufficient (we need a consecutive run of blocks with
 	// timestamps of at least [ValidityWindow] for this to occur).
@@ -324,8 +414,23 @@ func (vm *VM) CurrentValidators(
 	return vm.proposerMonitor.Validators(ctx)
 }
 
+func (vm *VM) ProposerAtHeight(
+	ctx context.Context,
+	blockHeight uint64,
+) (ids.NodeID, error) {
+	return vm.proposerMonitor.ProposerAtHeight(ctx, blockHeight)
+}
+
 func (vm *VM) NodeID() ids.NodeID {
 	return vm.snowCtx.NodeID
+}
+
+func (vm *VM) Signer() *bls.PublicKey {
+	return vm.snowCtx.PublicKey
+}
+
+func (vm *VM) Sign(msg *warp.UnsignedMessage) ([]byte, error) {
+	return vm.snowCtx.WarpSigner.Sign(msg)
 }
 
 func (vm *VM) PreferredBlock(ctx context.Context) (*chain.StatelessBlock, error) {

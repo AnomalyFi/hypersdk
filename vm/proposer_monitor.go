@@ -32,7 +32,8 @@ type ProposerMonitor struct {
 	validators          map[ids.NodeID]*validators.GetValidatorOutput
 	validatorPublicKeys map[string]struct{}
 
-	proposerCache *cache.LRU[string, []ids.NodeID]
+	proposerCache         *cache.LRU[string, []ids.NodeID]
+	expectedProposerCache *cache.LRU[string, ids.NodeID]
 
 	rl sync.Mutex
 }
@@ -45,7 +46,8 @@ func NewProposerMonitor(vm *VM) *ProposerMonitor {
 			vm.snowCtx.SubnetID,
 			vm.snowCtx.ChainID,
 		),
-		proposerCache: &cache.LRU[string, []ids.NodeID]{Size: proposerMonitorLRUSize},
+		proposerCache:         &cache.LRU[string, []ids.NodeID]{Size: proposerMonitorLRUSize},
+		expectedProposerCache: &cache.LRU[string, ids.NodeID]{Size: proposerMonitorLRUSize},
 	}
 }
 
@@ -128,6 +130,25 @@ func (p *ProposerMonitor) Proposers(
 		proposersToGossip.Add(proposers[:arrLen]...)
 	}
 	return proposersToGossip, nil
+}
+
+func (p *ProposerMonitor) ProposerAtHeight(
+	ctx context.Context,
+	blockHeight uint64,
+) (ids.NodeID, error) {
+	// blockHeight, p-chain height, slot
+	key := fmt.Sprintf("%d-%d-%d", blockHeight, p.currentPHeight, 0) // TODO: slot correct?
+
+	if _, ok := p.expectedProposerCache.Get(key); !ok {
+		proposer, err := p.proposer.ExpectedProposer(ctx, blockHeight, p.currentPHeight, 0)
+		if err != nil {
+			return ids.EmptyNodeID, err
+		}
+		p.expectedProposerCache.Put(key, proposer)
+	}
+	ret, _ := p.expectedProposerCache.Get(key)
+
+	return ret, nil
 }
 
 func (p *ProposerMonitor) Validators(

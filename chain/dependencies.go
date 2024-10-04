@@ -13,9 +13,12 @@ import (
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 
+	"github.com/AnomalyFi/hypersdk/anchor"
 	"github.com/AnomalyFi/hypersdk/codec"
+	"github.com/AnomalyFi/hypersdk/crypto/bls"
 	"github.com/AnomalyFi/hypersdk/executor"
 	"github.com/AnomalyFi/hypersdk/fees"
 	"github.com/AnomalyFi/hypersdk/state"
@@ -64,6 +67,8 @@ type VM interface {
 	GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (AuthBatchVerifier, bool)
 	GetVerifyAuth() bool
 
+	AnchorClient(context.Context) *anchor.AnchorClient
+
 	IsBootstrapped() bool
 	LastAcceptedBlock() *StatelessBlock
 	LastL1Head() int64
@@ -74,6 +79,10 @@ type VM interface {
 	State() (merkledb.MerkleDB, error)
 	StateManager() StateManager
 	ValidatorState() validators.State
+
+	NodeID() ids.NodeID
+	Signer() *bls.PublicKey
+	Sign(msg *warp.UnsignedMessage) ([]byte, error)
 
 	Mempool() Mempool
 	IsRepeat(context.Context, []*Transaction, set.Bits, bool) set.Bits
