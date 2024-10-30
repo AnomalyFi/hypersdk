@@ -38,4 +38,6 @@ const (
 	MaxNMTProofBytes = 408_944
 	// no more than 10% of the [NetworkSizeLimit]
 	MaxNSTxMappingBytes = 204_472
+
+	MaxNamespaceLen = 32
 )

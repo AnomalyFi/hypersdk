@@ -37,9 +37,10 @@ func (b *StatelessBlock) Execute(
 	defer span.End()
 
 	var (
-		sm     = b.vm.StateManager()
-		numTxs = len(b.Txs)
-		t      = b.GetTimestamp()
+		sm      = b.vm.StateManager()
+		numTxs  = len(b.Txs)
+		t       = b.GetTimestamp()
+		blkHght = b.Hght
 
 		f       = fetcher.New(im, numTxs, b.vm.GetStateFetchConcurrency())
 		e       = executor.New(numTxs, b.vm.GetTransactionExecutionCores(), MaxKeyDependencies, b.vm.GetExecutorVerifyRecorder())
@@ -95,7 +96,7 @@ func (b *StatelessBlock) Execute(
 				return err
 			}
 
-			result, err := tx.Execute(ctx, feeManager, feeMarket, sm, r, tsv, t)
+			result, err := tx.Execute(ctx, feeManager, feeMarket, sm, r, tsv, t, blkHght)
 			if err != nil {
 				return err
 			}

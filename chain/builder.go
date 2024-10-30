@@ -85,7 +85,7 @@ func BuildBlock(
 		return nil, ErrTimestampTooEarly
 	}
 	b := NewBlock(vm, parent, nextTime)
-
+	nextHght := parent.Hght + 1
 	// Fetch view where we will apply block state transitions
 	//
 	// If the parent block is not yet verified, we will attempt to
@@ -153,6 +153,10 @@ func BuildBlock(
 
 		// stop is used to trigger that we should stop building, assuming we are no longer executing
 		stop bool
+
+		anchorTxsSet = set.NewSet[ids.ID](len(b.Txs))
+
+		isAnchorBuildSuccessful = false
 	)
 
 	// Batch fetch items from mempool to unblock incoming RPC/Gossip traffic
@@ -253,6 +257,7 @@ func BuildBlock(
 					r,
 					tsv,
 					nextTime,
+					nextHght,
 				)
 				if err != nil {
 					log.Warn("unexpected post-execution error", zap.Error(err))
@@ -297,7 +302,12 @@ func BuildBlock(
 			// only do state transition when all the txs in the anchor chunk have succeed
 			tsv.Commit()
 			b.Txs = append(b.Txs, anchorTxs...)
+			// Add txs from anchor to the set, so we can skip them during local build process.
+			for _, tx := range b.Txs {
+				anchorTxsSet.Add(tx.ID())
+			}
 			results = append(results, anchorTxResults...)
+			isAnchorBuildSuccessful = true
 		}
 	}
 
@@ -305,15 +315,33 @@ skipAnchor:
 	// txs from mempool
 	mempool.StartStreaming(ctx)
 	for time.Since(start) < vm.GetTargetBuildDuration() && !stop {
+		var txs []*Transaction
 		prepareStreamLock.Lock()
-		txs := mempool.Stream(ctx, streamBatch)
+		mpooltxs := mempool.Stream(ctx, streamBatch)
 		prepareStreamLock.Unlock()
-		if len(txs) == 0 {
+		if len(mpooltxs) == 0 {
 			b.vm.RecordClearedMempool()
 			break
 		}
+		if isAnchorBuildSuccessful {
+			// If txs from anchor are accepted we can skip transactions with SequencerMsg.
+			for _, tx := range mpooltxs {
+				// TODO: this restricts any transaction other than ones containing SequencerMsg to contain only 1 action per transaction.
+				// Let transactions that contain SeqeucnerMsg only get excluded.
+				if len(tx.Actions) != 1 || tx.Actions[0].GetTypeID() == sequencerMsgID {
+					continue
+				}
+				txs = append(txs, tx)
+			}
+		} else {
+			// If anchor build failed, we will proceed with local block building.
+			txs = mpooltxs
+		}
+
 		ctx, executeSpan := vm.Tracer().Start(ctx, "chain.BuildBlock.Execute") //nolint:spancheck
 
+		// Perform a check to see if the transaction is already included in the anchor chunk.
+		adup := IsRepeatTxAsAnchorTx(anchorTxsSet, set.NewBits(), txs)
 		// Perform a batch repeat check
 		dup, err := parent.IsRepeat(ctx, oldestAllowed, txs, set.NewBits(), false)
 		if err != nil {
@@ -330,7 +358,7 @@ skipAnchor:
 			tx := ltx
 
 			// Skip any duplicates before going async
-			if dup.Contains(i) {
+			if dup.Contains(i) || adup.Contains(i) {
 				continue
 			}
 
@@ -442,6 +470,7 @@ skipAnchor:
 					r,
 					tsv,
 					nextTime,
+					nextHght,
 				)
 				if err != nil {
 					// Returning an error here should be avoided at all costs (can be a DoS). Rather,

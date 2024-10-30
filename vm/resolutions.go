@@ -301,17 +301,17 @@ func (vm *VM) updateAnchorRegistry(ctx context.Context, b *chain.StatelessBlock)
 	if err != nil {
 		return err
 	}
-	anchors := make([]*actions.AnchorInfo, 0)
+	anchors := make([]*actions.RollupInfo, 0)
 	vm.Logger().Debug("anchor list")
 	for _, ns := range namespaces {
-		anchorKey := actions.AnchorKey(ns)
+		anchorKey := actions.RollupInfoKey(ns)
 		anchorBytes, err := view.GetValue(ctx, anchorKey)
 		if err != nil {
 			vm.Logger().Error("unable to get value of anchor", zap.String("namespace", hex.EncodeToString(ns)))
 			continue
 		}
 		p := codec.NewReader(anchorBytes, consts.NetworkSizeLimit)
-		anchor, err := actions.UnmarshalAnchorInfo(p)
+		anchor, err := actions.UnmarshalRollupInfo(p)
 		if err != nil {
 			vm.Logger().Error("unable to unmarshal anchor info", zap.Error(err))
 			continue

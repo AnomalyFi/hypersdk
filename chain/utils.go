@@ -10,6 +10,7 @@ import (
 	"slices"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/celestiaorg/nmt"
 
 	"github.com/AnomalyFi/hypersdk/consts"
@@ -98,4 +99,14 @@ func BuildNMTTree(data [][]byte, namespaces [][]byte) (*nmt.NamespacedMerkleTree
 	}
 
 	return nmtTree, nmtRoot, nmtProofs, nil
+}
+
+// Check if txs from mempool contains any conflicting transactions from the anchor txs
+func IsRepeatTxAsAnchorTx(anchorTxBitSet set.Set[ids.ID], marker set.Bits, txs []*Transaction) set.Bits {
+	for i, tx := range txs {
+		if anchorTxBitSet.Contains(tx.ID()) {
+			marker.Add(i)
+		}
+	}
+	return marker
 }

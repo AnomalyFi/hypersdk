@@ -6,31 +6,32 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 )
 
-// TODO: do we need to rename it to `RollupInfo`
-type AnchorInfo struct {
-	FeeRecipient codec.Address `json:"feeRecipient"`
-	Namespace    []byte        `json:"namespace"`
+type RollupInfo struct {
+	FeeRecipient        codec.Address `json:"feeRecipient"`
+	Namespace           []byte        `json:"namespace"`
+	AuthoritySEQAddress codec.Address `json:"authoritySEQAddress"`
 }
 
-func NewAnchorInfo(namespace []byte, feeRecipient codec.Address) *AnchorInfo {
-	return &AnchorInfo{
-		FeeRecipient: feeRecipient,
-		Namespace:    namespace,
+func NewRollupInfo(namespace []byte, feeRecipient codec.Address, authoritySEQAddress codec.Address) *RollupInfo {
+	return &RollupInfo{
+		FeeRecipient:        feeRecipient,
+		Namespace:           namespace,
+		AuthoritySEQAddress: authoritySEQAddress,
 	}
 }
 
-func (a *AnchorInfo) ID() ids.ID {
+func (a *RollupInfo) ID() ids.ID {
 	return utils.ToID([]byte(a.Namespace))
 }
 
-func (a *AnchorInfo) Size() int {
-	return codec.AddressLen + codec.BytesLen(a.Namespace)
+func (a *RollupInfo) Size() int {
+	return 2*codec.AddressLen + codec.BytesLen(a.Namespace)
 }
 
-func (a *AnchorInfo) Marshal(p *codec.Packer) error {
+func (a *RollupInfo) Marshal(p *codec.Packer) error {
 	p.PackBytes(a.Namespace)
 	p.PackAddress(a.FeeRecipient)
-
+	p.PackAddress(a.AuthoritySEQAddress)
 	if err := p.Err(); err != nil {
 		return err
 	}
@@ -38,13 +39,12 @@ func (a *AnchorInfo) Marshal(p *codec.Packer) error {
 	return nil
 }
 
-func UnmarshalAnchorInfo(p *codec.Packer) (*AnchorInfo, error) {
-	ret := new(AnchorInfo)
+func UnmarshalRollupInfo(p *codec.Packer) (*RollupInfo, error) {
+	ret := new(RollupInfo)
 
-	// p := codec.NewReader(raw, consts.NetworkSizeLimit)
 	p.UnpackBytes(32, false, &ret.Namespace) // TODO: set limit for the length of namespace bytes
 	p.UnpackAddress(&ret.FeeRecipient)
-
+	p.UnpackAddress(&ret.AuthoritySEQAddress)
 	if err := p.Err(); err != nil {
 		return nil, err
 	}

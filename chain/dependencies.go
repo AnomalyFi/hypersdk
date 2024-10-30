@@ -136,6 +136,7 @@ type Rules interface {
 
 	GetMinBlockGap() int64      // in milliseconds
 	GetMinEmptyBlockGap() int64 // in milliseconds
+	GetEpochDuration() int64    // in milliseconds
 	GetValidityWindow() int64   // in milliseconds
 
 	GetMaxActionsPerTx() uint8
@@ -256,6 +257,7 @@ type Action interface {
 		r Rules,
 		mu state.Mutable,
 		timestamp int64,
+		blockHeight uint64,
 		actor codec.Address,
 		actionID ids.ID,
 	) (outputs [][]byte, err error)

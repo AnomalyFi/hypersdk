@@ -8,21 +8,28 @@ import (
 
 const (
 	AnchorRegisteryPrefix = 0xf0
-	AnchorPrefix          = 0xf1
+	ArcadiaRegistryPrefix = 0xf1
+	RollupInfoPrefix      = 0xf2
 )
 
 func AnchorRegistryKey() []byte {
-	// state key must >= 2 bytes
 	k := make([]byte, 1+consts.Uint16Len)
 	k[0] = AnchorRegisteryPrefix
-	binary.BigEndian.PutUint16(k[1:], AnchorChunks) //TODO: update the BalanceChunks to AnchorChunks
+	binary.BigEndian.PutUint16(k[1:], AnchorRegistryChunks)
 	return k
 }
 
-func AnchorKey(namespace []byte) []byte {
+func ArcadiaRegistryKey() []byte {
+	k := make([]byte, 1+consts.Uint16Len)
+	k[0] = ArcadiaRegistryPrefix
+	binary.BigEndian.PutUint16(k[1:], ArcadiaRegistryChunks)
+	return k
+}
+
+func RollupInfoKey(namespace []byte) []byte {
 	k := make([]byte, 1+len(namespace)+consts.Uint16Len)
-	k[0] = AnchorPrefix
+	k[0] = RollupInfoPrefix
 	copy(k[1:], namespace[:])
-	binary.BigEndian.PutUint16(k[1+len(namespace):], AnchorChunks) //TODO: update the BalanceChunks to AnchorChunks
+	binary.BigEndian.PutUint16(k[1+len(namespace):], RollupInfoChunks)
 	return k
 }

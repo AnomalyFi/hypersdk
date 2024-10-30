@@ -8,21 +8,21 @@ import (
 )
 
 type AnchorRegistry struct {
-	anchors  map[ids.ID]*actions.AnchorInfo
+	anchors  map[ids.ID]*actions.RollupInfo
 	anchorsL sync.Mutex
 }
 
 func NewAnchorRegistry() *AnchorRegistry {
 	return &AnchorRegistry{
-		anchors: make(map[ids.ID]*actions.AnchorInfo),
+		anchors: make(map[ids.ID]*actions.RollupInfo),
 	}
 }
 
-func (r *AnchorRegistry) Update(info []*actions.AnchorInfo) {
+func (r *AnchorRegistry) Update(info []*actions.RollupInfo) {
 	r.anchorsL.Lock()
 	defer r.anchorsL.Unlock()
 
-	r.anchors = make(map[ids.ID]*actions.AnchorInfo, len(info))
+	r.anchors = make(map[ids.ID]*actions.RollupInfo, len(info))
 	for _, a := range info {
 		id := a.ID()
 		r.anchors[id] = a

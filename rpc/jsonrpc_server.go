@@ -159,6 +159,7 @@ type ReplaceAnchorReply struct {
 	Success bool `json:"success"`
 }
 
+// @todo create a private server for this.
 // TODO: make it permissioned
 func (j *JSONRPCServer) ReplaceAnchor(req *http.Request, args *ReplaceAnchorArgs, reply *ReplaceAnchorReply) error {
 	pk, err := bls.PublicKeyFromBytes(args.Pubkey)
