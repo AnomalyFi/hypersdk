@@ -33,6 +33,7 @@ type VM interface {
 	LastL1Head() int64
 	UnitPrices(context.Context) (fees.Dimensions, error)
 	NameSpacesPrice(ctx context.Context, namespace []string) ([]uint64, error)
+	GetCurrentEpoch() uint64
 	Proposers(ctx context.Context, diff int, depth int) (set.Set[ids.NodeID], error)
 	ProposerAtHeight(ctx context.Context, blockHeight uint64) (ids.NodeID, error)
 	CurrentValidators(

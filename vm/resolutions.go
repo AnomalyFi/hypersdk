@@ -433,6 +433,10 @@ func (vm *VM) Sign(msg *warp.UnsignedMessage) ([]byte, error) {
 	return vm.snowCtx.WarpSigner.Sign(msg)
 }
 
+func (vm *VM) GetCurrentEpoch() uint64 {
+	return (vm.lastAccepted.Hght / uint64(vm.c.Rules(0).GetEpochLength()))
+}
+
 func (vm *VM) PreferredBlock(ctx context.Context) (*chain.StatelessBlock, error) {
 	return vm.GetStatelessBlock(ctx, vm.preferred)
 }

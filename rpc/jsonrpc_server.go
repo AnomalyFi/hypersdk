@@ -149,6 +149,11 @@ func (j *JSONRPCServer) NameSpacesPrice(
 	return nil
 }
 
+func (j *JSONRPCServer) GetCurrentEpoch(_ *http.Request, _ *struct{}, reply *uint64) error {
+	*reply = j.vm.GetCurrentEpoch()
+	return nil
+}
+
 type ReplaceAnchorArgs struct {
 	URL       string `json:"url"`
 	Pubkey    []byte `json:"pubkey"`

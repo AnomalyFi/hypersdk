@@ -116,6 +116,18 @@ func (cli *JSONRPCClient) NameSpacesPrice(ctx context.Context, namespaces []stri
 	return resp.Price, err
 }
 
+// Returns the current Epoch Number.
+func (cli *JSONRPCClient) GetCurrentEpoch() (uint64, error) {
+	resp := new(uint64)
+	err := cli.requester.SendRequest(
+		context.Background(),
+		"getCurrentEpoch",
+		nil,
+		resp,
+	)
+	return *resp, err
+}
+
 func (cli *JSONRPCClient) SubmitTx(ctx context.Context, d []byte) (ids.ID, error) {
 	resp := new(SubmitTxReply)
 	err := cli.requester.SendRequest(

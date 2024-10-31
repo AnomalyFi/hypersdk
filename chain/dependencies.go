@@ -136,7 +136,7 @@ type Rules interface {
 
 	GetMinBlockGap() int64      // in milliseconds
 	GetMinEmptyBlockGap() int64 // in milliseconds
-	GetEpochDuration() int64    // in milliseconds
+	GetEpochLength() int64      // in number of SEQ blocks
 	GetValidityWindow() int64   // in milliseconds
 
 	GetMaxActionsPerTx() uint8
