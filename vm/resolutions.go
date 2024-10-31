@@ -288,7 +288,7 @@ func (vm *VM) updateAnchorRegistry(ctx context.Context, b *chain.StatelessBlock)
 	if err != nil {
 		return err
 	}
-	registryKey := actions.AnchorRegistryKey()
+	registryKey := actions.RollupRegistryKey()
 	registryBytes, err := view.GetValue(ctx, registryKey)
 	if err != nil {
 		if err == database.ErrNotFound {

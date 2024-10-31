@@ -7,22 +7,14 @@ import (
 )
 
 const (
-	AnchorRegisteryPrefix = 0xf0
-	ArcadiaRegistryPrefix = 0xf1
+	RollupRegisteryPrefix = 0xf0
 	RollupInfoPrefix      = 0xf2
 )
 
-func AnchorRegistryKey() []byte {
+func RollupRegistryKey() []byte {
 	k := make([]byte, 1+consts.Uint16Len)
-	k[0] = AnchorRegisteryPrefix
-	binary.BigEndian.PutUint16(k[1:], AnchorRegistryChunks)
-	return k
-}
-
-func ArcadiaRegistryKey() []byte {
-	k := make([]byte, 1+consts.Uint16Len)
-	k[0] = ArcadiaRegistryPrefix
-	binary.BigEndian.PutUint16(k[1:], ArcadiaRegistryChunks)
+	k[0] = RollupRegisteryPrefix
+	binary.BigEndian.PutUint16(k[1:], RollupRegistryChunks)
 	return k
 }
 
