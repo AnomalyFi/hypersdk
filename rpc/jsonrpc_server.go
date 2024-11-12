@@ -199,6 +199,7 @@ type NextProposerReply struct {
 	Validators []*Validator `json:"validators"`
 }
 
+// NextProposer returns the proposer at the given height along with the validator list.
 func (j *JSONRPCServer) NextProposer(req *http.Request, args *NextProposerArgs, reply *NextProposerReply) error {
 	ctx := context.TODO()
 	validators, _ := j.vm.CurrentValidators(ctx)

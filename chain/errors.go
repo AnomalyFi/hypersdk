@@ -16,6 +16,7 @@ var (
 	// Block Correctness
 	ErrTimestampTooEarly    = errors.New("timestamp too early")
 	ErrTimestampTooLate     = errors.New("timestamp too late")
+	ErrExpiryTooSoon        = errors.New("expiry too soon")
 	ErrStateRootEmpty       = errors.New("state root empty")
 	ErrNoTxs                = errors.New("no transactions")
 	ErrInvalidFee           = errors.New("invalid fee")

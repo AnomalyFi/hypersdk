@@ -283,6 +283,7 @@ func (vm *VM) processAcceptedBlocks() {
 	}
 }
 
+// @todo modify this to catch the auction action and update arcadia block builder info on the seq side.
 func (vm *VM) updateAnchorRegistry(ctx context.Context, b *chain.StatelessBlock) error {
 	view, err := b.View(ctx, false)
 	if err != nil {
@@ -352,6 +353,9 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
 	vm.Logger().Debug("txs evicted from seen", zap.Int("len", len(evicted)))
 	vm.seen.Add(b.Txs)
 
+	aevicted := vm.arcadiaAuthVerifiedTxs.SetMin(blkTime)
+	vm.Logger().Debug("txs evicted from arcadia auth verified txs", zap.Int("len", len(aevicted)))
+
 	if err := vm.updateAnchorRegistry(ctx, b); err != nil {
 		vm.Logger().Error("unable to update registry", zap.Error(err))
 	}
@@ -400,6 +404,14 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
 	)
 }
 
+func (vm *VM) AddToArcadiaAuthVerifiedTxs(txs []*chain.Transaction) {
+	vm.arcadiaAuthVerifiedTxs.Add(txs)
+}
+
+func (vm *VM) IsArcadiaAuthVerifiedTx(txID ids.ID) bool {
+	return vm.arcadiaAuthVerifiedTxs.HasID(txID)
+}
+
 func (vm *VM) IsValidator(ctx context.Context, nid ids.NodeID) (bool, error) {
 	return vm.proposerMonitor.IsValidator(ctx, nid)
 }
@@ -434,7 +446,7 @@ func (vm *VM) Sign(msg *warp.UnsignedMessage) ([]byte, error) {
 }
 
 func (vm *VM) GetCurrentEpoch() uint64 {
-	return (vm.lastAccepted.Hght / uint64(vm.c.Rules(0).GetEpochLength()))
+	return vm.lastAccepted.Hght / uint64(vm.c.Rules(0).GetEpochLength())
 }
 
 func (vm *VM) PreferredBlock(ctx context.Context) (*chain.StatelessBlock, error) {
@@ -600,6 +612,18 @@ func (vm *VM) NameSpacesPrice(_ context.Context, namespaces []string) ([]uint64,
 
 func (vm *VM) GetTransactionExecutionCores() int {
 	return vm.config.GetTransactionExecutionCores()
+}
+
+func (vm *VM) GetChunkCores() int {
+	return vm.config.GetChunkCores()
+}
+
+func (vm *VM) GetChunkProcessingBackLog() int {
+	return vm.config.GetChunkProcessingBackLog()
+}
+
+func (vm *VM) GetPreconfIssueCores() int {
+	return vm.config.GetPreconfIssueCores()
 }
 
 func (vm *VM) GetStateFetchConcurrency() int {

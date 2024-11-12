@@ -175,8 +175,7 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) error {
 		go batchVerifier.Done(func() { sigVerifySpan.End() })
 	}()
 
-	// Confirm no transaction duplicates and setup
-	// AWM processing
+	// Confirm no transaction duplicates
 	b.txsSet = set.NewSet[ids.ID](len(b.Txs))
 	for _, tx := range b.Txs {
 		// Ensure there are no duplicate transactions

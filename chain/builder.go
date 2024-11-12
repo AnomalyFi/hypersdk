@@ -310,7 +310,7 @@ func BuildBlock(
 			isAnchorBuildSuccessful = true
 		}
 	}
-
+	// @todo pull blocks from aracdia and use isArcadiaAuthVerifiedTransaction to check if the transaction is verified earlier.
 skipAnchor:
 	// txs from mempool
 	mempool.StartStreaming(ctx)
@@ -684,6 +684,7 @@ func GetAnchorTxs(
 			SignedHeaders:  sig,
 		}
 
+		// TODO: validate payload size?
 		payload, err := anchorCli.GetPayload(&payloadReq)
 		if err != nil {
 			vm.Logger().Error("unable to get payload from anchor", zap.Uint64("slot", header.BlockInfo.Slot), zap.Error(err))

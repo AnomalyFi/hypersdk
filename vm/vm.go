@@ -29,6 +29,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/AnomalyFi/hypersdk/anchor"
+	"github.com/AnomalyFi/hypersdk/arcadia"
 	"github.com/AnomalyFi/hypersdk/builder"
 	"github.com/AnomalyFi/hypersdk/cache"
 	"github.com/AnomalyFi/hypersdk/chain"
@@ -87,6 +88,9 @@ type VM struct {
 	seenValidityWindowOnce sync.Once
 	seenValidityWindow     chan struct{}
 
+	// Arcadia
+	arcadia                *arcadia.Arcadia
+	arcadiaAuthVerifiedTxs *emap.EMap[*chain.Transaction]
 	// We cannot use a map here because we may parse blocks up in the ancestry
 	parsedBlocks *avacache.LRU[ids.ID, *chain.StatelessBlock]
 
@@ -161,6 +165,7 @@ func (vm *VM) Initialize(
 	vm.startSeenTime = -1
 	// Init seen for tracking transactions that have been accepted on-chain
 	vm.seen = emap.NewEMap[*chain.Transaction]()
+	vm.arcadiaAuthVerifiedTxs = emap.NewEMap[*chain.Transaction]()
 	vm.seenValidityWindow = make(chan struct{})
 	vm.ready = make(chan struct{})
 	vm.stop = make(chan struct{})
@@ -432,6 +437,12 @@ func (vm *VM) Initialize(
 
 	go vm.ETHL1HeadSubscribe()
 
+	// @todo fix below
+	vm.arcadia = arcadia.NewArcadiaClient(vm.config.GetArcadiaURL(), vm.GetCurrentEpoch(), nil, nil, vm)
+	if err := vm.arcadia.Subscribe(); err != nil {
+		return fmt.Errorf("unable to subscribe to arcadia: %w", err)
+	}
+	go vm.arcadia.Run()
 	// Wait until VM is ready and then send a state sync message to engine
 	go vm.markReady()
 

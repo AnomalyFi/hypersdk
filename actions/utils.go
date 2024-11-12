@@ -3,6 +3,7 @@ package actions
 import (
 	"github.com/AnomalyFi/hypersdk/codec"
 	"github.com/AnomalyFi/hypersdk/consts"
+	"github.com/AnomalyFi/hypersdk/crypto/bls"
 )
 
 func PackNamespaces(namespaces [][]byte) ([]byte, error) {
@@ -25,4 +26,13 @@ func UnpackNamespaces(raw []byte) ([][]byte, error) {
 	}
 
 	return namespaces, p.Err()
+}
+
+func UnpackBidderPublicKeyFromStateData(raw []byte) (*bls.PublicKey, error) {
+	pubKeyBytes := raw[8 : 8+48]
+	pubkey, err := bls.PublicKeyFromBytes(pubKeyBytes)
+	if err != nil {
+		return nil, err
+	}
+	return pubkey, nil
 }

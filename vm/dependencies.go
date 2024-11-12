@@ -33,6 +33,9 @@ type Config interface {
 	GetVerifyAuth() bool
 	GetRootGenerationCores() int
 	GetTransactionExecutionCores() int
+	GetChunkCores() int
+	GetChunkProcessingBackLog() int
+	GetPreconfIssueCores() int
 	GetStateFetchConcurrency() int
 	GetMempoolSponsorSize() int
 	GetMempoolExemptSponsors() []codec.Address
@@ -59,6 +62,7 @@ type Config interface {
 	GetETHL1WS() string
 	GetAnchorURL() string
 	GetAnchorManager() string // 0x prefixed bls pubkey
+	GetArcadiaURL() string
 }
 
 type Genesis interface {

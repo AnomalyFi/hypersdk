@@ -14,6 +14,7 @@ const (
 // Its safe to limit the data of state storage for AnchorRegistryKey to atleast 3 KiB.
 const (
 	RollupRegistryChunks uint16 = 3 * 16
+	ArcadiaBidChunks     uint16 = 3
 )
 
 // 2 AddressLen* 33 + 1 MaxNameSpaceLen *  32 = 98 bytes
