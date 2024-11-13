@@ -36,3 +36,8 @@ func UnpackBidderPublicKeyFromStateData(raw []byte) (*bls.PublicKey, error) {
 	}
 	return pubkey, nil
 }
+
+func UnpackEpochExitsInfo(raw []byte) (*EpochExitInfo, error) {
+	p := codec.NewReader(raw, consts.NetworkSizeLimit)
+	return UnmarshalEpochExitsInfo(p)
+}

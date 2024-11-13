@@ -9,7 +9,7 @@ import (
 type EpochUpdateInfo struct {
 	Epoch               uint64
 	BuilderPubKey       *bls.PublicKey
-	AvailableNamespaces [][]byte
+	AvailableNamespaces *[][]byte
 }
 
 type SubscribeValidatorSignatureCallback struct {
@@ -35,8 +35,14 @@ type ArcadiaChunk struct {
 	ChunkID          ids.ID           `json:"chunkId"`
 	Epoch            uint64           `json:"epoch"`
 	BuilderSignature []byte           `json:"builderSignature"` // builder signs over [epochNumber, chunkID]
-	ToBChunk         *ArcadiaToBChunk `json:"arcadiaToBChunk,omitempty"`
-	RoBChunk         *ArcadiaRoBChunk `json:"arcadiaRoBChunk,omitempty"`
+	ToBChunk         *ArcadiaToBChunk `json:"toBChunk,omitempty"`
+	RoBChunk         *ArcadiaRoBChunk `json:"roBChunk,omitempty"`
+}
+
+type ValidatorMessage struct {
+	ChunkID            ids.ID `json:"chunkId"`
+	Signature          []byte `json:"signature"`
+	ValidatorPublicKey []byte `json:"validatorPublicKey"`
 }
 
 type ChunkInterface interface {

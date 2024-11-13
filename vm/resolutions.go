@@ -25,6 +25,7 @@ import (
 
 	"github.com/AnomalyFi/hypersdk/actions"
 	"github.com/AnomalyFi/hypersdk/anchor"
+	"github.com/AnomalyFi/hypersdk/arcadia"
 	"github.com/AnomalyFi/hypersdk/builder"
 	"github.com/AnomalyFi/hypersdk/chain"
 	"github.com/AnomalyFi/hypersdk/codec"
@@ -283,46 +284,79 @@ func (vm *VM) processAcceptedBlocks() {
 	}
 }
 
-// @todo modify this to catch the auction action and update arcadia block builder info on the seq side.
-func (vm *VM) updateAnchorRegistry(ctx context.Context, b *chain.StatelessBlock) error {
+func (vm *VM) updateRollupRegistryAndGetBuilderPubKey(ctx context.Context, b *chain.StatelessBlock) (*[][]byte, *bls.PublicKey, error) {
 	view, err := b.View(ctx, false)
 	if err != nil {
-		return err
+		return nil, nil, err
+	}
+	arcadiaBidKey := actions.ArcadiaBidKey(vm.GetCurrentEpoch())
+	arcadiaBidBytes, err := view.GetValue(ctx, arcadiaBidKey)
+	if err != nil && err != database.ErrNotFound {
+		return nil, nil, err
+	}
+	var builderPubKey *bls.PublicKey
+	if arcadiaBidBytes != nil {
+		buldrPubKey, err := actions.UnpackBidderPublicKeyFromStateData(arcadiaBidBytes)
+		if err != nil && err != database.ErrNotFound {
+			return nil, nil, err
+		}
+		builderPubKey = buldrPubKey
 	}
 	registryKey := actions.RollupRegistryKey()
 	registryBytes, err := view.GetValue(ctx, registryKey)
 	if err != nil {
 		if err == database.ErrNotFound {
-			vm.Logger().Debug("no anchor registered yet")
-			return nil
+			vm.Logger().Debug("no rollups registered yet")
+			return nil, nil, nil
 		}
-		return err
+		return nil, nil, err
 	}
 	namespaces, err := actions.UnpackNamespaces(registryBytes)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
-	anchors := make([]*actions.RollupInfo, 0)
-	vm.Logger().Debug("anchor list")
+	// remove rollups that exited the epoch.
+	epochExitKey := actions.EpochExitsKey(vm.GetCurrentEpoch())
+	epochExitBytes, err := view.GetValue(ctx, epochExitKey)
+	if err != nil && err != database.ErrNotFound {
+		return nil, nil, err
+	}
+	epochExitInfo, err := actions.UnpackEpochExitsInfo(epochExitBytes)
+	if err != nil {
+		return nil, nil, err
+	}
+	if epochExitInfo != nil {
+		for _, exit := range epochExitInfo.Exits {
+			for i, ns := range namespaces {
+				if bytes.Equal(ns, exit.Namespace) {
+					namespaces = append(namespaces[:i], namespaces[i+1:]...)
+					break
+				}
+			}
+		}
+	}
+	rollupInfos := make([]*actions.RollupInfo, 0)
+	vm.Logger().Debug("rollup lists")
+
 	for _, ns := range namespaces {
-		anchorKey := actions.RollupInfoKey(ns)
-		anchorBytes, err := view.GetValue(ctx, anchorKey)
+		rollupInfoKey := actions.RollupInfoKey(ns)
+		rollupInfoBytes, err := view.GetValue(ctx, rollupInfoKey)
 		if err != nil {
-			vm.Logger().Error("unable to get value of anchor", zap.String("namespace", hex.EncodeToString(ns)))
+			vm.Logger().Error("unable to get value of rollup", zap.String("namespace", hex.EncodeToString(ns)))
 			continue
 		}
-		p := codec.NewReader(anchorBytes, consts.NetworkSizeLimit)
+		p := codec.NewReader(rollupInfoBytes, consts.NetworkSizeLimit)
 		anchor, err := actions.UnmarshalRollupInfo(p)
 		if err != nil {
-			vm.Logger().Error("unable to unmarshal anchor info", zap.Error(err))
+			vm.Logger().Error("unable to unmarshal rollup info", zap.Error(err))
 			continue
 		}
-		vm.Logger().Debug("anchor info", zap.String("namespace", hex.EncodeToString(anchor.Namespace)))
-		anchors = append(anchors, anchor)
+		vm.Logger().Debug("rollup info", zap.String("namespace", hex.EncodeToString(anchor.Namespace)))
+		rollupInfos = append(rollupInfos, anchor)
 	}
 
-	vm.anchorRegistry.Update(anchors)
-	return nil
+	vm.anchorRegistry.Update(rollupInfos)
+	return &namespaces, builderPubKey, nil
 }
 
 func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
@@ -356,8 +390,17 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
 	aevicted := vm.arcadiaAuthVerifiedTxs.SetMin(blkTime)
 	vm.Logger().Debug("txs evicted from arcadia auth verified txs", zap.Int("len", len(aevicted)))
 
-	if err := vm.updateAnchorRegistry(ctx, b); err != nil {
+	nss, bldrPubKey, err := vm.updateRollupRegistryAndGetBuilderPubKey(ctx, b)
+	if err != nil {
 		vm.Logger().Error("unable to update registry", zap.Error(err))
+	}
+
+	if b.Height()%uint64(vm.Rules(b.Tmstmp).GetEpochLength()) == 0 {
+		vm.arcadia.EpochUpdateChan() <- &arcadia.EpochUpdateInfo{
+			Epoch:               b.Height() / uint64(vm.Rules(b.Tmstmp).GetEpochLength()),
+			BuilderPubKey:       bldrPubKey,
+			AvailableNamespaces: nss,
+		}
 	}
 
 	// Verify if emap is now sufficient (we need a consecutive run of blocks with

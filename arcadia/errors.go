@@ -10,4 +10,5 @@ type httpErrorResp struct {
 
 var (
 	ErrUnexpectedMsgType = errors.New("unexpected message type")
+	ErrUnexpectedMsgSize = errors.New("unexpected message size")
 )

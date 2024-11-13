@@ -17,15 +17,17 @@ var _ emap.Item = (*ArcadiaChunk)(nil)
 func (tob *ArcadiaToBChunk) Marshal() ([]byte, error) {
 	rollupIDsLen := len(tob.RollupIDs)
 	var rollupIDsBytes [][]byte
+	var rollupIdsArrSize int
 	for _, rollupID := range tob.RollupIDs {
 		rollupIDByte, err := hexutil.Decode(rollupID)
 		if err != nil {
 			return nil, err
 		}
 		rollupIDsBytes = append(rollupIDsBytes, rollupIDByte)
+		rollupIdsArrSize += len(rollupIDByte)
 	}
 
-	size := (rollupIDsLen+1)*consts.Uint64Len + codec.CummSize(tob.Txs) // @todo add the size of rollup id arr
+	size := (rollupIDsLen+1)*consts.Uint64Len + codec.CummSize(tob.Txs) + rollupIdsArrSize
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)
 
 	p.PackInt(rollupIDsLen)

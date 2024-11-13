@@ -28,6 +28,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 
+	"github.com/AnomalyFi/hypersdk/actions"
 	"github.com/AnomalyFi/hypersdk/anchor"
 	"github.com/AnomalyFi/hypersdk/arcadia"
 	"github.com/AnomalyFi/hypersdk/builder"
@@ -436,13 +437,41 @@ func (vm *VM) Initialize(
 	go vm.gossiper.Run(gossipSender)
 
 	go vm.ETHL1HeadSubscribe()
+	if vm.config.GetArcadiaURL() == "" {
+		vm.Logger().Info("no arcadia configured")
+		vm.arcadia = nil
+	} else {
+		rollupRegistryKey := actions.RollupRegistryKey()
+		rollupRegistryBytes, err := vm.stateDB.GetValue(ctx, rollupRegistryKey)
+		if err != nil {
+			return fmt.Errorf("unable to get rollup registry from statedb: %w", err)
+		}
+		rollupRegistry, err := actions.UnpackNamespaces(rollupRegistryBytes)
+		// ignore database.ErrNotFound, as it is expected registry is empty on genesis and in some instances.
+		if err != nil && err != database.ErrNotFound {
+			return fmt.Errorf("unable to unpack rollup registry: %w", err)
+		}
+		arcadiaBidKey := actions.ArcadiaBidKey(vm.GetCurrentEpoch())
+		arcadiaBidBytes, err := vm.stateDB.GetValue(ctx, arcadiaBidKey)
+		// ignore database.ErrNotFound, as it is expected bid is empty on genesis and in some instances.
+		if err != nil && err != database.ErrNotFound {
+			return fmt.Errorf("unable to get arcadia bid from statedb: %w", err)
+		}
+		var builderPubKey *bls.PublicKey
+		if arcadiaBidBytes != nil {
+			blderPubKey, err := actions.UnpackBidderPublicKeyFromStateData(arcadiaBidBytes)
+			if err != nil {
+				return fmt.Errorf("unable to unpack arcadia bid: %w", err)
+			}
+			builderPubKey = blderPubKey
+		}
 
-	// @todo fix below
-	vm.arcadia = arcadia.NewArcadiaClient(vm.config.GetArcadiaURL(), vm.GetCurrentEpoch(), nil, nil, vm)
-	if err := vm.arcadia.Subscribe(); err != nil {
-		return fmt.Errorf("unable to subscribe to arcadia: %w", err)
+		vm.arcadia = arcadia.NewArcadiaClient(vm.config.GetArcadiaURL(), vm.GetCurrentEpoch(), builderPubKey, &rollupRegistry, vm)
+		if err := vm.arcadia.Subscribe(); err != nil {
+			return fmt.Errorf("unable to subscribe to arcadia: %w", err)
+		}
+		go vm.arcadia.Run()
 	}
-	go vm.arcadia.Run()
 	// Wait until VM is ready and then send a state sync message to engine
 	go vm.markReady()
 
