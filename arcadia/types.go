@@ -45,6 +45,16 @@ type ValidatorMessage struct {
 	ValidatorPublicKey []byte `json:"validatorPublicKey"`
 }
 
+type ArcadiaBlockPayload struct {
+	Transactions []byte `json:"transactions"`
+	// @todo should tob and rob transactions get seperated?
+}
+
+type GetBlockPayloadFromArcadia struct {
+	MaxBandwidth uint64 `json:"maxBandwidth"`
+	// @todo should seq validator public key be sent?
+}
+
 type ChunkInterface interface {
 	Marshal() ([]byte, error)
 	Transactions() []*chain.Transaction

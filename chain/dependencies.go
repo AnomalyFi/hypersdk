@@ -68,6 +68,8 @@ type VM interface {
 	GetVerifyAuth() bool
 
 	AnchorClient(context.Context) *anchor.AnchorClient
+	GetBlockPayloadFromArcadia(uint64) ([]byte, error)
+	IsArcadiaConfigured() bool
 
 	IsBootstrapped() bool
 	LastAcceptedBlock() *StatelessBlock

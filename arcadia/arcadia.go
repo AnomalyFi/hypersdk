@@ -166,8 +166,6 @@ func (cli *Arcadia) Subscribe() error {
 		}
 	}()
 
-	<-cli.vm.StopChan()
-	cli.vm.Logger().Info("stopping websocket connection")
 	return nil
 }
 
@@ -242,9 +240,9 @@ func (cli *Arcadia) Run() {
 }
 
 // HandleRollupChunks does
-// i. 	Performs validation on the rollup chunks received from arcadia. ✅
-// ii. 	Store relevant chunk info in the database ❌ and in memory. ✅
-// iii. Issue preconfs to arcadia. ✅
+// i. 	Performs validation on the rollup chunks received from arcadia.
+// ii. 	Store relevant chunk info in memory.
+// iii. Issue preconfs to arcadia.
 func (cli *Arcadia) HandleRollupChunks(chunk *ArcadiaChunk) error {
 	// handle rollup chunks from arcadia.
 	// TODO: handle edge cases.
@@ -420,6 +418,43 @@ func (cli *Arcadia) IssuePreconfs(chunk *ArcadiaChunk) error {
 	}
 
 	return nil
+}
+
+func (cli *Arcadia) GetBlockPaylodFromArcadia(maxBw uint64) (*ArcadiaBlockPayload, error) {
+	var client http.Client
+
+	url := cli.URL + pathGetArcadiaBlock
+
+	req := GetBlockPayloadFromArcadia{
+		MaxBandwidth: maxBw,
+	}
+	reqRaw, err := json.Marshal(req)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := client.Post(url, "application/json", bytes.NewBuffer(reqRaw))
+	if err != nil {
+		return nil, err
+	}
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != 200 {
+		errMsg := new(httpErrorResp)
+		if err := json.Unmarshal(bodyBytes, errMsg); err != nil {
+			return nil, fmt.Errorf("unable to parse error message from bad response: %d", resp.StatusCode)
+		}
+		fmt.Errorf("error from arcadia: %s", errMsg.Message)
+	}
+
+	var payload ArcadiaBlockPayload
+	if err := json.Unmarshal(bodyBytes, &payload); err != nil {
+		return nil, err
+	}
+
+	return &payload, nil
 }
 
 // Checks if chunkID given matches computed chunkID. returns err for chunkID mismatch and true for match.

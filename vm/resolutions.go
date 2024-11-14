@@ -78,6 +78,25 @@ func (vm *VM) AnchorRegistry() *anchor.AnchorRegistry {
 	return vm.anchorRegistry
 }
 
+func (vm *VM) Arcadia() *arcadia.Arcadia {
+	return vm.arcadia
+}
+
+func (vm *VM) IsArcadiaConfigured() bool {
+	return vm.arcadia != nil
+}
+
+func (vm *VM) GetBlockPayloadFromArcadia(maxBw uint64) ([]byte, error) {
+	if vm.arcadia == nil {
+		return nil, fmt.Errorf("arcadia client not initialized")
+	}
+	payload, err := vm.arcadia.GetBlockPaylodFromArcadia(maxBw)
+	if err != nil {
+		return nil, err
+	}
+	return payload.Transactions, nil
+}
+
 func (vm *VM) AuthVerifiers() workers.Workers {
 	return vm.authVerifiers
 }
