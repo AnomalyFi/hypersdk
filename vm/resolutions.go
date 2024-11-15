@@ -413,15 +413,15 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
 	if err != nil {
 		vm.Logger().Error("unable to update registry", zap.Error(err))
 	}
-
-	if b.Height()%uint64(vm.Rules(b.Tmstmp).GetEpochLength()) == 0 {
-		vm.arcadia.EpochUpdateChan() <- &arcadia.EpochUpdateInfo{
-			Epoch:               b.Height() / uint64(vm.Rules(b.Tmstmp).GetEpochLength()),
-			BuilderPubKey:       bldrPubKey,
-			AvailableNamespaces: nss,
+	if vm.IsArcadiaConfigured() {
+		if b.Height()%uint64(vm.Rules(b.Tmstmp).GetEpochLength()) == 0 {
+			vm.arcadia.EpochUpdateChan() <- &arcadia.EpochUpdateInfo{
+				Epoch:               b.Height() / uint64(vm.Rules(b.Tmstmp).GetEpochLength()),
+				BuilderPubKey:       bldrPubKey,
+				AvailableNamespaces: nss,
+			}
 		}
 	}
-
 	// Verify if emap is now sufficient (we need a consecutive run of blocks with
 	// timestamps of at least [ValidityWindow] for this to occur).
 	if !vm.isReady() {
