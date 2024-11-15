@@ -278,7 +278,6 @@ func (cli *Arcadia) HandleRollupChunks(chunk *ArcadiaChunk) error {
 	// santiy checks passed, signature verificaton passed -> Chunk belongs to the current epoch and is signed by the correct builder.
 	// we still need to check, if ChunkID is valid.
 
-	authCounts := make(map[uint8]int)
 	var jobBackLog int
 	var txs []*chain.Transaction
 	if chunk.ToBChunk != nil {
@@ -291,7 +290,7 @@ func (cli *Arcadia) HandleRollupChunks(chunk *ArcadiaChunk) error {
 			return err
 		}
 		// validate ToB chunk.
-		for _, tx := range chunk.ToBChunk.Txs {
+		for _, tx := range chunk.ToBChunk.sTxs {
 			// tx should have atleast 2 actions defined.
 			if len(tx.Actions) < 2 {
 				return fmt.Errorf("tx with less than 2 actions found in ToB chunk")
@@ -305,7 +304,6 @@ func (cli *Arcadia) HandleRollupChunks(chunk *ArcadiaChunk) error {
 					return fmt.Errorf("unregistered rollup namespace %s found in action for epoch %d", hexutil.Encode(action.NMTNamespace()), chunk.Epoch)
 				}
 			}
-			authCounts[tx.Auth.GetTypeID()]++
 			// TODO: Should ToB chunk transactions actions restricted only to SequencerMsg and Transfer actions?
 		}
 		jobBackLog = len(chunk.ToBChunk.Transactions())
@@ -316,7 +314,7 @@ func (cli *Arcadia) HandleRollupChunks(chunk *ArcadiaChunk) error {
 			return err
 		}
 		// validate RoB chunk.
-		for _, tx := range chunk.RoBChunk.Txs {
+		for _, tx := range chunk.RoBChunk.sTxs {
 			if len(tx.Actions) > 1 {
 				return fmt.Errorf("tx with more than 1 actions found in RoB chunk")
 			}
@@ -326,7 +324,6 @@ func (cli *Arcadia) HandleRollupChunks(chunk *ArcadiaChunk) error {
 			if !cli.isValidNamespaceForEpoch(tx.Actions[0].NMTNamespace()) {
 				return fmt.Errorf("unregistered rollup namespace %s found in action for epoch %d", hexutil.Encode(tx.Actions[0].NMTNamespace()), chunk.Epoch)
 			}
-			authCounts[tx.Auth.GetTypeID()]++
 			// TODO: Restrict RoB chunk transactions actions to only SequencerMsg action?
 		}
 		jobBackLog = len(chunk.ToBChunk.Transactions())
@@ -339,7 +336,7 @@ func (cli *Arcadia) HandleRollupChunks(chunk *ArcadiaChunk) error {
 		return err
 	}
 
-	bv := chain.NewAuthBatch(cli.vm, job, authCounts)
+	bv := chain.NewAuthBatch(cli.vm, job, chunk.authCounts)
 	for _, tx := range txs {
 		txDigest, err := tx.Digest()
 		if err != nil {
@@ -354,10 +351,9 @@ func (cli *Arcadia) HandleRollupChunks(chunk *ArcadiaChunk) error {
 	}
 
 	// Batch signature check has passed. All the transaction's signatures in the chunk are valid.
-	// Cache the txs to prevent replay ? @todo
 	// TODO: Add bonded accounts.
 	// check if every transaction is fee payable? This check makes sense when paired with bonded accounts.
-
+	// @todo add checks for chunk nonces. --> is tob nonce populated by arcadia?
 	// Add the transactions to the map.
 
 	// Add auth verified txs to a emap. When a block is accepted do setMinTx to remove all expired transactions.

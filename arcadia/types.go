@@ -18,17 +18,21 @@ type SubscribeValidatorSignatureCallback struct {
 }
 
 type ArcadiaToBChunk struct {
-	RollupIDs             []string             `json:"rollupIDs"`
-	RollupIDToBlockNumber map[string]uint64    `json:"rollupIDToBlockNumber"`
-	Txs                   []*chain.Transaction `json:"txs"`
-	Nonce                 uint64               `json:"nonce"`
+	RollupIDs             []string          `json:"rollupIDs"`
+	RollupIDToBlockNumber map[string]uint64 `json:"rollupIDToBlockNumber"`
+	Txs                   []byte            `json:"txs"`
+	Nonce                 uint64            `json:"nonce"`
+
+	sTxs []*chain.Transaction
 }
 
 type ArcadiaRoBChunk struct {
-	RollupID    string               `json:"rollupID"`
-	BlockNumber uint64               `json:"blockNumber"`
-	Txs         []*chain.Transaction `json:"txs"`
-	Nonce       uint64               `json:"nonce"` // Do we need nonce for rob chunk?
+	RollupID    string `json:"rollupID"`
+	BlockNumber uint64 `json:"blockNumber"`
+	Txs         []byte `json:"txs"`
+	Nonce       uint64 `json:"nonce"` // Do we need nonce for rob chunk?
+
+	sTxs []*chain.Transaction
 }
 
 type ArcadiaChunk struct {
@@ -37,6 +41,8 @@ type ArcadiaChunk struct {
 	BuilderSignature []byte           `json:"builderSignature"` // builder signs over [epochNumber, chunkID]
 	ToBChunk         *ArcadiaToBChunk `json:"toBChunk,omitempty"`
 	RoBChunk         *ArcadiaRoBChunk `json:"roBChunk,omitempty"`
+
+	authCounts map[uint8]int
 }
 
 type ValidatorMessage struct {

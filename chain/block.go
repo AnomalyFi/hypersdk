@@ -183,12 +183,14 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) error {
 			return ErrDuplicateTx
 		}
 		b.txsSet.Add(tx.ID())
-
 		// Verify signature async
 		if b.vm.GetVerifyAuth() {
 			txDigest, err := tx.Digest()
 			if err != nil {
 				return err
+			}
+			if b.vm.IsArcadiaAuthVerifiedTx(tx.id) {
+				continue // already verified by arcadia
 			}
 			batchVerifier.Add(txDigest, tx.Auth)
 		}

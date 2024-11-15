@@ -15,6 +15,7 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
+	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"go.opentelemetry.io/otel/attribute"
@@ -156,6 +157,7 @@ func BuildBlock(
 
 		includedTxsSet = set.NewSet[ids.ID](len(b.Txs))
 
+		bwConsumerd              uint64
 		isAnchorBuildSuccessful  = false
 		isArcadiaBuildSuccessful = false
 	)
@@ -307,15 +309,15 @@ func BuildBlock(
 			for _, tx := range b.Txs {
 				includedTxsSet.Add(tx.ID())
 			}
+			bwConsumerd = feeManager.LastConsumed(fees.Bandwidth)
 			results = append(results, anchorTxResults...)
 			isAnchorBuildSuccessful = true
 		}
 	}
 skipAnchor:
-
 	if vm.IsArcadiaConfigured() {
-		// @todo get block from arcadia based on available bandwidth.
-		txs, err := GetArcadiaTxs(ctx, vm, r, 10_000)
+		lbwUnits := maxUnits[fees.Bandwidth] - bwConsumerd - 50*units.KiB
+		txs, err := GetArcadiaTxs(ctx, vm, r, lbwUnits)
 		if err != nil {
 			goto skipArcadia
 		}
@@ -448,10 +450,10 @@ skipAnchor:
 			vm.Logger().Error("error executing anchor txs", zap.Error(err))
 		} else {
 			vm.Logger().Info("anchor txs has been added", zap.Int("numTxs", len(arcadiaTxs)))
-			// only do state transition when all the txs in the anchor chunk have succeed
+			// only do state transition when all the txs in the arcadia chunk have succeed
 			tsv.Commit()
 			b.Txs = append(b.Txs, arcadiaTxs...)
-			// Add txs from anchor to the set, so we can skip them during local build process.
+			// Add txs from arcadia to the set, so we can skip them during local build process.
 			for _, tx := range b.Txs {
 				includedTxsSet.Add(tx.ID())
 			}
@@ -459,7 +461,6 @@ skipAnchor:
 			isArcadiaBuildSuccessful = true
 		}
 	}
-	// @todo pull blocks from aracdia and use isArcadiaAuthVerifiedTransaction to check if the transaction is verified earlier.
 skipArcadia:
 	// txs from mempool
 	mempool.StartStreaming(ctx)

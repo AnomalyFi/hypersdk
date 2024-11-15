@@ -66,6 +66,7 @@ type VM interface {
 	AuthVerifiers() workers.Workers
 	GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (AuthBatchVerifier, bool)
 	GetVerifyAuth() bool
+	IsArcadiaAuthVerifiedTx(txID ids.ID) bool
 
 	AnchorClient(context.Context) *anchor.AnchorClient
 	GetBlockPayloadFromArcadia(uint64) ([]byte, error)

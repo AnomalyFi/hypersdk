@@ -18,6 +18,7 @@ type VM interface {
 	Sign(msg *warp.UnsignedMessage) ([]byte, error)
 	AuthVerifiers() workers.Workers
 	Rules(int64) chain.Rules
+	Registry() (chain.ActionRegistry, chain.AuthRegistry)
 	GetVerifyAuth() bool
 	GetChunkCores() int
 	GetPreconfIssueCores() int

@@ -27,7 +27,7 @@ func (tob *ArcadiaToBChunk) Marshal() ([]byte, error) {
 		rollupIdsArrSize += len(rollupIDByte)
 	}
 
-	size := (rollupIDsLen+1)*consts.Uint64Len + codec.CummSize(tob.Txs) + rollupIdsArrSize
+	size := (rollupIDsLen+1)*consts.Uint64Len + codec.CummSize(tob.sTxs) + rollupIdsArrSize
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)
 
 	p.PackInt(rollupIDsLen)
@@ -37,7 +37,7 @@ func (tob *ArcadiaToBChunk) Marshal() ([]byte, error) {
 		p.PackUint64(tob.RollupIDToBlockNumber[rollupID])
 	}
 	p.PackInt(len(tob.Txs))
-	for _, tx := range tob.Txs {
+	for _, tx := range tob.sTxs {
 		if err := tx.Marshal(p); err != nil {
 			return nil, err
 		}
@@ -51,7 +51,7 @@ func (tob *ArcadiaToBChunk) Marshal() ([]byte, error) {
 }
 
 func (tob *ArcadiaToBChunk) Transactions() []*chain.Transaction {
-	return tob.Txs
+	return tob.sTxs
 }
 
 func (rob *ArcadiaRoBChunk) Marshal() ([]byte, error) {
@@ -60,13 +60,13 @@ func (rob *ArcadiaRoBChunk) Marshal() ([]byte, error) {
 		return nil, err
 	}
 
-	size := len(rollupIDBytes) + 2*consts.Uint64Len + consts.IntLen + codec.CummSize(rob.Txs)
+	size := len(rollupIDBytes) + 2*consts.Uint64Len + consts.IntLen + codec.CummSize(rob.sTxs)
 	p := codec.NewWriter(size, consts.NetworkSizeLimit)
 
 	p.PackBytes(rollupIDBytes)
 	p.PackUint64(rob.BlockNumber)
 	p.PackInt(len(rob.Txs))
-	for _, tx := range rob.Txs {
+	for _, tx := range rob.sTxs {
 		if err := tx.Marshal(p); err != nil {
 			return nil, err
 		}
@@ -79,6 +79,27 @@ func (rob *ArcadiaRoBChunk) Marshal() ([]byte, error) {
 	return bytes, nil
 }
 
+func (chunk *ArcadiaChunk) Initialize(actionReg chain.ActionRegistry, authReg chain.AuthRegistry) error {
+	if chunk.ToBChunk != nil {
+		ac, txs, err := chain.UnmarshalTxs(chunk.ToBChunk.Txs, 1, actionReg, authReg)
+		if err != nil {
+			return err
+		}
+		chunk.ToBChunk.sTxs = txs
+		chunk.authCounts = ac
+		return nil
+	}
+	if chunk.RoBChunk != nil {
+		ac, txs, err := chain.UnmarshalTxs(chunk.RoBChunk.Txs, 1, actionReg, authReg)
+		if err != nil {
+			return err
+		}
+		chunk.RoBChunk.sTxs = txs
+		chunk.authCounts = ac
+	}
+	return nil
+}
+
 func (chunk *ArcadiaChunk) Expiry() int64 {
 	return int64(chunk.Epoch + 1)
 }
@@ -88,7 +109,7 @@ func (chunk *ArcadiaChunk) ID() ids.ID {
 }
 
 func (rob *ArcadiaRoBChunk) Transactions() []*chain.Transaction {
-	return rob.Txs
+	return rob.sTxs
 }
 
 func isContainsInMapping(sarr []string, m map[string]uint64) bool {
