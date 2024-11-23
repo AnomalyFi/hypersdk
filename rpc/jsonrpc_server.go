@@ -193,13 +193,12 @@ type NextProposerArgs struct {
 	Height uint64 `json:"height"`
 }
 type NextProposerReply struct {
-	PublicKey  []byte       `json:"publicKey"`
-	NodeID     ids.NodeID   `json:"nodeID"`
-	Validators []*Validator `json:"validators"`
+	PublicKey []byte     `json:"publicKey"`
+	NodeID    ids.NodeID `json:"nodeID"`
 }
 
-// NextProposer returns the proposer at the given height along with the validator list.
-func (j *JSONRPCServer) NextProposer(req *http.Request, args *NextProposerArgs, reply *NextProposerReply) error {
+// NextProposer returns the proposer at the given height.
+func (j *JSONRPCServer) NextProposer(req *http.Request, args *NextProposerArgs, reply *Validator) error {
 	ctx := context.TODO()
 	validators, _ := j.vm.CurrentValidators(ctx)
 	nextProposer, err := j.vm.ProposerAtHeight(ctx, args.Height)
@@ -213,18 +212,28 @@ func (j *JSONRPCServer) NextProposer(req *http.Request, args *NextProposerArgs, 
 	}
 
 	reply.NodeID = nextProposer
-	reply.PublicKey = validators[reply.NodeID].PublicKey.Compress()
+	v := validators[nextProposer]
+	reply.PublicKey = v.PublicKey.Compress()
+	reply.Weight = v.Weight
 
 	j.vm.Logger().Debug("proposer info returned", zap.Uint64("height", args.Height), zap.String("nodeID", reply.NodeID.String()), zap.String("pubkey", hexutil.Encode(reply.PublicKey)))
+	return nil
+}
 
-	// populate current validators
+type GetCurrentValidatorsReply struct {
+	Validators []*Validator `json:"validators"`
+}
+
+func (j *JSONRPCServer) GetCurrentValidators(req *http.Request, _ *struct{}, reply *GetCurrentValidatorsReply) error {
+	ctx := context.TODO()
+	validators, _ := j.vm.CurrentValidators(ctx)
+
 	wValidators := make([]*Validator, 0, len(validators))
 	for _, validator := range validators {
 		wVal := new(Validator)
 		wVal.NodeID = validator.NodeID
 		wVal.PublicKey = validator.PublicKey.Compress()
 		wVal.Weight = validator.Weight
-
 		wValidators = append(wValidators, wVal)
 	}
 	reply.Validators = wValidators

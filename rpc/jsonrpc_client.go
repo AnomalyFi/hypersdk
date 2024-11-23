@@ -150,8 +150,8 @@ func (cli *JSONRPCClient) ReplaceAnchor(ctx context.Context, url string) (bool, 
 	return resp.Success, err
 }
 
-func (cli *JSONRPCClient) NextProposer(ctx context.Context, height uint64) (*NextProposerReply, error) {
-	resp := new(NextProposerReply)
+func (cli *JSONRPCClient) NextProposer(ctx context.Context, height uint64) (*Validator, error) {
+	resp := new(Validator)
 	err := cli.requester.SendRequest(
 		ctx,
 		"nextProposer",
@@ -161,6 +161,18 @@ func (cli *JSONRPCClient) NextProposer(ctx context.Context, height uint64) (*Nex
 		resp,
 	)
 	return resp, err
+}
+
+// GetCurrentValidators returns the current validators of the SEQ chain.
+func (cli *JSONRPCClient) GetCurrentValidators(ctx context.Context) ([]*Validator, error) {
+	resp := new(GetCurrentValidatorsReply)
+	err := cli.requester.SendRequest(
+		ctx,
+		"getCurrentValidators",
+		nil,
+		resp,
+	)
+	return resp.Validators, err
 }
 
 type Modifier interface {

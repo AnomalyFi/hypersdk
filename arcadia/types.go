@@ -21,6 +21,7 @@ type ArcadiaToBChunk struct {
 	RollupIDs             []string          `json:"rollupIDs"`
 	RollupIDToBlockNumber map[string]uint64 `json:"rollupIDToBlockNumber"`
 	Txs                   []byte            `json:"txs"`
+	BitSet                []bool            `json:"bitSet"`
 	Nonce                 uint64            `json:"nonce"`
 
 	sTxs []*chain.Transaction
@@ -30,11 +31,13 @@ type ArcadiaRoBChunk struct {
 	RollupID    string `json:"rollupID"`
 	BlockNumber uint64 `json:"blockNumber"`
 	Txs         []byte `json:"txs"`
-	Nonce       uint64 `json:"nonce"` // Do we need nonce for rob chunk?
+	BitSet      []bool `json:"bitSet"`
+	Nonce       uint64 `json:"nonce"`
 
 	sTxs []*chain.Transaction
 }
 
+// @todo arcadia simulates and removes failed bundles. but, sends all the transactions along with a bit set of removed transactions.
 type ArcadiaChunk struct {
 	ChunkID          ids.ID           `json:"chunkId"`
 	Epoch            uint64           `json:"epoch"`

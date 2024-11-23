@@ -467,11 +467,29 @@ func (vm *VM) Initialize(
 		}
 
 		vm.arcadia = arcadia.NewArcadiaClient(vm.config.GetArcadiaURL(), vm.GetCurrentEpoch(), builderPubKey, &rollupRegistry, vm)
-		if err := vm.arcadia.Subscribe(); err != nil {
-			return fmt.Errorf("unable to subscribe to arcadia: %w", err)
-		}
-		go vm.arcadia.Run()
+
+		go func() {
+			if err := vm.arcadia.Subscribe(); err != nil {
+				vm.snowCtx.Log.Error("failed to subscribe to arcadia", zap.Error(err))
+				// wait 3 minutes before retrying.
+				vm.snowCtx.Log.Info("retrying to subscribe to arcadia in 3 minutes")
+				time.Sleep(180 * time.Second)
+				if err := vm.arcadia.Subscribe(); err != nil {
+					vm.snowCtx.Log.Error("failed to subscribe to arcadia", zap.Error(err))
+					// wait 3 more minutes before retrying.
+					vm.snowCtx.Log.Info("retrying to subscribe to arcadia in 3 minutes x2")
+					time.Sleep(180 * time.Second)
+					if err := vm.arcadia.Subscribe(); err != nil {
+						vm.snowCtx.Log.Error("failed to subscribe to arcadia", zap.Error(err))
+						return
+					}
+				}
+			}
+			vm.snowCtx.Log.Info("subscribed to arcadia")
+			go vm.arcadia.Run()
+		}()
 	}
+
 	// Wait until VM is ready and then send a state sync message to engine
 	go vm.markReady()
 
