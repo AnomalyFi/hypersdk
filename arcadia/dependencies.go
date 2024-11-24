@@ -2,6 +2,7 @@ package arcadia
 
 import (
 	"context"
+	"time"
 
 	"github.com/AnomalyFi/hypersdk/chain"
 	"github.com/AnomalyFi/hypersdk/crypto/bls"
@@ -14,6 +15,12 @@ import (
 type VM interface {
 	chain.AuthVM
 	chain.Parser
+
+	RecordChunksReceived()
+	RecordChunksRejected()
+	RecordChunksAccepted()
+	RecordTxsInChunksReceived(int)
+	RecordChunkProcessDuration(time.Duration)
 
 	NodeID() ids.NodeID
 	Signer() *bls.PublicKey

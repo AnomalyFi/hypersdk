@@ -648,6 +648,26 @@ func (vm *VM) RecordClearedMempool() {
 	vm.metrics.clearedMempool.Inc()
 }
 
+func (vm *VM) RecordChunksReceived() {
+	vm.metrics.chunksReceived.Inc()
+}
+
+func (vm *VM) RecordChunksRejected() {
+	vm.metrics.chunksRejected.Inc()
+}
+
+func (vm *VM) RecordChunksAccepted() {
+	vm.metrics.chunksAccepted.Inc()
+}
+
+func (vm *VM) RecordTxsInChunksReceived(c int) {
+	vm.metrics.txsInChunksReceived.Add(float64(c))
+}
+
+func (vm *VM) RecordChunkProcessDuration(t time.Duration) {
+	vm.metrics.chunkProcess.Observe(float64(t))
+}
+
 func (vm *VM) UnitPrices(context.Context) (fees.Dimensions, error) {
 	v, err := vm.stateDB.Get(chain.FeeKey(vm.StateManager().FeeKey()))
 	if err != nil {

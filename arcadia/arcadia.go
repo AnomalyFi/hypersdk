@@ -194,6 +194,7 @@ func (cli *Arcadia) Subscribe() error {
 				continue
 			}
 			cli.vm.Logger().Info("Received chunk from arcadia", zap.String("chunk id", newChunk.ChunkID.String()))
+			cli.vm.RecordChunksReceived()
 			cli.incomingChunks <- &newChunk
 		}
 	}()
@@ -216,17 +217,22 @@ func (cli *Arcadia) Run() {
 						continue
 					}
 					if cli.processedChunks.Has(chunk) {
-						cli.vm.Logger().Info("chunk already preconfed", zap.String("chunk id", chunk.ChunkID.String()))
+						cli.vm.Logger().Info("chunk already processed", zap.String("chunk id", chunk.ChunkID.String()))
 						cli.issuePreconf <- chunk
 						continue
 					}
+					t := time.Now()
 					err := cli.HandleRollupChunks(chunk)
+					cli.vm.RecordChunkProcessDuration(time.Since(t))
 					if err != nil {
 						cli.vm.Logger().Error("chunk processing error", zap.String("chunk id", chunk.ChunkID.String()), zap.Error(err))
 						cli.rejectedChunks.Add([]*ArcadiaChunk{chunk})
+						cli.vm.RecordChunksRejected()
 						continue
 					}
 					cli.vm.Logger().Info("chunk processed", zap.String("chunk id", chunk.ChunkID.String()))
+					cli.vm.RecordChunksAccepted()
+					cli.processedChunks.Add([]*ArcadiaChunk{chunk})
 					cli.issuePreconf <- chunk
 				case <-cli.vm.StopChan():
 					return nil
@@ -350,7 +356,7 @@ func (cli *Arcadia) HandleRollupChunks(chunk *ArcadiaChunk) error {
 		jobBackLog = len(chunk.ToBChunk.Transactions())
 		txs = chunk.ToBChunk.Transactions()
 	}
-
+	cli.vm.RecordTxsInChunksReceived(len(txs))
 	// batch verify chunk tx signatures.
 	job, err := cli.vm.AuthVerifiers().NewJob(jobBackLog)
 	if err != nil {

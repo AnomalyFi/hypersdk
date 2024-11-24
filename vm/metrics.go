@@ -27,6 +27,10 @@ func (em *executorMetrics) RecordExecutable() {
 type Metrics struct {
 	txsSubmitted             prometheus.Counter // includes gossip
 	txsReceived              prometheus.Counter
+	chunksReceived           prometheus.Counter
+	chunksRejected           prometheus.Counter
+	chunksAccepted           prometheus.Counter
+	txsInChunksReceived      prometheus.Counter
 	seenTxsReceived          prometheus.Counter
 	txsGossiped              prometheus.Counter
 	txsVerified              prometheus.Counter
@@ -59,6 +63,7 @@ type Metrics struct {
 	blockVerify              metric.Averager
 	blockAccept              metric.Averager
 	blockProcess             metric.Averager
+	chunkProcess             metric.Averager
 
 	executorBuildRecorder  executor.Metrics
 	executorVerifyRecorder executor.Metrics
@@ -131,7 +136,14 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-
+	chunkProcess, err := metric.NewAverager(
+		"arcadia_chunk_process",
+		"time spent processing chunks",
+		r,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
 	m := &Metrics{
 		txsSubmitted: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "vm",
@@ -142,6 +154,26 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Namespace: "vm",
 			Name:      "txs_received",
 			Help:      "number of txs received over gossip",
+		}),
+		chunksReceived: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "arcadia",
+			Name:      "chunks_received",
+			Help:      "number of chunks received from arcadia",
+		}),
+		chunksRejected: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "arcadia",
+			Name:      "chunks_rejected",
+			Help:      "number of chunks rejected from arcadia",
+		}),
+		chunksAccepted: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "arcadia",
+			Name:      "chunks_accepted",
+			Help:      "number of chunks accepted from arcadia",
+		}),
+		txsInChunksReceived: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "arcadia",
+			Name:      "txs_in_chunks_received",
+			Help:      "number of txs received in chunks from arcadia",
 		}),
 		seenTxsReceived: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "vm",
@@ -273,6 +305,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		blockVerify:    blockVerify,
 		blockAccept:    blockAccept,
 		blockProcess:   blockProcess,
+		chunkProcess:   chunkProcess,
 	}
 	m.executorBuildRecorder = &executorMetrics{blocked: m.executorBuildBlocked, executable: m.executorBuildExecutable}
 	m.executorVerifyRecorder = &executorMetrics{blocked: m.executorVerifyBlocked, executable: m.executorVerifyExecutable}
@@ -281,6 +314,10 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 	errs.Add(
 		r.Register(m.txsSubmitted),
 		r.Register(m.txsReceived),
+		r.Register(m.chunksReceived),
+		r.Register(m.chunksRejected),
+		r.Register(m.chunksAccepted),
+		r.Register(m.txsInChunksReceived),
 		r.Register(m.seenTxsReceived),
 		r.Register(m.txsGossiped),
 		r.Register(m.txsVerified),
