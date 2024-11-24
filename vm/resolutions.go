@@ -74,8 +74,8 @@ func (vm *VM) AnchorClient(ctx context.Context) *anchor.AnchorClient {
 	return vm.anchorCli
 }
 
-func (vm *VM) AnchorRegistry() *anchor.AnchorRegistry {
-	return vm.anchorRegistry
+func (vm *VM) RollupRegistry() *anchor.RollupRegistry {
+	return vm.rollupRegistry
 }
 
 func (vm *VM) Arcadia() *arcadia.Arcadia {
@@ -366,16 +366,16 @@ func (vm *VM) updateRollupRegistryAndGetBuilderPubKey(ctx context.Context, b *ch
 			continue
 		}
 		p := codec.NewReader(rollupInfoBytes, consts.NetworkSizeLimit)
-		anchor, err := actions.UnmarshalRollupInfo(p)
+		rollupInfo, err := actions.UnmarshalRollupInfo(p)
 		if err != nil {
 			vm.Logger().Error("unable to unmarshal rollup info", zap.Error(err))
 			continue
 		}
-		vm.Logger().Debug("rollup info", zap.String("namespace", hex.EncodeToString(anchor.Namespace)))
-		rollupInfos = append(rollupInfos, anchor)
+		vm.Logger().Debug("rollup info", zap.String("namespace", hex.EncodeToString(rollupInfo.Namespace)))
+		rollupInfos = append(rollupInfos, rollupInfo)
 	}
 
-	vm.anchorRegistry.Update(rollupInfos)
+	vm.rollupRegistry.Update(rollupInfos)
 	return &namespaces, builderPubKey, nil
 }
 

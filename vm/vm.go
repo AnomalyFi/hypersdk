@@ -79,9 +79,15 @@ type VM struct {
 	mempool *mempool.Mempool[*chain.Transaction]
 
 	// anchor
-	anchorCliL     sync.Mutex
-	anchorCli      *anchor.AnchorClient
-	anchorRegistry *anchor.AnchorRegistry
+	anchorCliL sync.Mutex
+	anchorCli  *anchor.AnchorClient
+
+	// rollup registry
+	rollupRegistry *anchor.RollupRegistry
+
+	// Arcadia
+	arcadia                *arcadia.Arcadia
+	arcadiaAuthVerifiedTxs *emap.EMap[*chain.Transaction]
 
 	// track all accepted but still valid txs (replay protection)
 	seen                   *emap.EMap[*chain.Transaction]
@@ -89,9 +95,6 @@ type VM struct {
 	seenValidityWindowOnce sync.Once
 	seenValidityWindow     chan struct{}
 
-	// Arcadia
-	arcadia                *arcadia.Arcadia
-	arcadiaAuthVerifiedTxs *emap.EMap[*chain.Transaction]
 	// We cannot use a map here because we may parse blocks up in the ancestry
 	parsedBlocks *avacache.LRU[ids.ID, *chain.StatelessBlock]
 
@@ -275,7 +278,7 @@ func (vm *VM) Initialize(
 	} else {
 		vm.anchorCli = anchor.NewAnchorClient(vm.config.GetAnchorURL())
 	}
-	vm.anchorRegistry = anchor.NewAnchorRegistry()
+	vm.rollupRegistry = anchor.NewRollupRegistry()
 
 	// Try to load last accepted
 	has, err := vm.HasLastAccepted()

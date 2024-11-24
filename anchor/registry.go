@@ -7,28 +7,28 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 )
 
-type AnchorRegistry struct {
-	anchors  map[ids.ID]*actions.RollupInfo
-	anchorsL sync.Mutex
+type RollupRegistry struct {
+	rollups  map[ids.ID]*actions.RollupInfo
+	rollupsL sync.Mutex
 }
 
-func NewAnchorRegistry() *AnchorRegistry {
-	return &AnchorRegistry{
-		anchors: make(map[ids.ID]*actions.RollupInfo),
+func NewRollupRegistry() *RollupRegistry {
+	return &RollupRegistry{
+		rollups: make(map[ids.ID]*actions.RollupInfo),
 	}
 }
 
-func (r *AnchorRegistry) Update(info []*actions.RollupInfo) {
-	r.anchorsL.Lock()
-	defer r.anchorsL.Unlock()
+func (r *RollupRegistry) Update(info []*actions.RollupInfo) {
+	r.rollupsL.Lock()
+	defer r.rollupsL.Unlock()
 
-	r.anchors = make(map[ids.ID]*actions.RollupInfo, len(info))
+	r.rollups = make(map[ids.ID]*actions.RollupInfo, len(info))
 	for _, a := range info {
 		id := a.ID()
-		r.anchors[id] = a
+		r.rollups[id] = a
 	}
 }
 
-func (r *AnchorRegistry) Len() int {
-	return len(r.anchors)
+func (r *RollupRegistry) Len() int {
+	return len(r.rollups)
 }
