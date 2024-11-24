@@ -312,12 +312,19 @@ func (cli *Arcadia) HandleRollupChunks(chunk *ArcadiaChunk) error {
 		if !isContainsInMapping(chunk.ToBChunk.RollupIDs, chunk.ToBChunk.RollupIDToBlockNumber) {
 			return fmt.Errorf("atleast a rollup id does not have block number mentioned")
 		}
+		if len(chunk.ToBChunk.sTxs) != len(chunk.ToBChunk.RemovedBitSet) {
+			return fmt.Errorf("txs and removed bitset length mismatch")
+		}
 		// validate chunk id
 		if _, err := verifyChunkID(chunk.ChunkID, chunk.ToBChunk); err != nil {
 			return err
 		}
 		// validate ToB chunk.
-		for _, tx := range chunk.ToBChunk.sTxs {
+		for i, tx := range chunk.ToBChunk.sTxs {
+			// if the tx is removed, skip the validation.
+			if chunk.ToBChunk.RemovedBitSet[i] {
+				continue
+			}
 			// tx should have atleast 2 actions defined.
 			if len(tx.Actions) < 2 {
 				return fmt.Errorf("tx with less than 2 actions found in ToB chunk")
@@ -331,17 +338,24 @@ func (cli *Arcadia) HandleRollupChunks(chunk *ArcadiaChunk) error {
 					return fmt.Errorf("unregistered rollup namespace %s found in action for epoch %d", hexutil.Encode(action.NMTNamespace()), chunk.Epoch)
 				}
 			}
+			txs = append(txs, tx)
 			// TODO: Should ToB chunk transactions actions restricted only to SequencerMsg and Transfer actions?
 		}
 		jobBackLog = len(chunk.ToBChunk.Transactions())
-		txs = chunk.ToBChunk.Transactions()
 	} else {
 		// validate chunk id
 		if _, err := verifyChunkID(chunk.ChunkID, chunk.RoBChunk); err != nil {
 			return err
 		}
+		if len(chunk.RoBChunk.sTxs) != len(chunk.RoBChunk.RemovedBitSet) {
+			return fmt.Errorf("txs and removed bitset length mismatch")
+		}
 		// validate RoB chunk.
-		for _, tx := range chunk.RoBChunk.sTxs {
+		for i, tx := range chunk.RoBChunk.sTxs {
+			// if the tx is removed, skip the validation.
+			if chunk.RoBChunk.RemovedBitSet[i] {
+				continue
+			}
 			if len(tx.Actions) > 1 {
 				return fmt.Errorf("tx with more than 1 actions found in RoB chunk")
 			}
@@ -352,9 +366,9 @@ func (cli *Arcadia) HandleRollupChunks(chunk *ArcadiaChunk) error {
 				return fmt.Errorf("unregistered rollup namespace %s found in action for epoch %d", hexutil.Encode(tx.Actions[0].NMTNamespace()), chunk.Epoch)
 			}
 			// TODO: Restrict RoB chunk transactions actions to only SequencerMsg action?
+			txs = append(txs, tx)
 		}
 		jobBackLog = len(chunk.ToBChunk.Transactions())
-		txs = chunk.ToBChunk.Transactions()
 	}
 	cli.vm.RecordTxsInChunksReceived(len(txs))
 	// batch verify chunk tx signatures.
@@ -380,7 +394,7 @@ func (cli *Arcadia) HandleRollupChunks(chunk *ArcadiaChunk) error {
 	// Batch signature check has passed. All the transaction's signatures in the chunk are valid.
 	// TODO: Add bonded accounts.
 	// check if every transaction is fee payable? This check makes sense when paired with bonded accounts.
-	// @todo add checks for chunk nonces. --> is tob nonce populated by arcadia?
+	// @todo add checks for chunk nonces. --> is tob nonce populated by arcadia? yes, so no need to add checks for nonce.
 	// Add the transactions to the map.
 
 	// Add auth verified txs to a emap. When a block is accepted do setMinTx to remove all expired transactions.

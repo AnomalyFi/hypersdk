@@ -175,6 +175,20 @@ func (cli *JSONRPCClient) GetCurrentValidators(ctx context.Context) ([]*Validato
 	return resp.Validators, err
 }
 
+func (cli *JSONRPCClient) GetProposer(ctx context.Context, diff, depth int) ([]*ids.NodeID, error) {
+	resp := new(GetProposerReply)
+	err := cli.requester.SendRequest(
+		ctx,
+		"getProposer",
+		&GetProposerArgs{
+			Diff:  diff,
+			Depth: depth,
+		},
+		resp,
+	)
+	return resp.NodeIDs, err
+}
+
 type Modifier interface {
 	Base(*chain.Base)
 }

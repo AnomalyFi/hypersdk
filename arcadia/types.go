@@ -21,23 +21,22 @@ type ArcadiaToBChunk struct {
 	RollupIDs             []string          `json:"rollupIDs"`
 	RollupIDToBlockNumber map[string]uint64 `json:"rollupIDToBlockNumber"`
 	Txs                   []byte            `json:"txs"`
-	BitSet                []bool            `json:"bitSet"`
+	RemovedBitSet         []bool            `json:"removedBitSet"`
 	Nonce                 uint64            `json:"nonce"`
 
 	sTxs []*chain.Transaction
 }
 
 type ArcadiaRoBChunk struct {
-	RollupID    string `json:"rollupID"`
-	BlockNumber uint64 `json:"blockNumber"`
-	Txs         []byte `json:"txs"`
-	BitSet      []bool `json:"bitSet"`
-	Nonce       uint64 `json:"nonce"`
+	RollupID      string `json:"rollupID"`
+	BlockNumber   uint64 `json:"blockNumber"`
+	Txs           []byte `json:"txs"`
+	RemovedBitSet []bool `json:"removedBitSet"`
+	Nonce         uint64 `json:"nonce"`
 
 	sTxs []*chain.Transaction
 }
 
-// @todo arcadia simulates and removes failed bundles. but, sends all the transactions along with a bit set of removed transactions.
 type ArcadiaChunk struct {
 	ChunkID          ids.ID           `json:"chunkId"`
 	Epoch            uint64           `json:"epoch"`
@@ -56,12 +55,11 @@ type ValidatorMessage struct {
 
 type ArcadiaBlockPayload struct {
 	Transactions []byte `json:"transactions"`
-	// @todo should tob and rob transactions get seperated?
 }
 
 type GetBlockPayloadFromArcadia struct {
 	MaxBandwidth uint64 `json:"maxBandwidth"`
-	// @todo should seq validator public key be sent?
+	BlockNumber  uint64 `json:"blockNumber"`
 }
 
 type ChunkInterface interface {

@@ -240,3 +240,26 @@ func (j *JSONRPCServer) GetCurrentValidators(req *http.Request, _ *struct{}, rep
 
 	return nil
 }
+
+type GetProposerArgs struct {
+	Diff  int `json:"diff"`
+	Depth int `json:"depth"`
+}
+
+type GetProposerReply struct {
+	NodeIDs []*ids.NodeID `json:"nodeIDs"`
+}
+
+func (j *JSONRPCServer) GetProposer(req *http.Request, args *GetProposerArgs, reply *GetProposerReply) error {
+	ctx := context.TODO()
+	proposers, err := j.vm.Proposers(ctx, args.Diff, args.Depth)
+	if err != nil {
+		return err
+	}
+
+	for proposer := range proposers {
+		reply.NodeIDs = append(reply.NodeIDs, &proposer)
+	}
+
+	return nil
+}
