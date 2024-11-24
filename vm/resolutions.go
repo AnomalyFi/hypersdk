@@ -340,23 +340,24 @@ func (vm *VM) updateRollupRegistryAndGetBuilderPubKey(ctx context.Context, b *ch
 	if err != nil && err != database.ErrNotFound {
 		return nil, nil, err
 	}
-	epochExitInfo, err := actions.UnpackEpochExitsInfo(epochExitBytes)
-	if err != nil {
-		return nil, nil, err
-	}
-	if epochExitInfo != nil {
-		for _, exit := range epochExitInfo.Exits {
-			for i, ns := range namespaces {
-				if bytes.Equal(ns, exit.Namespace) {
-					namespaces = append(namespaces[:i], namespaces[i+1:]...)
-					break
+	if epochExitBytes != nil {
+		epochExitInfo, err := actions.UnpackEpochExitsInfo(epochExitBytes)
+		if err != nil {
+			return nil, nil, err
+		}
+		if epochExitInfo != nil {
+			for _, exit := range epochExitInfo.Exits {
+				for i, ns := range namespaces {
+					if bytes.Equal(ns, exit.Namespace) {
+						namespaces = append(namespaces[:i], namespaces[i+1:]...)
+						break
+					}
 				}
 			}
 		}
 	}
 	rollupInfos := make([]*actions.RollupInfo, 0)
 	vm.Logger().Debug("rollup lists")
-
 	for _, ns := range namespaces {
 		rollupInfoKey := actions.RollupInfoKey(ns)
 		rollupInfoBytes, err := view.GetValue(ctx, rollupInfoKey)

@@ -1,6 +1,8 @@
 package arcadia
 
 import (
+	"strings"
+
 	"github.com/AnomalyFi/hypersdk/chain"
 	"github.com/AnomalyFi/hypersdk/codec"
 	"github.com/AnomalyFi/hypersdk/consts"
@@ -79,7 +81,8 @@ func (rob *ArcadiaRoBChunk) Marshal() ([]byte, error) {
 	return bytes, nil
 }
 
-func (chunk *ArcadiaChunk) Initialize(actionReg chain.ActionRegistry, authReg chain.AuthRegistry) error {
+func (chunk *ArcadiaChunk) Initialize(parser chain.Parser) error {
+	actionReg, authReg := parser.Registry()
 	if chunk.ToBChunk != nil {
 		ac, txs, err := chain.UnmarshalTxs(chunk.ToBChunk.Txs, 1, actionReg, authReg)
 		if err != nil {
@@ -120,4 +123,13 @@ func isContainsInMapping(sarr []string, m map[string]uint64) bool {
 		}
 	}
 	return true
+}
+
+func replaceHTTPWithWS(url string) string {
+	if strings.HasPrefix(url, "http://") {
+		return "ws://" + strings.TrimPrefix(url, "http://")
+	} else if strings.HasPrefix(url, "https://") {
+		return "wss://" + strings.TrimPrefix(url, "https://")
+	}
+	return url // Return as-is if no match
 }

@@ -57,7 +57,8 @@ const (
 
 func NewArcadiaClient(url string, currEpoch uint64, currEpochBuilderPubKey *bls.PublicKey, availNs *[][]byte, vm VM) *Arcadia {
 	url = strings.TrimRight(url, "/")
-	return &Arcadia{
+
+	cli := &Arcadia{
 		URL:                    url,
 		vm:                     vm,
 		incomingChunks:         make(chan *ArcadiaChunk, vm.GetChunkProcessingBackLog()),
@@ -70,6 +71,25 @@ func NewArcadiaClient(url string, currEpoch uint64, currEpochBuilderPubKey *bls.
 		processedChunks:        emap.NewEMap[*ArcadiaChunk](),
 		rejectedChunks:         emap.NewEMap[*ArcadiaChunk](),
 	}
+
+	// update epoch on arcadia, when changes.
+	go func() {
+		for {
+			select {
+			case newEpochInfo := <-cli.epochUpdatechan:
+				cli.vm.Logger().Debug("epoch update received", zap.Uint64("epoch", newEpochInfo.Epoch))
+				cli.currEpoch = newEpochInfo.Epoch
+				cli.currEpochBuilderPubKey = newEpochInfo.BuilderPubKey
+				cli.AvailableNamespaces = newEpochInfo.AvailableNamespaces
+				cli.processedChunks.SetMin(int64(cli.currEpoch))
+				cli.rejectedChunks.SetMin(int64(cli.currEpoch))
+			case <-cli.vm.StopChan():
+				return
+			}
+		}
+	}()
+
+	return cli
 }
 
 // Ping checks if arcadia is up and returns error if not.
@@ -105,12 +125,12 @@ func (cli *Arcadia) Ping() error {
 // v. 	if above check passes, arcadia adds validator to listeners list and sends rollup chunks for preconfs.
 func (cli *Arcadia) Subscribe() error {
 	subscribeURL := cli.URL + pathSubscribeValidator
+	subscribeURL = replaceHTTPWithWS(subscribeURL)
 	conn, _, err := websocket.DefaultDialer.Dial(subscribeURL, nil)
 	if err != nil {
 		cli.vm.Logger().Error("Failed to connect to WebSocket server", zap.Error(err))
 		return err
 	}
-	defer conn.Close()
 
 	// Authenticate with arcadia.
 
@@ -118,25 +138,30 @@ func (cli *Arcadia) Subscribe() error {
 	msgType, msg, err := conn.ReadMessage()
 	if err != nil {
 		cli.vm.Logger().Error("Error reading msg bytes from arcadia", zap.Error(err))
+		conn.Close()
 		return err
 	}
 	if msgType != websocket.TextMessage {
 		cli.vm.Logger().Error("Expected text message from arcadia, got something else.")
+		conn.Close()
 		return ErrUnexpectedMsgType
 	}
 	if len(msg) != 32 {
 		cli.vm.Logger().Error("Expected 32 bytes from arcadia, got something else.")
+		conn.Close()
 		return ErrUnexpectedMsgSize
 	}
 	// Validator signs the message and sends back to arcadia.
 	uwm, err := warp.NewUnsignedMessage(cli.vm.NetworkID(), cli.vm.ChainID(), msg)
 	if err != nil {
 		cli.vm.Logger().Error("Failed to create unsigned message from arcadia", zap.Error(err))
+		conn.Close()
 		return err
 	}
 	sig, err := cli.vm.Sign(uwm)
 	if err != nil {
 		cli.vm.Logger().Error("Failed to sign message from arcadia", zap.Error(err))
+		conn.Close()
 		return err
 	}
 
@@ -144,10 +169,10 @@ func (cli *Arcadia) Subscribe() error {
 		Signature:          sig,
 		ValidatorPublicKey: cli.vm.Signer().Compress(),
 	}
-
 	err = conn.WriteJSON(sbscb)
 	if err != nil {
 		cli.vm.Logger().Error("Failed to send signature to arcadia", zap.Error(err))
+		conn.Close()
 		return err
 	}
 
@@ -157,11 +182,18 @@ func (cli *Arcadia) Subscribe() error {
 	go func() {
 		for {
 			var newChunk ArcadiaChunk
-			err = conn.ReadJSON(newChunk)
+			err = conn.ReadJSON(&newChunk)
 			if err != nil {
+				// Handle WebSocket closure.
+				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) || strings.Contains(err.Error(), "close 1006") {
+					cli.vm.Logger().Error("WebSocket connection closed", zap.Error(err))
+					// @todo attempt reconnect.
+					break // Exit the loop if connection is closed
+				}
 				cli.vm.Logger().Error("Failed to read chunk from arcadia", zap.Error(err))
 				continue
 			}
+			cli.vm.Logger().Info("Received chunk from arcadia", zap.String("chunk id", newChunk.ChunkID.String()))
 			cli.incomingChunks <- &newChunk
 		}
 	}()
@@ -171,21 +203,6 @@ func (cli *Arcadia) Subscribe() error {
 
 // Run starts the arcadia client.
 func (cli *Arcadia) Run() {
-	// update epoch on arcadia, when changes.
-	go func() {
-		for {
-			select {
-			case newEpochInfo := <-cli.epochUpdatechan:
-				cli.currEpoch = newEpochInfo.Epoch
-				cli.currEpochBuilderPubKey = newEpochInfo.BuilderPubKey
-				cli.AvailableNamespaces = newEpochInfo.AvailableNamespaces
-				cli.processedChunks.SetMin(int64(cli.currEpoch))
-				cli.rejectedChunks.SetMin(int64(cli.currEpoch))
-			case <-cli.vm.StopChan():
-				return
-			}
-		}
-	}()
 
 	// Run the chunk processing go routines in the configured number of cores.
 	g := &errgroup.Group{}
@@ -207,6 +224,7 @@ func (cli *Arcadia) Run() {
 					if err != nil {
 						cli.vm.Logger().Error("chunk processing error", zap.String("chunk id", chunk.ChunkID.String()), zap.Error(err))
 						cli.rejectedChunks.Add([]*ArcadiaChunk{chunk})
+						continue
 					}
 					cli.vm.Logger().Info("chunk processed", zap.String("chunk id", chunk.ChunkID.String()))
 					cli.issuePreconf <- chunk
@@ -253,6 +271,9 @@ func (cli *Arcadia) HandleRollupChunks(chunk *ArcadiaChunk) error {
 	// Chunk built is for correct epoch.
 	if cli.currEpoch != chunk.Epoch {
 		return fmt.Errorf("received chunk for epoch %d, but current epoch is %d", chunk.Epoch, cli.currEpoch)
+	}
+	if err := chunk.Initialize(cli.vm); err != nil {
+		return fmt.Errorf("failed to initialize chunk: %w", err)
 	}
 
 	// sanity checks.
@@ -442,7 +463,7 @@ func (cli *Arcadia) GetBlockPaylodFromArcadia(maxBw uint64) (*ArcadiaBlockPayloa
 		if err := json.Unmarshal(bodyBytes, errMsg); err != nil {
 			return nil, fmt.Errorf("unable to parse error message from bad response: %d", resp.StatusCode)
 		}
-		fmt.Errorf("error from arcadia: %s", errMsg.Message)
+		return nil, fmt.Errorf("error from arcadia: %s", errMsg.Message)
 	}
 
 	var payload ArcadiaBlockPayload

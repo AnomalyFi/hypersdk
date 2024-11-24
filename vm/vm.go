@@ -443,13 +443,18 @@ func (vm *VM) Initialize(
 	} else {
 		rollupRegistryKey := actions.RollupRegistryKey()
 		rollupRegistryBytes, err := vm.stateDB.GetValue(ctx, rollupRegistryKey)
-		if err != nil {
-			return fmt.Errorf("unable to get rollup registry from statedb: %w", err)
-		}
-		rollupRegistry, err := actions.UnpackNamespaces(rollupRegistryBytes)
 		// ignore database.ErrNotFound, as it is expected registry is empty on genesis and in some instances.
 		if err != nil && err != database.ErrNotFound {
-			return fmt.Errorf("unable to unpack rollup registry: %w", err)
+			return fmt.Errorf("unable to get rollup registry from statedb: %w", err)
+		}
+		var rollupRegistry [][]byte
+		if err == database.ErrNotFound {
+			rollupRegistry = make([][]byte, 0)
+		} else {
+			rollupRegistry, err = actions.UnpackNamespaces(rollupRegistryBytes)
+			if err != nil {
+				return fmt.Errorf("unable to unpack rollup registry: %w", err)
+			}
 		}
 		arcadiaBidKey := actions.ArcadiaBidKey(vm.GetCurrentEpoch())
 		arcadiaBidBytes, err := vm.stateDB.GetValue(ctx, arcadiaBidKey)
@@ -471,9 +476,9 @@ func (vm *VM) Initialize(
 		go func() {
 			if err := vm.arcadia.Subscribe(); err != nil {
 				vm.snowCtx.Log.Error("failed to subscribe to arcadia", zap.Error(err))
-				// wait 3 minutes before retrying.
-				vm.snowCtx.Log.Info("retrying to subscribe to arcadia in 3 minutes")
-				time.Sleep(180 * time.Second)
+				// wait 2 minutes before retrying.
+				vm.snowCtx.Log.Info("retrying to subscribe to arcadia in 2 minutes")
+				time.Sleep(120 * time.Second)
 				if err := vm.arcadia.Subscribe(); err != nil {
 					vm.snowCtx.Log.Error("failed to subscribe to arcadia", zap.Error(err))
 					// wait 3 more minutes before retrying.

@@ -13,6 +13,8 @@ import (
 
 type VM interface {
 	chain.AuthVM
+	chain.Parser
+
 	NodeID() ids.NodeID
 	Signer() *bls.PublicKey
 	Sign(msg *warp.UnsignedMessage) ([]byte, error)
