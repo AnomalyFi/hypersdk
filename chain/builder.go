@@ -247,7 +247,6 @@ func BuildBlock(
 		for _, ltx := range txs {
 			txsAttempted++
 			tx := ltx
-			// TODO: parallem this, currently `TState` can't be rolled back while `TState_View` can
 			e.Run(anchorStateKeys, func() error {
 				if err := tx.PreExecute(ctx, feeManager, feeMarket, sm, r, tsv, nextTime); err != nil {
 					return err
@@ -395,7 +394,6 @@ skipAnchor:
 		for _, ltx := range txs {
 			txsAttempted++
 			tx := ltx
-			// TODO: parallem this, currently `TState` can't be rolled back while `TState_View` can
 			e.Run(arcadiaStateKeys, func() error {
 				if err := tx.PreExecute(ctx, feeManager, feeMarket, sm, r, tsv, nextTime); err != nil {
 					return err

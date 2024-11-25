@@ -20,7 +20,7 @@ type Config struct{}
 func (c *Config) GetLogLevel() logging.Level                { return logging.Info }
 func (c *Config) GetAuthVerificationCores() int             { return 4 }
 func (c *Config) GetRootGenerationCores() int               { return 2 }
-func (c *Config) GetTransactionExecutionCores() int         { return 1 }
+func (c *Config) GetTransactionExecutionCores() int         { return 2 } // 2 cores for transaction execution.
 func (c *Config) GetChunkCores() int                        { return 4 } // 4 cores for arcadia chunk processing.
 func (c *Config) GetChunkProcessingBackLog() int            { return 1024 }
 func (c *Config) GetPreconfIssueCores() int                 { return 2 } // 2 cores for preconf issue processing.
