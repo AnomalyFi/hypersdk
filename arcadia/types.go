@@ -4,6 +4,7 @@ import (
 	"github.com/AnomalyFi/hypersdk/chain"
 	"github.com/AnomalyFi/hypersdk/crypto/bls"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/bits-and-blooms/bitset"
 )
 
 type EpochUpdateInfo struct {
@@ -21,24 +22,26 @@ type ArcadiaToBChunk struct {
 	RollupIDs             []string          `json:"rollupIDs"`
 	RollupIDToBlockNumber map[string]uint64 `json:"rollupIDToBlockNumber"`
 	Txs                   []byte            `json:"txs"`
-	RemovedBitSet         []bool            `json:"removedBitSet"`
+	RemovedBitSet         []byte            `json:"removedBitSet"`
 	Nonce                 uint64            `json:"nonce"`
 
 	sTxs []*chain.Transaction
+	bs   *bitset.BitSet
 }
 
 type ArcadiaRoBChunk struct {
 	RollupID      string `json:"rollupID"`
 	BlockNumber   uint64 `json:"blockNumber"`
 	Txs           []byte `json:"txs"`
-	RemovedBitSet []bool `json:"removedBitSet"`
+	RemovedBitSet []byte `json:"removedBitSet"`
 	Nonce         uint64 `json:"nonce"`
 
 	sTxs []*chain.Transaction
+	bs   *bitset.BitSet
 }
 
 type ArcadiaChunk struct {
-	ChunkID          ids.ID           `json:"chunkId"`
+	ChunkID          ids.ID           `json:"chunkID"`
 	Epoch            uint64           `json:"epoch"`
 	BuilderSignature []byte           `json:"builderSignature"` // builder signs over [epochNumber, chunkID]
 	ToBChunk         *ArcadiaToBChunk `json:"toBChunk,omitempty"`

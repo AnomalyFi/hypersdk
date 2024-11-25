@@ -325,7 +325,7 @@ func (cli *Arcadia) HandleRollupChunks(chunk *ArcadiaChunk) error {
 		// validate ToB chunk.
 		for i, tx := range chunk.ToBChunk.sTxs {
 			// if the tx is removed, skip the validation.
-			if chunk.ToBChunk.RemovedBitSet[i] {
+			if chunk.ToBChunk.bs.Test(uint(i)) {
 				continue
 			}
 			// tx should have atleast 2 actions defined.
@@ -360,7 +360,7 @@ func (cli *Arcadia) HandleRollupChunks(chunk *ArcadiaChunk) error {
 		// validate RoB chunk.
 		for i, tx := range chunk.RoBChunk.sTxs {
 			// if the tx is removed, skip the validation.
-			if chunk.RoBChunk.RemovedBitSet[i] {
+			if chunk.RoBChunk.bs.Test(uint(i)) {
 				continue
 			}
 			if len(tx.Actions) > 1 {

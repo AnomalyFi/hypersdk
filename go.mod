@@ -8,6 +8,7 @@ require (
 	github.com/attestantio/go-eth2-client v0.19.10
 	github.com/ava-labs/avalanche-network-runner v1.7.4-rc.0
 	github.com/ava-labs/avalanchego v1.11.10
+	github.com/bits-and-blooms/bitset v1.10.0
 	github.com/btcsuite/btcd/btcutil v1.1.3
 	github.com/bytecodealliance/wasmtime-go/v14 v14.0.0
 	github.com/celestiaorg/nmt v0.20.0
@@ -47,7 +48,6 @@ require (
 	github.com/DataDog/zstd v1.5.2 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/bits-and-blooms/bitset v1.10.0 // indirect
 	github.com/btcsuite/btcd/btcec/v2 v2.3.2 // indirect
 	github.com/cenkalti/backoff/v4 v4.2.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect

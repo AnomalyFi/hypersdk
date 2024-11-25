@@ -1,6 +1,7 @@
 package arcadia
 
 import (
+	"bytes"
 	"strings"
 
 	"github.com/AnomalyFi/hypersdk/chain"
@@ -8,6 +9,7 @@ import (
 	"github.com/AnomalyFi/hypersdk/consts"
 	"github.com/AnomalyFi/hypersdk/emap"
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/bits-and-blooms/bitset"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
@@ -89,6 +91,9 @@ func (chunk *ArcadiaChunk) Initialize(parser chain.Parser) error {
 			return err
 		}
 		chunk.ToBChunk.sTxs = txs
+		bs := bitset.New(uint(len(txs)))
+		buf := bytes.NewBuffer(chunk.ToBChunk.RemovedBitSet)
+		bs.ReadFrom(buf)
 		chunk.authCounts = ac
 		return nil
 	}
@@ -98,6 +103,10 @@ func (chunk *ArcadiaChunk) Initialize(parser chain.Parser) error {
 			return err
 		}
 		chunk.RoBChunk.sTxs = txs
+		bs := bitset.New(uint(len(txs)))
+		buf := bytes.NewBuffer(chunk.ToBChunk.RemovedBitSet)
+		bs.ReadFrom(buf)
+		chunk.RoBChunk.bs = bs
 		chunk.authCounts = ac
 	}
 	return nil
