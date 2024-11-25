@@ -25,7 +25,7 @@ import (
 
 // This package contains code objects to:
 // i. 	Register validator with arcadia.
-// ii. 	Recieve block chunks from arcadia.
+// ii. 	Receive block chunks from arcadia.
 // iii. Validate block chunks.
 // iv. 	Issue preconfs to arcadia.
 // v. 	Store chunk info and transactions for faster auth processing.

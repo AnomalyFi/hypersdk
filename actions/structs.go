@@ -11,13 +11,15 @@ type RollupInfo struct {
 	FeeRecipient        codec.Address `json:"feeRecipient"`
 	Namespace           []byte        `json:"namespace"`
 	AuthoritySEQAddress codec.Address `json:"authoritySEQAddress"`
+	SequencerPublicKey  []byte        `json:"sequencerPublicKey"`
 }
 
-func NewRollupInfo(namespace []byte, feeRecipient codec.Address, authoritySEQAddress codec.Address) *RollupInfo {
+func NewRollupInfo(namespace []byte, feeRecipient codec.Address, authoritySEQAddress codec.Address, SequencerPublicKey []byte) *RollupInfo {
 	return &RollupInfo{
 		FeeRecipient:        feeRecipient,
 		Namespace:           namespace,
 		AuthoritySEQAddress: authoritySEQAddress,
+		SequencerPublicKey:  SequencerPublicKey,
 	}
 }
 
@@ -26,13 +28,14 @@ func (a *RollupInfo) ID() ids.ID {
 }
 
 func (a *RollupInfo) Size() int {
-	return 2*codec.AddressLen + codec.BytesLen(a.Namespace)
+	return 2*codec.AddressLen + codec.BytesLen(a.Namespace) + codec.BytesLen(a.SequencerPublicKey)
 }
 
 func (a *RollupInfo) Marshal(p *codec.Packer) error {
 	p.PackBytes(a.Namespace)
 	p.PackAddress(a.FeeRecipient)
 	p.PackAddress(a.AuthoritySEQAddress)
+	p.PackBytes(a.SequencerPublicKey)
 	if err := p.Err(); err != nil {
 		return err
 	}
@@ -43,9 +46,10 @@ func (a *RollupInfo) Marshal(p *codec.Packer) error {
 func UnmarshalRollupInfo(p *codec.Packer) (*RollupInfo, error) {
 	ret := new(RollupInfo)
 
-	p.UnpackBytes(32, false, &ret.Namespace) // TODO: set limit for the length of namespace bytes
+	p.UnpackBytes(32, true, &ret.Namespace) // TODO: set limit for the length of namespace bytes
 	p.UnpackAddress(&ret.FeeRecipient)
 	p.UnpackAddress(&ret.AuthoritySEQAddress)
+	p.UnpackBytes(48, true, &ret.SequencerPublicKey)
 	if err := p.Err(); err != nil {
 		return nil, err
 	}
