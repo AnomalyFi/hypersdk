@@ -69,7 +69,7 @@ type VM interface {
 	IsArcadiaAuthVerifiedTx(txID ids.ID) bool
 
 	AnchorClient(context.Context) *anchor.AnchorClient
-	GetBlockPayloadFromArcadia(uint64) ([]byte, error)
+	GetBlockPayloadFromArcadia(uint64, uint64) ([]byte, error)
 	IsArcadiaConfigured() bool
 
 	IsBootstrapped() bool

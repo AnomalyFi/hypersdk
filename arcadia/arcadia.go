@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	hactions "github.com/AnomalyFi/hypersdk/actions"
 	"github.com/AnomalyFi/hypersdk/chain"
 	"github.com/AnomalyFi/hypersdk/crypto/bls"
 	"github.com/AnomalyFi/hypersdk/emap"
@@ -187,8 +188,10 @@ func (cli *Arcadia) Subscribe() error {
 				// Handle WebSocket closure.
 				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) || strings.Contains(err.Error(), "close 1006") {
 					cli.vm.Logger().Error("WebSocket connection closed", zap.Error(err))
-					// @todo attempt reconnect.
-					break // Exit the loop if connection is closed
+					// Attempt reconnect to arcadia.
+					go cli.Reconnect()
+					// Exit the current loop if connection is closed.
+					break
 				}
 				cli.vm.Logger().Error("Failed to read chunk from arcadia", zap.Error(err))
 				continue
@@ -337,9 +340,13 @@ func (cli *Arcadia) HandleRollupChunks(chunk *ArcadiaChunk) error {
 				if !cli.isValidNamespaceForEpoch(action.NMTNamespace()) {
 					return fmt.Errorf("unregistered rollup namespace %s found in action for epoch %d", hexutil.Encode(action.NMTNamespace()), chunk.Epoch)
 				}
+				// Restrict ToB chunk transactions actions to only Transfer and SequencerMsg actions.
+				if !(action.GetTypeID() == hactions.TransferID || action.GetTypeID() == hactions.MsgID) {
+					return fmt.Errorf("ToB chunk transaction with non-transfer or sequencer action found")
+				}
 			}
 			txs = append(txs, tx)
-			// TODO: Should ToB chunk transactions actions restricted only to SequencerMsg and Transfer actions?
+
 		}
 		jobBackLog = len(chunk.ToBChunk.Transactions())
 	} else {
@@ -365,7 +372,10 @@ func (cli *Arcadia) HandleRollupChunks(chunk *ArcadiaChunk) error {
 			if !cli.isValidNamespaceForEpoch(tx.Actions[0].NMTNamespace()) {
 				return fmt.Errorf("unregistered rollup namespace %s found in action for epoch %d", hexutil.Encode(tx.Actions[0].NMTNamespace()), chunk.Epoch)
 			}
-			// TODO: Restrict RoB chunk transactions actions to only SequencerMsg action?
+			// Restrict RoB chunk transactions actions to only SequencerMsg action?
+			if tx.Actions[0].GetTypeID() != hactions.MsgID {
+				return fmt.Errorf("RoB chunk transaction with non-sequencer action found")
+			}
 			txs = append(txs, tx)
 		}
 		jobBackLog = len(chunk.ToBChunk.Transactions())
@@ -394,13 +404,11 @@ func (cli *Arcadia) HandleRollupChunks(chunk *ArcadiaChunk) error {
 	// Batch signature check has passed. All the transaction's signatures in the chunk are valid.
 	// TODO: Add bonded accounts.
 	// check if every transaction is fee payable? This check makes sense when paired with bonded accounts.
-	// @todo add checks for chunk nonces. --> is tob nonce populated by arcadia? yes, so no need to add checks for nonce.
-	// Add the transactions to the map.
+
+	// Add the transactions to the map and give replay protection?
 
 	// Add auth verified txs to a emap. When a block is accepted do setMinTx to remove all expired transactions.
 	cli.vm.AddToArcadiaAuthVerifiedTxs(txs)
-	// we are here at a situation. should we reject if any transaction is seen before and in the validity window?
-	// yes. --> replay protection.
 
 	return nil
 }
@@ -457,13 +465,14 @@ func (cli *Arcadia) IssuePreconfs(chunk *ArcadiaChunk) error {
 	return nil
 }
 
-func (cli *Arcadia) GetBlockPaylodFromArcadia(maxBw uint64) (*ArcadiaBlockPayload, error) {
+func (cli *Arcadia) GetBlockPayloadFromArcadia(maxBw, blockNumber uint64) (*ArcadiaBlockPayload, error) {
 	var client http.Client
 
 	url := cli.URL + pathGetArcadiaBlock
 
 	req := GetBlockPayloadFromArcadia{
 		MaxBandwidth: maxBw,
+		BlockNumber:  blockNumber,
 	}
 	reqRaw, err := json.Marshal(req)
 	if err != nil {

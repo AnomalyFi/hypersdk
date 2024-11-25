@@ -86,11 +86,11 @@ func (vm *VM) IsArcadiaConfigured() bool {
 	return vm.arcadia != nil
 }
 
-func (vm *VM) GetBlockPayloadFromArcadia(maxBw uint64) ([]byte, error) {
+func (vm *VM) GetBlockPayloadFromArcadia(maxBw, blockNumber uint64) ([]byte, error) {
 	if vm.arcadia == nil {
 		return nil, fmt.Errorf("arcadia client not initialized")
 	}
-	payload, err := vm.arcadia.GetBlockPaylodFromArcadia(maxBw)
+	payload, err := vm.arcadia.GetBlockPayloadFromArcadia(maxBw, blockNumber)
 	if err != nil {
 		return nil, err
 	}

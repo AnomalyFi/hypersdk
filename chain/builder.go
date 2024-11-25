@@ -317,7 +317,7 @@ func BuildBlock(
 skipAnchor:
 	if vm.IsArcadiaConfigured() {
 		lbwUnits := maxUnits[fees.Bandwidth] - bwConsumerd - 50*units.KiB
-		txs, err := GetArcadiaTxs(ctx, vm, r, lbwUnits)
+		txs, err := GetArcadiaTxs(ctx, vm, r, lbwUnits, nextHght)
 		if err != nil {
 			goto skipArcadia
 		}
@@ -880,8 +880,9 @@ func GetArcadiaTxs(
 	vm VM,
 	rules Rules,
 	maxBw uint64,
+	blocknumber uint64,
 ) ([]*Transaction, error) {
-	txsbytes, err := vm.GetBlockPayloadFromArcadia(maxBw)
+	txsbytes, err := vm.GetBlockPayloadFromArcadia(maxBw, blocknumber)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get block payload from arcadia: %w", err)
 	}
