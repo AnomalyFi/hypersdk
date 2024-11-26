@@ -29,7 +29,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/AnomalyFi/hypersdk/actions"
-	"github.com/AnomalyFi/hypersdk/anchor"
 	"github.com/AnomalyFi/hypersdk/arcadia"
 	"github.com/AnomalyFi/hypersdk/builder"
 	"github.com/AnomalyFi/hypersdk/cache"
@@ -78,12 +77,8 @@ type VM struct {
 	tracer  avatrace.Tracer
 	mempool *mempool.Mempool[*chain.Transaction]
 
-	// anchor
-	anchorCliL sync.Mutex
-	anchorCli  *anchor.AnchorClient
-
 	// rollup registry
-	rollupRegistry *anchor.RollupRegistry
+	rollupRegistry *arcadia.RollupRegistry
 
 	// Arcadia
 	arcadia                *arcadia.Arcadia
@@ -272,13 +267,7 @@ func (vm *VM) Initialize(
 		vm.config.GetMempoolExemptSponsors(),
 	)
 
-	if vm.config.GetAnchorURL() == "" {
-		snowCtx.Log.Info("no anchor configured")
-		vm.anchorCli = nil
-	} else {
-		vm.anchorCli = anchor.NewAnchorClient(vm.config.GetAnchorURL())
-	}
-	vm.rollupRegistry = anchor.NewRollupRegistry()
+	vm.rollupRegistry = arcadia.NewRollupRegistry()
 
 	// Try to load last accepted
 	has, err := vm.HasLastAccepted()

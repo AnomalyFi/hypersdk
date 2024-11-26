@@ -13,7 +13,6 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 
 	"github.com/AnomalyFi/hypersdk/chain"
-	"github.com/AnomalyFi/hypersdk/crypto/bls"
 	"github.com/AnomalyFi/hypersdk/fees"
 )
 
@@ -44,5 +43,4 @@ type VM interface {
 	GetDiskBlockResults(ctx context.Context, height uint64) ([]*chain.Result, error)
 	GetDiskFeeManager(ctx context.Context, height uint64) ([]byte, error)
 	GetVerifyAuth() bool
-	ReplaceAnchor(url string, pk *bls.PublicKey, sig *bls.Signature) (bool, error)
 }

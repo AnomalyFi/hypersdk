@@ -16,7 +16,6 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 
-	"github.com/AnomalyFi/hypersdk/anchor"
 	"github.com/AnomalyFi/hypersdk/codec"
 	"github.com/AnomalyFi/hypersdk/crypto/bls"
 	"github.com/AnomalyFi/hypersdk/executor"
@@ -68,7 +67,6 @@ type VM interface {
 	GetVerifyAuth() bool
 	IsArcadiaAuthVerifiedTx(txID ids.ID) bool
 
-	AnchorClient(context.Context) *anchor.AnchorClient
 	GetBlockPayloadFromArcadia(uint64, uint64) ([]byte, error)
 	IsArcadiaConfigured() bool
 

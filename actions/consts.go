@@ -10,9 +10,9 @@ const (
 	EpochExitID      uint8 = 0xf1
 )
 
-// The length of data stored at AnchorRegistryKey depends on number of rollups registered.
+// The length of data stored at RollupRegistryKey depends on number of rollups registered.
 // Each chunk gives a state storage of 64 bytes.
-// Its safe to limit the data of state storage for AnchorRegistryKey to atleast 3 KiB.
+// Its safe to limit the data of state storage for RollupRegistryKey to atleast 3 KiB.
 const (
 	RollupRegistryChunks uint16 = 3 * 16
 	EpochExitsChunks     uint16 = 3 * 16

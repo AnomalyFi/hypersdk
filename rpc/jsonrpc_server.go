@@ -16,7 +16,6 @@ import (
 	"github.com/AnomalyFi/hypersdk/chain"
 	"github.com/AnomalyFi/hypersdk/codec"
 	"github.com/AnomalyFi/hypersdk/consts"
-	"github.com/AnomalyFi/hypersdk/crypto/bls"
 	"github.com/AnomalyFi/hypersdk/fees"
 
 	feemarket "github.com/AnomalyFi/hypersdk/fee_market"
@@ -151,35 +150,6 @@ func (j *JSONRPCServer) NameSpacesPrice(
 
 func (j *JSONRPCServer) GetCurrentEpoch(_ *http.Request, _ *struct{}, reply *uint64) error {
 	*reply = j.vm.GetCurrentEpoch()
-	return nil
-}
-
-type ReplaceAnchorArgs struct {
-	URL       string `json:"url"`
-	Pubkey    []byte `json:"pubkey"`
-	Signature []byte `json:"signature"`
-}
-
-type ReplaceAnchorReply struct {
-	Success bool `json:"success"`
-}
-
-// TODO: make it permissioned
-func (j *JSONRPCServer) ReplaceAnchor(req *http.Request, args *ReplaceAnchorArgs, reply *ReplaceAnchorReply) error {
-	pk, err := bls.PublicKeyFromBytes(args.Pubkey)
-	if err != nil {
-		return err
-	}
-	sig, err := bls.SignatureFromBytes(args.Signature)
-	if err != nil {
-		return err
-	}
-
-	replaced, err := j.vm.ReplaceAnchor(args.URL, pk, sig)
-	if err != nil {
-		return err
-	}
-	reply.Success = replaced
 	return nil
 }
 

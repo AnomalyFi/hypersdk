@@ -60,8 +60,6 @@ type Config interface {
 	GetBlockCompactionFrequency() int
 	GetETHL1RPC() string
 	GetETHL1WS() string
-	GetAnchorURL() string
-	GetAnchorManager() string // 0x prefixed bls pubkey
 	GetArcadiaURL() string
 }
 
