@@ -30,7 +30,7 @@ type Metrics struct {
 	chunksReceived           prometheus.Counter
 	chunksRejected           prometheus.Counter
 	chunksAccepted           prometheus.Counter
-	txsInChunksReceived      prometheus.Counter
+	validTxsInChunksReceived prometheus.Counter
 	seenTxsReceived          prometheus.Counter
 	txsGossiped              prometheus.Counter
 	txsVerified              prometheus.Counter
@@ -170,7 +170,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 			Name:      "chunks_accepted",
 			Help:      "number of chunks accepted from arcadia",
 		}),
-		txsInChunksReceived: prometheus.NewCounter(prometheus.CounterOpts{
+		validTxsInChunksReceived: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "arcadia",
 			Name:      "txs_in_chunks_received",
 			Help:      "number of txs received in chunks from arcadia",
@@ -317,7 +317,7 @@ func newMetrics() (*prometheus.Registry, *Metrics, error) {
 		r.Register(m.chunksReceived),
 		r.Register(m.chunksRejected),
 		r.Register(m.chunksAccepted),
-		r.Register(m.txsInChunksReceived),
+		r.Register(m.validTxsInChunksReceived),
 		r.Register(m.seenTxsReceived),
 		r.Register(m.txsGossiped),
 		r.Register(m.txsVerified),

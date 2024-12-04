@@ -19,7 +19,7 @@ type VM interface {
 	RecordChunksReceived()
 	RecordChunksRejected()
 	RecordChunksAccepted()
-	RecordTxsInChunksReceived(int)
+	RecordValidTxsInChunksReceived(int)
 	RecordChunkProcessDuration(time.Duration)
 
 	NodeID() ids.NodeID

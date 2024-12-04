@@ -627,8 +627,8 @@ func (vm *VM) RecordChunksAccepted() {
 	vm.metrics.chunksAccepted.Inc()
 }
 
-func (vm *VM) RecordTxsInChunksReceived(c int) {
-	vm.metrics.txsInChunksReceived.Add(float64(c))
+func (vm *VM) RecordValidTxsInChunksReceived(c int) {
+	vm.metrics.validTxsInChunksReceived.Add(float64(c))
 }
 
 func (vm *VM) RecordChunkProcessDuration(t time.Duration) {

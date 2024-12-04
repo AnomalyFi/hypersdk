@@ -37,16 +37,16 @@ import (
 type Arcadia struct {
 	URL                    string
 	vm                     VM
-	incomingChunks         chan *ArcadiaChunk
-	issuePreconf           chan *ArcadiaChunk
+	incomingChunks         chan *ArcadiaToSEQChunkMessage
+	issuePreconf           chan *ArcadiaToSEQChunkMessage
 	currEpoch              uint64
 	currEpochBuilderPubKey *bls.PublicKey
 	validatorPublicKey     *bls.PublicKey
 	AvailableNamespaces    *[][]byte
 	epochUpdatechan        chan *EpochUpdateInfo
 
-	processedChunks *emap.EMap[*ArcadiaChunk]
-	rejectedChunks  *emap.EMap[*ArcadiaChunk]
+	processedChunks *emap.EMap[*ArcadiaToSEQChunkMessage]
+	rejectedChunks  *emap.EMap[*ArcadiaToSEQChunkMessage]
 }
 
 const (
@@ -62,15 +62,15 @@ func NewArcadiaClient(url string, currEpoch uint64, currEpochBuilderPubKey *bls.
 	cli := &Arcadia{
 		URL:                    url,
 		vm:                     vm,
-		incomingChunks:         make(chan *ArcadiaChunk, vm.GetChunkProcessingBackLog()),
-		issuePreconf:           make(chan *ArcadiaChunk, vm.GetChunkProcessingBackLog()),
+		incomingChunks:         make(chan *ArcadiaToSEQChunkMessage, vm.GetChunkProcessingBackLog()),
+		issuePreconf:           make(chan *ArcadiaToSEQChunkMessage, vm.GetChunkProcessingBackLog()),
 		currEpoch:              currEpoch,
 		currEpochBuilderPubKey: currEpochBuilderPubKey,
 		validatorPublicKey:     vm.Signer(),
 		AvailableNamespaces:    availNs,
 		epochUpdatechan:        make(chan *EpochUpdateInfo),
-		processedChunks:        emap.NewEMap[*ArcadiaChunk](),
-		rejectedChunks:         emap.NewEMap[*ArcadiaChunk](),
+		processedChunks:        emap.NewEMap[*ArcadiaToSEQChunkMessage](),
+		rejectedChunks:         emap.NewEMap[*ArcadiaToSEQChunkMessage](),
 	}
 
 	// update epoch on arcadia, when changes.
@@ -182,7 +182,7 @@ func (cli *Arcadia) Subscribe() error {
 	// Listen for rollup block chunks from arcadia.
 	go func() {
 		for {
-			var newChunk ArcadiaChunk
+			var newChunk ArcadiaToSEQChunkMessage
 			err = conn.ReadJSON(&newChunk)
 			if err != nil {
 				// Handle WebSocket closure.
@@ -229,13 +229,13 @@ func (cli *Arcadia) Run() {
 					cli.vm.RecordChunkProcessDuration(time.Since(t))
 					if err != nil {
 						cli.vm.Logger().Error("chunk processing error", zap.String("chunk id", chunk.ChunkID.String()), zap.Error(err))
-						cli.rejectedChunks.Add([]*ArcadiaChunk{chunk})
+						cli.rejectedChunks.Add([]*ArcadiaToSEQChunkMessage{chunk})
 						cli.vm.RecordChunksRejected()
 						continue
 					}
 					cli.vm.Logger().Info("chunk processed", zap.String("chunk id", chunk.ChunkID.String()))
 					cli.vm.RecordChunksAccepted()
-					cli.processedChunks.Add([]*ArcadiaChunk{chunk})
+					cli.processedChunks.Add([]*ArcadiaToSEQChunkMessage{chunk})
 					cli.issuePreconf <- chunk
 				case <-cli.vm.StopChan():
 					return nil
@@ -270,7 +270,7 @@ func (cli *Arcadia) Run() {
 // i. 	Performs validation on the rollup chunks received from arcadia.
 // ii. 	Store relevant chunk info in memory.
 // iii. Issue preconfs to arcadia.
-func (cli *Arcadia) HandleRollupChunks(chunk *ArcadiaChunk) error {
+func (cli *Arcadia) HandleRollupChunks(chunk *ArcadiaToSEQChunkMessage) error {
 	// handle rollup chunks from arcadia.
 	// TODO: handle edge cases.
 	// if a chunk is reached for a block that is just on the epoch transition boundary.
@@ -286,12 +286,20 @@ func (cli *Arcadia) HandleRollupChunks(chunk *ArcadiaChunk) error {
 	}
 
 	// sanity checks.
-	if chunk.ToBChunk != nil && chunk.RoBChunk != nil {
+	if chunk.Chunk.ToB != nil && chunk.Chunk.RoB != nil {
 		return fmt.Errorf("received chunk with both ToB and RoB chunks")
 	}
 
-	if chunk.ToBChunk == nil && chunk.RoBChunk == nil {
+	if chunk.Chunk.ToB == nil && chunk.Chunk.RoB == nil {
 		return fmt.Errorf("received chunk with no ToB or RoB chunks")
+	}
+
+	if len(chunk.sTxs) != int(chunk.removedBitSet.Len()) {
+		return fmt.Errorf("txs and removed bitset length mismatch")
+	}
+	// validate chunk id
+	if _, err := verifyChunkID(chunk.ChunkID, chunk.Chunk); err != nil {
+		return err
 	}
 
 	// signature verification.
@@ -308,24 +316,13 @@ func (cli *Arcadia) HandleRollupChunks(chunk *ArcadiaChunk) error {
 	// santiy checks passed, signature verificaton passed -> Chunk belongs to the current epoch and is signed by the correct builder.
 	// we still need to check, if ChunkID is valid.
 
-	var jobBackLog int
+	// var jobBackLog int
 	var txs []*chain.Transaction
-	if chunk.ToBChunk != nil {
-		// check if namespace exists.
-		if !isContainsInMapping(chunk.ToBChunk.RollupIDs, chunk.ToBChunk.RollupIDToBlockNumber) {
-			return fmt.Errorf("atleast a rollup id does not have block number mentioned")
-		}
-		if len(chunk.ToBChunk.sTxs) != len(chunk.ToBChunk.RemovedBitSet) {
-			return fmt.Errorf("txs and removed bitset length mismatch")
-		}
-		// validate chunk id
-		if _, err := verifyChunkID(chunk.ChunkID, chunk.ToBChunk); err != nil {
-			return err
-		}
+	if chunk.Chunk.ToB != nil {
 		// validate ToB chunk.
-		for i, tx := range chunk.ToBChunk.sTxs {
+		for i, tx := range chunk.sTxs {
 			// if the tx is removed, skip the validation.
-			if chunk.ToBChunk.bs.Test(uint(i)) {
+			if chunk.removedBitSet.Test(uint(i)) {
 				continue
 			}
 			// tx should have atleast 2 actions defined.
@@ -346,21 +343,12 @@ func (cli *Arcadia) HandleRollupChunks(chunk *ArcadiaChunk) error {
 				}
 			}
 			txs = append(txs, tx)
-
 		}
-		jobBackLog = len(chunk.ToBChunk.Transactions())
 	} else {
-		// validate chunk id
-		if _, err := verifyChunkID(chunk.ChunkID, chunk.RoBChunk); err != nil {
-			return err
-		}
-		if len(chunk.RoBChunk.sTxs) != len(chunk.RoBChunk.RemovedBitSet) {
-			return fmt.Errorf("txs and removed bitset length mismatch")
-		}
 		// validate RoB chunk.
-		for i, tx := range chunk.RoBChunk.sTxs {
+		for i, tx := range chunk.sTxs {
 			// if the tx is removed, skip the validation.
-			if chunk.RoBChunk.bs.Test(uint(i)) {
+			if chunk.removedBitSet.Test(uint(i)) {
 				continue
 			}
 			if len(tx.Actions) > 1 {
@@ -378,11 +366,10 @@ func (cli *Arcadia) HandleRollupChunks(chunk *ArcadiaChunk) error {
 			}
 			txs = append(txs, tx)
 		}
-		jobBackLog = len(chunk.ToBChunk.Transactions())
 	}
-	cli.vm.RecordTxsInChunksReceived(len(txs))
+	cli.vm.RecordValidTxsInChunksReceived(len(txs))
 	// batch verify chunk tx signatures.
-	job, err := cli.vm.AuthVerifiers().NewJob(jobBackLog)
+	job, err := cli.vm.AuthVerifiers().NewJob(len(txs))
 	if err != nil {
 		return err
 	}
@@ -414,7 +401,7 @@ func (cli *Arcadia) HandleRollupChunks(chunk *ArcadiaChunk) error {
 }
 
 // send preconfs to arcadia.
-func (cli *Arcadia) IssuePreconfs(chunk *ArcadiaChunk) error {
+func (cli *Arcadia) IssuePreconfs(chunk *ArcadiaToSEQChunkMessage) error {
 	var client http.Client
 
 	url := cli.URL + pathSendPreconf
@@ -504,14 +491,24 @@ func (cli *Arcadia) GetBlockPayloadFromArcadia(maxBw, blockNumber uint64) (*Arca
 }
 
 // Checks if chunkID given matches computed chunkID. returns err for chunkID mismatch and true for match.
-func verifyChunkID(chunkID ids.ID, chunk ChunkInterface) (bool, error) {
-	b, err := chunk.Marshal()
-	if err != nil {
-		return false, fmt.Errorf("error marshalling tob chunk: %w", err)
+func verifyChunkID(chunkID ids.ID, chunk *ArcadiaChunk) (bool, error) {
+	var payload []byte
+	if chunk.ToB != nil {
+		pd, err := json.Marshal(chunk.ToB)
+		if err != nil {
+			return false, fmt.Errorf("error marshalling tob chunk: %w", err)
+		}
+		payload = pd
+	} else {
+		pd, err := json.Marshal(chunk.RoB)
+		if err != nil {
+			return false, fmt.Errorf("error marshalling rob chunk: %w", err)
+		}
+		payload = pd
 	}
-	chunkIDg := utils.ToID(b)
-	if chunkIDg != chunkID {
-		return false, fmt.Errorf("chunk id mismatch. received: %s, computed: %s", chunkID, chunkIDg)
+	chunkIDc := utils.ToID(payload)
+	if chunkIDc != chunkID {
+		return false, fmt.Errorf("chunk id mismatch. received: %s, computed: %s", chunkID, chunkIDc)
 	}
 	return true, nil
 }
