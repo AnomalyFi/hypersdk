@@ -18,28 +18,6 @@ type SubscribeValidatorSignatureCallback struct {
 	ValidatorPublicKey []byte `json:"validatorPublicKey"`
 }
 
-type ArcadiaToBChunk struct {
-	RollupIDs             []string          `json:"rollupIDs"`
-	RollupIDToBlockNumber map[string]uint64 `json:"rollupIDToBlockNumber"`
-	Txs                   []byte            `json:"txs"`
-	RemovedBitSet         []byte            `json:"removedBitSet"`
-	Nonce                 uint64            `json:"nonce"`
-
-	sTxs []*chain.Transaction
-	bs   *bitset.BitSet
-}
-
-type ArcadiaRoBChunk struct {
-	RollupID      string `json:"rollupID"`
-	BlockNumber   uint64 `json:"blockNumber"`
-	Txs           []byte `json:"txs"`
-	RemovedBitSet []byte `json:"removedBitSet"`
-	Nonce         uint64 `json:"nonce"`
-
-	sTxs []*chain.Transaction
-	bs   *bitset.BitSet
-}
-
 type CrossRollupBundle struct {
 	BundleHash        string              `json:"bundleHash"`
 	Txs               []byte              `json:"txs"` // a seq seqMsgTx
@@ -70,13 +48,11 @@ type ArcadiaChunk struct {
 }
 
 type ArcadiaToSEQChunkMessage struct {
-	ChunkID          ids.ID `json:"chunkID"`
-	Epoch            uint64 `json:"epoch"`
-	BuilderSignature []byte `json:"builderSignature"` // builder signs over [epochNumber, chunkID]
-	// ToBChunk         *ArcadiaToBChunk `json:"toBChunk,omitempty"`
-	// RoBChunk         *ArcadiaRoBChunk `json:"roBChunk,omitempty"`
-	Chunk         *ArcadiaChunk `json:"chunk"`
-	RemovedBitSet []byte        `json:"removedBitSet"`
+	ChunkID          ids.ID        `json:"chunkID"`
+	Epoch            uint64        `json:"epoch"`
+	BuilderSignature []byte        `json:"builderSignature"` // builder signs over [epochNumber, chunkID]
+	Chunk            *ArcadiaChunk `json:"chunk"`
+	RemovedBitSet    []byte        `json:"removedBitSet"`
 
 	sTxs          []*chain.Transaction
 	removedBitSet bitset.BitSet
@@ -94,7 +70,7 @@ type ArcadiaBlockPayload struct {
 }
 
 type GetBlockPayloadFromArcadia struct {
-	MaxBandwidth uint64 `json:"maxBandwidth"`
+	MaxBandwidth uint64 `json:"maxBandwidth"` // TODO: remove this field?
 	BlockNumber  uint64 `json:"blockNumber"`
 }
 

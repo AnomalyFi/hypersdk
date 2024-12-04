@@ -316,7 +316,6 @@ func (cli *Arcadia) HandleRollupChunks(chunk *ArcadiaToSEQChunkMessage) error {
 	// santiy checks passed, signature verificaton passed -> Chunk belongs to the current epoch and is signed by the correct builder.
 	// we still need to check, if ChunkID is valid.
 
-	// var jobBackLog int
 	var txs []*chain.Transaction
 	if chunk.Chunk.ToB != nil {
 		// validate ToB chunk.
