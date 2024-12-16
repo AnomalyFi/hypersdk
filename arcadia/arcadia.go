@@ -3,6 +3,7 @@ package arcadia
 import (
 	"bytes"
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -318,15 +319,15 @@ func (cli *Arcadia) HandleRollupChunks(chunk *ArcadiaToSEQChunkMessage) error {
 	}
 
 	// signature verification.
-	// msg := binary.BigEndian.AppendUint64(nil, chunk.Epoch)
-	// msg = append(msg, chunk.ChunkID[:]...)
-	// builderSig, err := bls.SignatureFromBytes(chunk.BuilderSignature)
-	// if err != nil {
-	// 	return fmt.Errorf("failed to parse builder signature: %w", err)
-	// }
-	// if !bls.Verify(msg, cli.currEpochBuilderPubKey, builderSig) {
-	// 	return fmt.Errorf("wrong builder signature")
-	// }
+	msg := binary.BigEndian.AppendUint64(nil, chunk.Epoch)
+	msg = append(msg, chunk.ChunkID[:]...)
+	builderSig, err := bls.SignatureFromBytes(chunk.BuilderSignature)
+	if err != nil {
+		return fmt.Errorf("failed to parse builder signature: %w", err)
+	}
+	if !bls.Verify(msg, cli.currEpochBuilderPubKey, builderSig) {
+		return fmt.Errorf("wrong builder signature")
+	}
 
 	// santiy checks passed, signature verificaton passed -> Chunk belongs to the current epoch and is signed by the correct builder.
 	// we still need to check, if ChunkID is valid.
