@@ -63,10 +63,6 @@ func (chunk *ArcadiaToSEQChunkMessage) ID() ids.ID {
 	return chunk.ChunkID
 }
 
-// func (rob *ArcadiaRoBChunk) Transactions() []*chain.Transaction {
-// 	return rob.sTxs
-// }
-
 func (b *CrossRollupBundle) Initialize(actionReg chain.ActionRegistry, authReg chain.AuthRegistry) error {
 	_, seqTxs, err := chain.UnmarshalTxs(b.Txs, 1, actionReg, authReg)
 	if err != nil {

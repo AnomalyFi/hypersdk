@@ -292,8 +292,9 @@ func (vm *VM) updateRollupRegistryAndGetBuilderPubKey(ctx context.Context, b *ch
 	registryBytes, err := view.GetValue(ctx, registryKey)
 	if err != nil {
 		if err == database.ErrNotFound {
+			dnss := make([][]byte, 0)
 			vm.Logger().Debug("no rollups registered yet")
-			return nil, nil, nil
+			return &dnss, nil, nil
 		}
 		return nil, nil, err
 	}
@@ -440,6 +441,65 @@ func (vm *VM) AddToArcadiaAuthVerifiedTxs(txs []*chain.Transaction) {
 
 func (vm *VM) IsArcadiaAuthVerifiedTx(txID ids.ID) bool {
 	return vm.arcadiaAuthVerifiedTxs.HasID(txID)
+}
+
+func (vm *VM) ReplaceArcadia(url string) error {
+	ctx := context.Background()
+	vm.arcadia.ShutDown()
+	rollupRegistryKey := actions.RollupRegistryKey()
+	rollupRegistryBytes, err := vm.stateDB.GetValue(ctx, rollupRegistryKey)
+	// ignore database.ErrNotFound, as it is expected registry is empty on genesis and in some instances.
+	if err != nil && err != database.ErrNotFound {
+		return fmt.Errorf("unable to get rollup registry from statedb: %w", err)
+	}
+	var rollupRegistry [][]byte
+	if err == database.ErrNotFound {
+		rollupRegistry = make([][]byte, 0)
+	} else {
+		rollupRegistry, err = actions.UnpackNamespaces(rollupRegistryBytes)
+		if err != nil {
+			return fmt.Errorf("unable to unpack rollup registry: %w", err)
+		}
+	}
+	arcadiaBidKey := actions.ArcadiaBidKey(vm.GetCurrentEpoch())
+	arcadiaBidBytes, err := vm.stateDB.GetValue(ctx, arcadiaBidKey)
+	// ignore database.ErrNotFound, as it is expected bid is empty on genesis and in some instances.
+	if err != nil && err != database.ErrNotFound {
+		return fmt.Errorf("unable to get arcadia bid from statedb: %w", err)
+	}
+	var builderPubKey *bls.PublicKey
+	if arcadiaBidBytes != nil {
+		blderPubKey, err := actions.UnpackBidderPublicKeyFromStateData(arcadiaBidBytes)
+		if err != nil {
+			return fmt.Errorf("unable to unpack arcadia bid: %w", err)
+		}
+		builderPubKey = blderPubKey
+	}
+
+	vm.arcadia = arcadia.NewArcadiaClient(vm.config.GetArcadiaURL(), vm.GetCurrentEpoch(), builderPubKey, &rollupRegistry, vm)
+
+	go func() {
+		if err := vm.arcadia.Subscribe(); err != nil {
+			vm.snowCtx.Log.Error("failed to subscribe to arcadia", zap.Error(err))
+			// wait 2 minutes before retrying.
+			vm.snowCtx.Log.Info("retrying to subscribe to arcadia in 2 minutes")
+			time.Sleep(120 * time.Second)
+			if err := vm.arcadia.Subscribe(); err != nil {
+				vm.snowCtx.Log.Error("failed to subscribe to arcadia", zap.Error(err))
+				// wait 3 more minutes before retrying.
+				vm.snowCtx.Log.Info("retrying to subscribe to arcadia in 3 minutes x2")
+				time.Sleep(180 * time.Second)
+				if err := vm.arcadia.Subscribe(); err != nil {
+					vm.snowCtx.Log.Error("failed to subscribe to arcadia", zap.Error(err))
+					return
+				}
+			}
+		}
+		vm.snowCtx.Log.Info("subscribed to arcadia")
+		go vm.arcadia.Run()
+	}()
+
+	return nil
 }
 
 func (vm *VM) IsValidator(ctx context.Context, nid ids.NodeID) (bool, error) {

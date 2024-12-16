@@ -4,6 +4,7 @@
 package utils
 
 import (
+	"encoding/binary"
 	"fmt"
 	"math"
 	"net"
@@ -116,4 +117,14 @@ func LoadBytes(filename string, expectedSize int) ([]byte, error) {
 		return nil, ErrInvalidSize
 	}
 	return bytes, nil
+}
+
+// Derive uint64 from nodeID
+// use uint64 to derive port.
+func GetPortFromNodeID(nodeID ids.NodeID) string {
+	nb := nodeID.Bytes()
+	np := binary.BigEndian.Uint32(nb[16:])
+	ps := strconv.FormatUint(uint64(uint16(np)), 10)
+	port := ":" + ps
+	return port
 }

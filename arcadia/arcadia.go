@@ -2,7 +2,7 @@ package arcadia
 
 import (
 	"bytes"
-	"encoding/binary"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -318,15 +318,15 @@ func (cli *Arcadia) HandleRollupChunks(chunk *ArcadiaToSEQChunkMessage) error {
 	}
 
 	// signature verification.
-	msg := binary.BigEndian.AppendUint64(nil, chunk.Epoch)
-	msg = append(msg, chunk.ChunkID[:]...)
-	builderSig, err := bls.SignatureFromBytes(chunk.BuilderSignature)
-	if err != nil {
-		return fmt.Errorf("failed to parse builder signature: %w", err)
-	}
-	if !bls.Verify(msg, cli.currEpochBuilderPubKey, builderSig) {
-		return fmt.Errorf("wrong builder signature")
-	}
+	// msg := binary.BigEndian.AppendUint64(nil, chunk.Epoch)
+	// msg = append(msg, chunk.ChunkID[:]...)
+	// builderSig, err := bls.SignatureFromBytes(chunk.BuilderSignature)
+	// if err != nil {
+	// 	return fmt.Errorf("failed to parse builder signature: %w", err)
+	// }
+	// if !bls.Verify(msg, cli.currEpochBuilderPubKey, builderSig) {
+	// 	return fmt.Errorf("wrong builder signature")
+	// }
 
 	// santiy checks passed, signature verificaton passed -> Chunk belongs to the current epoch and is signed by the correct builder.
 	// we still need to check, if ChunkID is valid.
@@ -370,6 +370,9 @@ func (cli *Arcadia) HandleRollupChunks(chunk *ArcadiaToSEQChunkMessage) error {
 			}
 			if err := tx.Base.ArcadiaExecute(cli.vm.ChainID(), cli.vm.Rules(currTime), currTime); err != nil {
 				return fmt.Errorf("tx execution failed: %w, txID: %s", err, tx.ID().String())
+			}
+			if chunk.Chunk.RoB.ChainID != string(tx.Actions[0].NMTNamespace()) {
+				return fmt.Errorf("namespace of tx not equal to namespace of chunk. tx namespace: %s, chunk namespace: %s", tx.Actions[0].NMTNamespace(), chunk.Chunk.RoB.ChainID)
 			}
 			if !cli.isValidNamespaceForEpoch(tx.Actions[0].NMTNamespace()) {
 				return fmt.Errorf("unregistered rollup namespace %s found in action for epoch %d", hexutil.Encode(tx.Actions[0].NMTNamespace()), chunk.Epoch)
@@ -519,7 +522,8 @@ func verifyChunkID(chunkID ids.ID, chunk *ArcadiaChunk) (bool, error) {
 		}
 		payload = pd
 	}
-	chunkIDc := utils.ToID(payload)
+	payloadHash := sha256.Sum256(payload)
+	chunkIDc := utils.ToID(payloadHash[:])
 	if chunkIDc != chunkID {
 		return false, fmt.Errorf("chunk id mismatch. received: %s, computed: %s", chunkID, chunkIDc)
 	}

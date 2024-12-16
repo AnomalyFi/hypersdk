@@ -41,8 +41,8 @@ type RoBChunk struct {
 }
 
 type ArcadiaChunk struct {
-	ToB *ToBChunk `json:"tob"`
-	RoB *RoBChunk `json:"rob"`
+	ToB *ToBChunk `json:"tob,omitempty"`
+	RoB *RoBChunk `json:"rob,omitempty"`
 
 	ToBNonce uint64 `json:"tobnonce"`
 }

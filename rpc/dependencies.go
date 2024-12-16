@@ -43,4 +43,5 @@ type VM interface {
 	GetDiskBlockResults(ctx context.Context, height uint64) ([]*chain.Result, error)
 	GetDiskFeeManager(ctx context.Context, height uint64) ([]byte, error)
 	GetVerifyAuth() bool
+	ReplaceArcadia(string) error
 }
