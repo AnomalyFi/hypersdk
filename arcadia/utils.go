@@ -81,16 +81,6 @@ func (b *CrossRollupBundle) Initialize(actionReg chain.ActionRegistry, authReg c
 	return nil
 }
 
-func isContainsInMapping(sarr []string, m map[string]uint64) bool {
-	for _, s := range sarr {
-		_, ok := m[s]
-		if !ok {
-			return false
-		}
-	}
-	return true
-}
-
 func replaceHTTPWithWS(url string) string {
 	if strings.HasPrefix(url, "http://") {
 		return "ws://" + strings.TrimPrefix(url, "http://")

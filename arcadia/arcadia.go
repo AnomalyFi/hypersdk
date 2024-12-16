@@ -47,6 +47,10 @@ type Arcadia struct {
 
 	processedChunks *emap.EMap[*ArcadiaToSEQChunkMessage]
 	rejectedChunks  *emap.EMap[*ArcadiaToSEQChunkMessage]
+
+	conn       *websocket.Conn
+	stopCalled bool
+	stop       chan struct{}
 }
 
 const (
@@ -71,6 +75,7 @@ func NewArcadiaClient(url string, currEpoch uint64, currEpochBuilderPubKey *bls.
 		epochUpdatechan:        make(chan *EpochUpdateInfo),
 		processedChunks:        emap.NewEMap[*ArcadiaToSEQChunkMessage](),
 		rejectedChunks:         emap.NewEMap[*ArcadiaToSEQChunkMessage](),
+		stop:                   make(chan struct{}),
 	}
 
 	// update epoch on arcadia, when changes.
@@ -84,6 +89,9 @@ func NewArcadiaClient(url string, currEpoch uint64, currEpochBuilderPubKey *bls.
 				cli.AvailableNamespaces = newEpochInfo.AvailableNamespaces
 				cli.processedChunks.SetMin(int64(cli.currEpoch))
 				cli.rejectedChunks.SetMin(int64(cli.currEpoch))
+			case <-cli.stop:
+				cli.vm.Logger().Info("shutitng down epoch update core")
+				return
 			case <-cli.vm.StopChan():
 				return
 			}
@@ -178,7 +186,8 @@ func (cli *Arcadia) Subscribe() error {
 	}
 
 	// Authentication successful. Now listen for rollup chunks from arcadia.
-
+	cli.conn = conn
+	// @todo handle the changes with retry for connection lost.
 	// Listen for rollup block chunks from arcadia.
 	go func() {
 		for {
@@ -191,7 +200,7 @@ func (cli *Arcadia) Subscribe() error {
 					// Attempt reconnect to arcadia.
 					go cli.Reconnect()
 					// Exit the current loop if connection is closed.
-					break
+					return
 				}
 				cli.vm.Logger().Error("Failed to read chunk from arcadia", zap.Error(err))
 				continue
@@ -237,6 +246,9 @@ func (cli *Arcadia) Run() {
 					cli.vm.RecordChunksAccepted()
 					cli.processedChunks.Add([]*ArcadiaToSEQChunkMessage{chunk})
 					cli.issuePreconf <- chunk
+				case <-cli.stop:
+					cli.vm.Logger().Info("shutting down chunk processing cores")
+					return nil
 				case <-cli.vm.StopChan():
 					return nil
 				}
@@ -255,6 +267,9 @@ func (cli *Arcadia) Run() {
 						cli.vm.Logger().Error("preconf issue failed", zap.String("chunk id", chunk.ChunkID.String()), zap.Error(err))
 					}
 					cli.vm.Logger().Info("preconf issued", zap.String("chunk id", chunk.ChunkID.String()))
+				case <-cli.stop:
+					cli.vm.Logger().Info("shutting down preconf issue cores")
+					return nil
 				case <-cli.vm.StopChan():
 					return nil
 				}
@@ -407,7 +422,6 @@ func (cli *Arcadia) IssuePreconfs(chunk *ArcadiaToSEQChunkMessage) error {
 
 	pubKey := cli.validatorPublicKey.Compress()
 	msg := append([]byte{}, chunk.ChunkID[:]...)
-	msg = append(msg, pubKey...)
 	// Validator signs the message.
 	uwm, err := warp.NewUnsignedMessage(cli.vm.NetworkID(), cli.vm.ChainID(), msg)
 	if err != nil {

@@ -15,6 +15,10 @@ func (cli *Arcadia) CurrEpochNameSpaces() *[][]byte {
 }
 
 func (cli *Arcadia) Reconnect() {
+	if cli.stopCalled {
+		cli.vm.Logger().Info("not attempting reconnect as shutdown is called on arcadia")
+		return
+	}
 	cli.vm.Logger().Info("reconnecting to arcadia")
 	if err := cli.Subscribe(); err != nil {
 		cli.vm.Logger().Error("failed to resubscribe to arcadia", zap.Error(err))
@@ -33,4 +37,10 @@ func (cli *Arcadia) Reconnect() {
 		}
 	}
 	cli.vm.Logger().Info("resubscribed to arcadia")
+}
+
+func (cli *Arcadia) ShutDown() {
+	cli.stopCalled = true
+	cli.conn.Close()
+	close(cli.stop)
 }
