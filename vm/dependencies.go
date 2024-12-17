@@ -17,6 +17,7 @@ import (
 	"github.com/AnomalyFi/hypersdk/chain"
 	"github.com/AnomalyFi/hypersdk/codec"
 	"github.com/AnomalyFi/hypersdk/gossiper"
+	"github.com/AnomalyFi/hypersdk/rpc"
 	"github.com/AnomalyFi/hypersdk/state"
 	"github.com/AnomalyFi/hypersdk/trace"
 
@@ -61,6 +62,7 @@ type Config interface {
 	GetETHL1RPC() string
 	GetETHL1WS() string
 	GetArcadiaURL() string
+	GetValServerConfig() *rpc.JSONRPCValServerConfig
 }
 
 type Genesis interface {

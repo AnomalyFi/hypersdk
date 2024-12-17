@@ -9,6 +9,12 @@ import (
 	"github.com/gorilla/rpc/json"
 )
 
+type JSONRPCValServerConfig struct {
+	// when DerivePort is true, derive the port from nodeID, otherwise use specified
+	DerivePort bool `json:"derivePort"`
+	Port       int  `json:"port"`
+}
+
 var valSerName = "val"
 
 type JSONRPCValServer struct {

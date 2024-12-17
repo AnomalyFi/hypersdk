@@ -505,10 +505,20 @@ func (vm *VM) Initialize(
 	webSocketServer, pubsubServer := rpc.NewWebSocketServer(vm, vm.config.GetStreamingBacklogSize())
 	vm.webSocketServer = webSocketServer
 
+	valServerCfg := vm.config.GetValServerConfig()
+	var valPort int
+	if valServerCfg.DerivePort {
+		valPort = utils.GetPortFromNodeID(snowCtx.NodeID)
+	} else {
+		if valServerCfg.Port < utils.MinPort || valServerCfg.Port > utils.MaxPort {
+			return fmt.Errorf("invalid port provided: %d", valServerCfg.Port)
+		}
+		valPort = valServerCfg.Port
+	}
+
 	go func(v *VM) {
 		valServer := rpc.NewJSONRPCValServer(v)
-		valPort := utils.GetPortFromNodeID(snowCtx.NodeID)
-		valServer.Serve(valPort)
+		valServer.Serve(fmt.Sprintf(":%d", valPort))
 	}(vm)
 	vm.handlers[rpc.WebSocketEndpoint] = pubsubServer
 	return nil

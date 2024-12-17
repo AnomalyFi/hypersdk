@@ -12,6 +12,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/units"
 
 	"github.com/AnomalyFi/hypersdk/codec"
+	"github.com/AnomalyFi/hypersdk/rpc"
 	"github.com/AnomalyFi/hypersdk/trace"
 )
 
@@ -56,3 +57,8 @@ func (c *Config) GetBlockCompactionFrequency() int       { return 32 } // 64 MB 
 func (c *Config) GetETHL1RPC() string                    { return "http://localhost:8545" }
 func (c *Config) GetETHL1WS() string                     { return "ws://localhost:8546" }
 func (c *Config) GetArcadiaURL() string                  { return "" }
+func (c *Config) GetValServerConfig() *rpc.JSONRPCValServerConfig {
+	return &rpc.JSONRPCValServerConfig{
+		DerivePort: true,
+	}
+}
