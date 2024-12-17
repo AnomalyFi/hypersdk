@@ -24,7 +24,7 @@ func (j *JSONRPCValServer) Serve(port string) {
 	s.RegisterCodec(json.NewCodec(), "application/json")
 	s.RegisterCodec(codec, "application/json;charset=UTF-8")
 
-	s.RegisterService(new(JSONRPCValServer), valSerName)
+	s.RegisterService(j, valSerName)
 	r := mux.NewRouter()
 	r.Handle("/", s)
 	http.ListenAndServe(port, r)
@@ -34,16 +34,16 @@ type UpdateArcadiaURLArgs struct {
 	Url string `json:"url"`
 }
 
-func (j *JSONRPCValServer) Ping(_ *http.Request, _ *struct{}, reply *PingReply) (err error) {
+func (j *JSONRPCValServer) Ping(_ *http.Request, _ *struct{}, reply *PingReply) error {
 	reply.Success = true
 	return nil
 }
 
 func (j *JSONRPCValServer) UpdateArcadiaURL(_ *http.Request, args *UpdateArcadiaURLArgs, _ *struct{}) error {
-	j.vm.ReplaceArcadia(args.Url)
-	return nil
+	return j.vm.ReplaceArcadia(args.Url)
 }
 
+// SetMempoolExemptSponsors is mocked for now. Revist after hypersdk upgrade.
 func (j *JSONRPCValServer) SetMempoolExemptSponsors(_ *http.Request, _ *struct{}, _ *struct{}) error {
 	return nil
 }

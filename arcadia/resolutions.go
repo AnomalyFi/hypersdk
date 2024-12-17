@@ -41,6 +41,8 @@ func (cli *Arcadia) Reconnect() {
 
 func (cli *Arcadia) ShutDown() {
 	cli.stopCalled = true
-	cli.conn.Close()
+	if cli.isConnected {
+		cli.conn.Close()
+	}
 	close(cli.stop)
 }

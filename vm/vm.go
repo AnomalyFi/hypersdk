@@ -505,9 +505,11 @@ func (vm *VM) Initialize(
 	webSocketServer, pubsubServer := rpc.NewWebSocketServer(vm, vm.config.GetStreamingBacklogSize())
 	vm.webSocketServer = webSocketServer
 
-	valServer := rpc.NewJSONRPCValServer(vm)
-	valPort := utils.GetPortFromNodeID(snowCtx.NodeID)
-	go valServer.Serve(valPort)
+	go func(v *VM) {
+		valServer := rpc.NewJSONRPCValServer(v)
+		valPort := utils.GetPortFromNodeID(snowCtx.NodeID)
+		valServer.Serve(valPort)
+	}(vm)
 	vm.handlers[rpc.WebSocketEndpoint] = pubsubServer
 	return nil
 }

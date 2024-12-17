@@ -49,9 +49,10 @@ type Arcadia struct {
 	processedChunks *emap.EMap[*ArcadiaToSEQChunkMessage]
 	rejectedChunks  *emap.EMap[*ArcadiaToSEQChunkMessage]
 
-	conn       *websocket.Conn
-	stopCalled bool
-	stop       chan struct{}
+	conn        *websocket.Conn
+	isConnected bool
+	stopCalled  bool
+	stop        chan struct{}
 }
 
 const (
@@ -188,6 +189,7 @@ func (cli *Arcadia) Subscribe() error {
 
 	// Authentication successful. Now listen for rollup chunks from arcadia.
 	cli.conn = conn
+	cli.isConnected = true
 	// @todo handle the changes with retry for connection lost.
 	// Listen for rollup block chunks from arcadia.
 	go func() {
@@ -199,6 +201,7 @@ func (cli *Arcadia) Subscribe() error {
 				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) || strings.Contains(err.Error(), "close 1006") {
 					cli.vm.Logger().Error("WebSocket connection closed", zap.Error(err))
 					// Attempt reconnect to arcadia.
+					cli.isConnected = false
 					go cli.Reconnect()
 					// Exit the current loop if connection is closed.
 					return

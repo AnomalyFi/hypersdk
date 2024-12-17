@@ -475,8 +475,7 @@ func (vm *VM) ReplaceArcadia(url string) error {
 		}
 		builderPubKey = blderPubKey
 	}
-
-	vm.arcadia = arcadia.NewArcadiaClient(vm.config.GetArcadiaURL(), vm.GetCurrentEpoch(), builderPubKey, &rollupRegistry, vm)
+	vm.arcadia = arcadia.NewArcadiaClient(url, vm.GetCurrentEpoch(), builderPubKey, &rollupRegistry, vm)
 
 	go func() {
 		if err := vm.arcadia.Subscribe(); err != nil {
