@@ -32,16 +32,11 @@ func (a *RollupInfo) Size() int {
 	return 2*codec.AddressLen + codec.BytesLen(a.Namespace) + codec.BytesLen(a.SequencerPublicKey)
 }
 
-func (a *RollupInfo) Marshal(p *codec.Packer) error {
+func (a *RollupInfo) Marshal(p *codec.Packer) {
 	p.PackBytes(a.Namespace)
 	p.PackAddress(a.FeeRecipient)
 	p.PackAddress(a.AuthoritySEQAddress)
 	p.PackBytes(a.SequencerPublicKey)
-	if err := p.Err(); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func UnmarshalRollupInfo(p *codec.Packer) (*RollupInfo, error) {
@@ -69,13 +64,12 @@ type EpochExitInfo struct {
 	Exits []*EpochInfo `json:"exits"`
 }
 
-func (e *EpochExitInfo) Marshal(p *codec.Packer) error {
+func (e *EpochExitInfo) Marshal(p *codec.Packer) {
 	p.PackInt(len(e.Exits))
 	for _, exit := range e.Exits {
 		p.PackBytes(exit.Namespace)
 		p.PackUint64(exit.Epoch)
 	}
-	return p.Err()
 }
 
 func UnmarshalEpochExitsInfo(p *codec.Packer) (*EpochExitInfo, error) {
@@ -110,15 +104,9 @@ func (a *EpochInfo) Size() int {
 	return consts.Uint64Len + codec.BytesLen(a.Namespace)
 }
 
-func (a *EpochInfo) Marshal(p *codec.Packer) error {
+func (a *EpochInfo) Marshal(p *codec.Packer) {
 	p.PackBytes(a.Namespace)
 	p.PackUint64(a.Epoch)
-
-	if err := p.Err(); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func UnmarshalEpochInfo(p *codec.Packer) (*EpochInfo, error) {
