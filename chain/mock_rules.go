@@ -86,6 +86,20 @@ func (mr *MockRulesMockRecorder) GetBaseComputeUnits() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBaseComputeUnits", reflect.TypeOf((*MockRules)(nil).GetBaseComputeUnits))
 }
 
+// GetEpochLength mocks base method.
+func (m *MockRules) GetEpochLength() int64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetEpochLength")
+	ret0, _ := ret[0].(int64)
+	return ret0
+}
+
+// GetEpochLength indicates an expected call of GetEpochLength.
+func (mr *MockRulesMockRecorder) GetEpochLength() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEpochLength", reflect.TypeOf((*MockRules)(nil).GetEpochLength))
+}
+
 // GetFeeMarketMinUnitPrice mocks base method.
 func (m *MockRules) GetFeeMarketMinUnitPrice() uint64 {
 	m.ctrl.T.Helper()

@@ -1,10 +1,11 @@
 package arcadia
 
 import (
-	"github.com/AnomalyFi/hypersdk/chain"
-	"github.com/AnomalyFi/hypersdk/crypto/bls"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/bits-and-blooms/bitset"
+
+	"github.com/AnomalyFi/hypersdk/chain"
+	"github.com/AnomalyFi/hypersdk/crypto/bls"
 )
 
 type EpochUpdateInfo struct {
@@ -31,7 +32,7 @@ type ToBChunk struct {
 	Bundles               []*CrossRollupBundle `json:"bundles"`
 	RollupIDToBlockNumber map[string]uint64    `json:"blockNumber"`
 
-	rollupIDs []string
+	// rollupIDs []string
 }
 
 type RoBChunk struct {

@@ -5,10 +5,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/AnomalyFi/hypersdk/chain"
-	"github.com/AnomalyFi/hypersdk/emap"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/bits-and-blooms/bitset"
+
+	"github.com/AnomalyFi/hypersdk/chain"
+	"github.com/AnomalyFi/hypersdk/emap"
 )
 
 var _ emap.Item = (*ArcadiaToSEQChunkMessage)(nil)
@@ -28,7 +29,10 @@ func (chunk *ArcadiaToSEQChunkMessage) Initialize(parser chain.Parser) error {
 		}
 		bs := bitset.New(uint(len(chunk.sTxs)))
 		buf := bytes.NewBuffer(chunk.RemovedBitSet)
-		bs.ReadFrom(buf)
+		_, err := bs.ReadFrom(buf)
+		if err != nil {
+			return err
+		}
 		chunk.removedBitSet = *bs
 		return nil
 	}
@@ -39,7 +43,7 @@ func (chunk *ArcadiaToSEQChunkMessage) Initialize(parser chain.Parser) error {
 				return err
 			}
 			if len(stx) == 0 {
-				return fmt.Errorf("no txs found in rob chunk tx")
+				return ErrNoTxsInRoB
 			}
 			if len(stx) != 1 {
 				return fmt.Errorf("expected 1 tx per rob chunk tx, got %d", len(stx))
@@ -49,7 +53,10 @@ func (chunk *ArcadiaToSEQChunkMessage) Initialize(parser chain.Parser) error {
 		}
 		bs := bitset.New(uint(len(chunk.sTxs)))
 		buf := bytes.NewBuffer(chunk.RemovedBitSet)
-		bs.ReadFrom(buf)
+		_, err := bs.ReadFrom(buf)
+		if err != nil {
+			return err
+		}
 		chunk.removedBitSet = *bs
 	}
 	return nil

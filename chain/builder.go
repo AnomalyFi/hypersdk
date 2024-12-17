@@ -160,8 +160,8 @@ func BuildBlock(
 	// Batch fetch items from mempool to unblock incoming RPC/Gossip traffic
 	b.Txs = []*Transaction{}
 
-	actx, cancel := context.WithTimeout(ctx, 500*time.Millisecond) // make a const or configurable
 	if vm.IsArcadiaConfigured() {
+		actx, cancel := context.WithTimeout(ctx, 500*time.Millisecond) // make a const or configurable
 		defer cancel()
 		lbwUnits := maxUnits[fees.Bandwidth] - 50*units.KiB
 		txs, err := GetArcadiaTxs(actx, vm, r, lbwUnits, nextHght)
@@ -178,6 +178,7 @@ func BuildBlock(
 			statekeys, err := tx.StateKeys(sm)
 			if err != nil {
 				vm.Logger().Error("unable to get statekeys of tx", zap.Error(err))
+				executeSpan.End()
 				goto skipArcadia
 			}
 			for k, perm := range statekeys {
@@ -212,6 +213,7 @@ func BuildBlock(
 					continue
 				} else if err != nil {
 					vm.Logger().Error("unable to get key", zap.String("key", k), zap.Error(err))
+					executeSpan.End()
 					goto skipArcadia
 				}
 				// We verify that the [NumChunks] is already less than the number
@@ -219,6 +221,7 @@ func BuildBlock(
 				numChunks, ok := keys.NumChunks(v)
 				if !ok {
 					vm.Logger().Error("unable to calculate num of chunks for k", zap.String("key", k))
+					executeSpan.End()
 					goto skipArcadia
 				}
 				toCache[k] = &fetchData{v, true, numChunks}
@@ -637,9 +640,9 @@ skipArcadia:
 }
 
 func GetArcadiaTxs(
-	ctx context.Context,
+	_ context.Context,
 	vm VM,
-	rules Rules,
+	_ Rules,
 	maxBw uint64,
 	blocknumber uint64,
 ) ([]*Transaction, error) {

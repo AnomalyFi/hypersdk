@@ -67,6 +67,7 @@ func (b *Base) ArcadiaExecute(chainID ids.ID, r Rules, timestamp int64) error {
 		return nil
 	}
 }
+
 func (*Base) Size() int {
 	return BaseSize
 }

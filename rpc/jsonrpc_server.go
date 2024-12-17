@@ -4,7 +4,6 @@
 package rpc
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -169,7 +168,8 @@ type NextProposerReply struct {
 
 // NextProposer returns the proposer at the given height.
 func (j *JSONRPCServer) NextProposer(req *http.Request, args *NextProposerArgs, reply *Validator) error {
-	ctx := context.TODO()
+	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.NextProposer")
+	defer span.End()
 	validators, _ := j.vm.CurrentValidators(ctx)
 	nextProposer, err := j.vm.ProposerAtHeight(ctx, args.Height)
 	if err != nil {
@@ -178,7 +178,7 @@ func (j *JSONRPCServer) NextProposer(req *http.Request, args *NextProposerArgs, 
 
 	if _, ok := validators[nextProposer]; !ok {
 		j.vm.Logger().Debug("validator set not containing proposer")
-		return fmt.Errorf("validator set not containing proposer")
+		return ErrValSetNot
 	}
 
 	reply.NodeID = nextProposer
@@ -195,7 +195,8 @@ type GetCurrentValidatorsReply struct {
 }
 
 func (j *JSONRPCServer) GetCurrentValidators(req *http.Request, _ *struct{}, reply *GetCurrentValidatorsReply) error {
-	ctx := context.TODO()
+	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.GetCurrentValidators")
+	defer span.End()
 	validators, _ := j.vm.CurrentValidators(ctx)
 
 	wValidators := make([]*Validator, 0, len(validators))
@@ -221,14 +222,15 @@ type GetProposerReply struct {
 }
 
 func (j *JSONRPCServer) GetProposer(req *http.Request, args *GetProposerArgs, reply *GetProposerReply) error {
-	ctx := context.TODO()
+	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.GetProposer")
+	defer span.End()
 	proposers, err := j.vm.Proposers(ctx, args.Diff, args.Depth)
 	if err != nil {
 		return err
 	}
 
 	for proposer := range proposers {
-		reply.NodeIDs = append(reply.NodeIDs, &proposer)
+		reply.NodeIDs = append(reply.NodeIDs, &proposer) //nolint:exportloopref
 	}
 
 	return nil

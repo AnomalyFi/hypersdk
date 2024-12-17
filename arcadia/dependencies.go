@@ -4,12 +4,13 @@ import (
 	"context"
 	"time"
 
-	"github.com/AnomalyFi/hypersdk/chain"
-	"github.com/AnomalyFi/hypersdk/crypto/bls"
-	"github.com/AnomalyFi/hypersdk/workers"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
+
+	"github.com/AnomalyFi/hypersdk/chain"
+	"github.com/AnomalyFi/hypersdk/crypto/bls"
+	"github.com/AnomalyFi/hypersdk/workers"
 )
 
 type VM interface {

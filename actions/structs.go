@@ -1,10 +1,11 @@
 package actions
 
 import (
+	"github.com/ava-labs/avalanchego/ids"
+
 	"github.com/AnomalyFi/hypersdk/codec"
 	"github.com/AnomalyFi/hypersdk/consts"
 	"github.com/AnomalyFi/hypersdk/utils"
-	"github.com/ava-labs/avalanchego/ids"
 )
 
 type RollupInfo struct {
@@ -14,17 +15,17 @@ type RollupInfo struct {
 	SequencerPublicKey  []byte        `json:"sequencerPublicKey"`
 }
 
-func NewRollupInfo(namespace []byte, feeRecipient codec.Address, authoritySEQAddress codec.Address, SequencerPublicKey []byte) *RollupInfo {
+func NewRollupInfo(namespace []byte, feeRecipient codec.Address, authoritySEQAddress codec.Address, sequencerPublicKey []byte) *RollupInfo {
 	return &RollupInfo{
 		FeeRecipient:        feeRecipient,
 		Namespace:           namespace,
 		AuthoritySEQAddress: authoritySEQAddress,
-		SequencerPublicKey:  SequencerPublicKey,
+		SequencerPublicKey:  sequencerPublicKey,
 	}
 }
 
 func (a *RollupInfo) ID() ids.ID {
-	return utils.ToID([]byte(a.Namespace))
+	return utils.ToID(a.Namespace)
 }
 
 func (a *RollupInfo) Size() int {
@@ -102,7 +103,7 @@ func NewEpochInfo(namespace []byte, epoch uint64) *EpochInfo {
 }
 
 func (a *EpochInfo) ID() ids.ID {
-	return utils.ToID([]byte(a.Namespace))
+	return utils.ToID(a.Namespace)
 }
 
 func (a *EpochInfo) Size() int {

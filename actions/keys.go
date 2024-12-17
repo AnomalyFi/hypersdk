@@ -23,7 +23,7 @@ func RollupRegistryKey() []byte {
 func RollupInfoKey(namespace []byte) []byte {
 	k := make([]byte, 1+len(namespace)+consts.Uint16Len)
 	k[0] = RollupInfoPrefix
-	copy(k[1:], namespace[:])
+	copy(k[1:], namespace)
 	binary.BigEndian.PutUint16(k[1+len(namespace):], RollupInfoChunks)
 	return k
 }

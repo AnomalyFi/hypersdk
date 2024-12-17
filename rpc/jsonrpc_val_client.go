@@ -2,11 +2,13 @@ package rpc
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
+	"time"
 )
 
 type JSONRPCRequest struct {
@@ -29,7 +31,8 @@ type JSONRPCError struct {
 }
 
 // sendJSONRPCRequest sends a JSON-RPC request and returns the response or an error
-func sendJSONRPCRequest(url string, method string, params interface{}, id int) (*JSONRPCResponse, error) {
+func sendJSONRPCRequest(url string, method string, params interface{}, id int) (*JSONRPCResponse, error) { //nolint:unparam
+	var client http.Client
 	// Create the JSON-RPC request object
 	requestBody := JSONRPCRequest{
 		JSONRPC: "2.0",
@@ -44,15 +47,23 @@ func sendJSONRPCRequest(url string, method string, params interface{}, id int) (
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	// Send the HTTP POST request
-	resp, err := http.Post(url, "application/json", bytes.NewBuffer(requestBytes))
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(requestBytes))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	// Read and parse the response
-	responseBytes, err := ioutil.ReadAll(resp.Body)
+	responseBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
@@ -82,6 +93,6 @@ func (cli *JSONRPCValClient) Ping() (bool, error) {
 }
 
 func (cli *JSONRPCValClient) UpdateArcadiaURL(url string) error {
-	_, err := sendJSONRPCRequest(cli.uri, fmt.Sprintf("%s.%s", valSerName, "UpdateArcadiaURL"), []interface{}{UpdateArcadiaURLArgs{Url: url}}, 1)
+	_, err := sendJSONRPCRequest(cli.uri, fmt.Sprintf("%s.%s", valSerName, "UpdateArcadiaURL"), []interface{}{UpdateArcadiaURLArgs{URL: url}}, 1)
 	return err
 }

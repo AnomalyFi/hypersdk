@@ -3,8 +3,9 @@ package arcadia
 import (
 	"sync"
 
-	"github.com/AnomalyFi/hypersdk/actions"
 	"github.com/ava-labs/avalanchego/ids"
+
+	"github.com/AnomalyFi/hypersdk/actions"
 )
 
 type RollupRegistry struct {

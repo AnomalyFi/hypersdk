@@ -2,6 +2,7 @@ package arcadia
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/json"
@@ -11,17 +12,19 @@ import (
 	"strings"
 	"time"
 
-	hactions "github.com/AnomalyFi/hypersdk/actions"
-	"github.com/AnomalyFi/hypersdk/chain"
-	"github.com/AnomalyFi/hypersdk/crypto/bls"
-	"github.com/AnomalyFi/hypersdk/emap"
-	"github.com/AnomalyFi/hypersdk/utils"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/AnomalyFi/hypersdk/chain"
+	"github.com/AnomalyFi/hypersdk/crypto/bls"
+	"github.com/AnomalyFi/hypersdk/emap"
+	"github.com/AnomalyFi/hypersdk/utils"
+
+	hactions "github.com/AnomalyFi/hypersdk/actions"
 )
 
 // This package contains code objects to:
@@ -109,16 +112,23 @@ func (cli *Arcadia) Ping() error {
 
 	url := cli.URL + pingPath
 
-	resp, err := client.Get(url)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
 	if err != nil {
 		return err
 	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusOK {
 		errMsg := new(httpErrorResp)
 		if err := json.Unmarshal(bodyBytes, errMsg); err != nil {
 			return fmt.Errorf("unable to parse error message from a bad response: %d", resp.StatusCode)
@@ -137,7 +147,7 @@ func (cli *Arcadia) Ping() error {
 func (cli *Arcadia) Subscribe() error {
 	subscribeURL := cli.URL + pathSubscribeValidator
 	subscribeURL = replaceHTTPWithWS(subscribeURL)
-	conn, _, err := websocket.DefaultDialer.Dial(subscribeURL, nil)
+	conn, _, err := websocket.DefaultDialer.Dial(subscribeURL, nil) //nolint:bodyclose
 	if err != nil {
 		cli.vm.Logger().Error("Failed to connect to WebSocket server", zap.Error(err))
 		return err
@@ -220,7 +230,6 @@ func (cli *Arcadia) Subscribe() error {
 
 // Run starts the arcadia client.
 func (cli *Arcadia) Run() {
-
 	// Run the chunk processing go routines in the configured number of cores.
 	g := &errgroup.Group{}
 	for i := 0; i < cli.vm.GetChunkCores(); i++ {
@@ -306,15 +315,15 @@ func (cli *Arcadia) HandleRollupChunks(chunk *ArcadiaToSEQChunkMessage) error {
 
 	// sanity checks.
 	if chunk.Chunk.ToB != nil && chunk.Chunk.RoB != nil {
-		return fmt.Errorf("received chunk with both ToB and RoB chunks")
+		return ErrChunkWithBothToBAndRoB
 	}
 
 	if chunk.Chunk.ToB == nil && chunk.Chunk.RoB == nil {
-		return fmt.Errorf("received chunk with no ToB or RoB chunks")
+		return ErrChunkWithNoToBAndRoB
 	}
 
 	if len(chunk.sTxs) != int(chunk.removedBitSet.Len()) {
-		return fmt.Errorf("txs and removed bitset length mismatch")
+		return ErrInvalidBitSetLengthMisMatch
 	}
 	// validate chunk id
 	if _, err := verifyChunkID(chunk.ChunkID, chunk.Chunk); err != nil {
@@ -329,7 +338,7 @@ func (cli *Arcadia) HandleRollupChunks(chunk *ArcadiaToSEQChunkMessage) error {
 		return fmt.Errorf("failed to parse builder signature: %w", err)
 	}
 	if !bls.Verify(msg, cli.currEpochBuilderPubKey, builderSig) {
-		return fmt.Errorf("wrong builder signature")
+		return ErrBuilderSignature
 	}
 
 	// santiy checks passed, signature verificaton passed -> Chunk belongs to the current epoch and is signed by the correct builder.
@@ -345,7 +354,7 @@ func (cli *Arcadia) HandleRollupChunks(chunk *ArcadiaToSEQChunkMessage) error {
 			}
 			// tx should have atleast 2 actions defined.
 			if len(tx.Actions) < 2 {
-				return fmt.Errorf("tx with less than 2 actions found in ToB chunk")
+				return ErrLessThanTwoActions
 			}
 			if err := tx.Base.ArcadiaExecute(cli.vm.ChainID(), cli.vm.Rules(currTime), currTime); err != nil {
 				return fmt.Errorf("tx execution failed: %w, txID: %s", err, tx.ID().String())
@@ -357,7 +366,7 @@ func (cli *Arcadia) HandleRollupChunks(chunk *ArcadiaToSEQChunkMessage) error {
 				}
 				// Restrict ToB chunk transactions actions to only Transfer and SequencerMsg actions.
 				if !(action.GetTypeID() == hactions.TransferID || action.GetTypeID() == hactions.MsgID) {
-					return fmt.Errorf("ToB chunk transaction with non-transfer or sequencer action found")
+					return ErrToBChunkWithNonAcceptableActions
 				}
 			}
 			txs = append(txs, tx)
@@ -370,7 +379,7 @@ func (cli *Arcadia) HandleRollupChunks(chunk *ArcadiaToSEQChunkMessage) error {
 				continue
 			}
 			if len(tx.Actions) > 1 {
-				return fmt.Errorf("tx with more than 1 actions found in RoB chunk")
+				return ErrMoreThanOneAction
 			}
 			if err := tx.Base.ArcadiaExecute(cli.vm.ChainID(), cli.vm.Rules(currTime), currTime); err != nil {
 				return fmt.Errorf("tx execution failed: %w, txID: %s", err, tx.ID().String())
@@ -383,7 +392,7 @@ func (cli *Arcadia) HandleRollupChunks(chunk *ArcadiaToSEQChunkMessage) error {
 			}
 			// Restrict RoB chunk transactions actions to only SequencerMsg action?
 			if tx.Actions[0].GetTypeID() != hactions.MsgID {
-				return fmt.Errorf("RoB chunk transaction with non-sequencer action found")
+				return ErrNonSequencerMessage
 			}
 			txs = append(txs, tx)
 		}
@@ -450,18 +459,29 @@ func (cli *Arcadia) IssuePreconfs(chunk *ArcadiaToSEQChunkMessage) error {
 		cli.vm.Logger().Error("failed to marshal preconf message", zap.Error(err))
 		return err
 	}
-	resp, err := client.Post(url, "application/json", bytes.NewBuffer(reqRaw))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(reqRaw))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
 	if err != nil {
 		cli.vm.Logger().Error("failed to send preconf to arcadia", zap.Error(err))
 		return err
 	}
+	defer resp.Body.Close()
 
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusOK {
 		errMsg := new(httpErrorResp)
 		if err := json.Unmarshal(bodyBytes, errMsg); err != nil {
 			return fmt.Errorf("arcadia: unable to parse error message from a bad response: %d", resp.StatusCode)
@@ -477,24 +497,34 @@ func (cli *Arcadia) GetBlockPayloadFromArcadia(maxBw, blockNumber uint64) (*Arca
 
 	url := cli.URL + pathGetArcadiaBlock
 
-	req := GetBlockPayloadFromArcadia{
+	reqr := GetBlockPayloadFromArcadia{
 		MaxBandwidth: maxBw,
 		BlockNumber:  blockNumber,
 	}
-	reqRaw, err := json.Marshal(req)
+	reqRaw, err := json.Marshal(reqr)
 	if err != nil {
 		return nil, err
 	}
 
-	resp, err := client.Post(url, "application/json", bytes.NewBuffer(reqRaw))
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(reqRaw))
 	if err != nil {
 		return nil, err
 	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusOK {
 		errMsg := new(httpErrorResp)
 		if err := json.Unmarshal(bodyBytes, errMsg); err != nil {
 			return nil, fmt.Errorf("unable to parse error message from bad response: %d", resp.StatusCode)
