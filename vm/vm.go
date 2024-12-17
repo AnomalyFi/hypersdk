@@ -516,6 +516,8 @@ func (vm *VM) Initialize(
 		valPort = valServerCfg.Port
 	}
 
+	vm.snowCtx.Log.Info(fmt.Sprintf("starting val server for node(%s) at port: %d", snowCtx.NodeID, valPort))
+
 	go func(v *VM) {
 		valServer := rpc.NewJSONRPCValServer(v)
 		valServer.Serve(fmt.Sprintf(":%d", valPort))

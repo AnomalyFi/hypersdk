@@ -19,8 +19,8 @@ const (
 	ArcadiaBidChunks     uint16 = 3
 )
 
-// 2 AddressLen* 33 + 1 MaxNameSpaceLen *  32 = 98 bytes
-const RollupInfoChunks uint16 = 2
+// 2 * AddressLen(33) + 1 MaxNamespaceLen(32) + BLS Pubkey Length(48) + Epoch(8) = 154
+const RollupInfoChunks uint16 = 4
 
 const (
 	TransferID uint8 = 0
