@@ -36,6 +36,14 @@ func (a *RollupInfo) Size() int {
 	return 2*codec.AddressLen + codec.BytesLen(a.Namespace) + codec.BytesLen(a.SequencerPublicKey) + consts.Uint64Len
 }
 
+func (a *RollupInfo) ValidAtEpoch(epoch uint64) bool {
+	return !a.Exited(epoch) && epoch >= a.StartEpoch
+}
+
+func (a *RollupInfo) Exited(epoch uint64) bool {
+	return a.ExitEpoch != 0 && a.ExitEpoch <= epoch
+}
+
 func (a *RollupInfo) Marshal(p *codec.Packer) {
 	p.PackBytes(a.Namespace)
 	p.PackAddress(a.FeeRecipient)
