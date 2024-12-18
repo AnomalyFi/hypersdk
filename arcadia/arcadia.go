@@ -567,7 +567,7 @@ func verifyChunkID(chunkID ids.ID, chunk *ArcadiaChunk) (bool, error) {
 // returns true, if namespace exists in the list of namespaces for the current epoch or default namespace.
 func (cli *Arcadia) isValidNamespaceForEpoch(namespace []byte) bool {
 	if bytes.Equal(namespace, DefaultNMTNamespace) {
-		return true
+		return false
 	}
 
 	for _, ns := range *cli.AvailableNamespaces {

@@ -4,7 +4,6 @@
 package vm
 
 import (
-	"bytes"
 	"context"
 	"encoding/hex"
 	"fmt"
@@ -20,6 +19,7 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/avalanchego/x/merkledb"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"go.uber.org/zap"
 
 	"github.com/AnomalyFi/hypersdk/actions"
@@ -63,10 +63,6 @@ func (vm *VM) ValidatorState() validators.State {
 
 func (vm *VM) Registry() (chain.ActionRegistry, chain.AuthRegistry) {
 	return vm.actionRegistry, vm.authRegistry
-}
-
-func (vm *VM) RollupRegistry() *arcadia.RollupRegistry {
-	return vm.rollupRegistry
 }
 
 func (vm *VM) Arcadia() *arcadia.Arcadia {
@@ -302,30 +298,9 @@ func (vm *VM) updateRollupRegistryAndGetBuilderPubKey(ctx context.Context, b *ch
 	if err != nil {
 		return nil, nil, err
 	}
-	// remove rollups that exited the epoch.
-	epochExitKey := actions.EpochExitsKey(vm.GetCurrentEpoch())
-	epochExitBytes, err := view.GetValue(ctx, epochExitKey)
-	if err != nil && err != database.ErrNotFound {
-		return nil, nil, err
-	}
-	if epochExitBytes != nil {
-		epochExitInfo, err := actions.UnpackEpochExitsInfo(epochExitBytes)
-		if err != nil {
-			return nil, nil, err
-		}
-		if epochExitInfo != nil {
-			for _, exit := range epochExitInfo.Exits {
-				for i, ns := range namespaces {
-					if bytes.Equal(ns, exit.Namespace) {
-						namespaces = append(namespaces[:i], namespaces[i+1:]...)
-						break
-					}
-				}
-			}
-		}
-	}
-	rollupInfos := make([]*actions.RollupInfo, 0)
 	vm.Logger().Debug("rollup lists")
+	currentEpoch := vm.GetCurrentEpoch()
+	validNamespaces := make([][]byte, 0)
 	for _, ns := range namespaces {
 		rollupInfoKey := actions.RollupInfoKey(ns)
 		rollupInfoBytes, err := view.GetValue(ctx, rollupInfoKey)
@@ -339,12 +314,15 @@ func (vm *VM) updateRollupRegistryAndGetBuilderPubKey(ctx context.Context, b *ch
 			vm.Logger().Error("unable to unmarshal rollup info", zap.Error(err))
 			continue
 		}
+		if rollupInfo.ExitEpoch != 0 && rollupInfo.ExitEpoch == currentEpoch || currentEpoch < rollupInfo.StartEpoch {
+			vm.Logger().Debug("rollup no valid", zap.String("namespace", hexutil.Encode(rollupInfo.Namespace)), zap.Uint64("exitEpoch", rollupInfo.ExitEpoch), zap.Uint64("startEpoch", rollupInfo.StartEpoch))
+			continue
+		}
+		validNamespaces = append(validNamespaces, rollupInfo.Namespace)
 		vm.Logger().Debug("rollup info", zap.String("namespace", hex.EncodeToString(rollupInfo.Namespace)))
-		rollupInfos = append(rollupInfos, rollupInfo)
 	}
 
-	vm.rollupRegistry.Update(rollupInfos)
-	return &namespaces, builderPubKey, nil
+	return &validNamespaces, builderPubKey, nil
 }
 
 func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {

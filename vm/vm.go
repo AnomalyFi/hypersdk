@@ -77,9 +77,6 @@ type VM struct {
 	tracer  avatrace.Tracer
 	mempool *mempool.Mempool[*chain.Transaction]
 
-	// rollup registry
-	rollupRegistry *arcadia.RollupRegistry
-
 	// Arcadia
 	arcadia                *arcadia.Arcadia
 	arcadiaAuthVerifiedTxs *emap.EMap[*chain.Transaction]
@@ -266,8 +263,6 @@ func (vm *VM) Initialize(
 		vm.config.GetMempoolSponsorSize(),
 		vm.config.GetMempoolExemptSponsors(),
 	)
-
-	vm.rollupRegistry = arcadia.NewRollupRegistry()
 
 	// Try to load last accepted
 	has, err := vm.HasLastAccepted()

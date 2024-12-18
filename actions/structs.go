@@ -14,6 +14,7 @@ type RollupInfo struct {
 	AuthoritySEQAddress codec.Address `json:"authoritySEQAddress"`
 	SequencerPublicKey  []byte        `json:"sequencerPublicKey"`
 	StartEpoch          uint64        `json:"startEpoch"`
+	ExitEpoch           uint64        `json:"exitEpoch"`
 }
 
 func NewRollupInfo(namespace []byte, feeRecipient codec.Address, authoritySEQAddress codec.Address, sequencerPublicKey []byte, startEpoch uint64) *RollupInfo {
@@ -23,6 +24,7 @@ func NewRollupInfo(namespace []byte, feeRecipient codec.Address, authoritySEQAdd
 		AuthoritySEQAddress: authoritySEQAddress,
 		SequencerPublicKey:  sequencerPublicKey,
 		StartEpoch:          startEpoch,
+		ExitEpoch:           0,
 	}
 }
 
@@ -40,6 +42,7 @@ func (a *RollupInfo) Marshal(p *codec.Packer) {
 	p.PackAddress(a.AuthoritySEQAddress)
 	p.PackBytes(a.SequencerPublicKey)
 	p.PackUint64(a.StartEpoch)
+	p.PackUint64(a.ExitEpoch)
 }
 
 func UnmarshalRollupInfo(p *codec.Packer) (*RollupInfo, error) {
@@ -50,6 +53,7 @@ func UnmarshalRollupInfo(p *codec.Packer) (*RollupInfo, error) {
 	p.UnpackAddress(&ret.AuthoritySEQAddress)
 	p.UnpackBytes(48, true, &ret.SequencerPublicKey)
 	ret.StartEpoch = p.UnpackUint64(false)
+	ret.ExitEpoch = p.UnpackUint64(false)
 	if err := p.Err(); err != nil {
 		return nil, err
 	}

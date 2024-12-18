@@ -19,7 +19,7 @@ const (
 	ArcadiaBidChunks     uint16 = 3
 )
 
-// 2 * AddressLen(33) + 1 MaxNamespaceLen(32) + BLS Pubkey Length(48) + Epoch(8) = 154
+// 2 * AddressLen(33) + 1 MaxNamespaceLen(32) + BLS Pubkey Length(48) + 2*Epoch(8) = 162
 const RollupInfoChunks uint16 = 4
 
 const (
