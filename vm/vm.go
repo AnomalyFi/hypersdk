@@ -77,9 +77,6 @@ type VM struct {
 	tracer  avatrace.Tracer
 	mempool *mempool.Mempool[*chain.Transaction]
 
-	// rollup registry
-	rollupRegistry *arcadia.RollupRegistry
-
 	// Arcadia
 	arcadia                *arcadia.Arcadia
 	arcadiaAuthVerifiedTxs *emap.EMap[*chain.Transaction]
@@ -266,8 +263,6 @@ func (vm *VM) Initialize(
 		vm.config.GetMempoolSponsorSize(),
 		vm.config.GetMempoolExemptSponsors(),
 	)
-
-	vm.rollupRegistry = arcadia.NewRollupRegistry()
 
 	// Try to load last accepted
 	has, err := vm.HasLastAccepted()
@@ -505,10 +500,22 @@ func (vm *VM) Initialize(
 	webSocketServer, pubsubServer := rpc.NewWebSocketServer(vm, vm.config.GetStreamingBacklogSize())
 	vm.webSocketServer = webSocketServer
 
+	valServerCfg := vm.config.GetValServerConfig()
+	var valPort int
+	if valServerCfg.DerivePort {
+		valPort = utils.GetPortFromNodeID(snowCtx.NodeID)
+	} else {
+		if valServerCfg.Port < utils.MinPort || valServerCfg.Port > utils.MaxPort {
+			return fmt.Errorf("invalid port provided: %d", valServerCfg.Port)
+		}
+		valPort = valServerCfg.Port
+	}
+
+	vm.snowCtx.Log.Info(fmt.Sprintf("starting val server for node(%s) at port: %d", snowCtx.NodeID, valPort))
+
 	go func(v *VM) {
 		valServer := rpc.NewJSONRPCValServer(v)
-		valPort := utils.GetPortFromNodeID(snowCtx.NodeID)
-		valServer.Serve(valPort)
+		valServer.Serve(fmt.Sprintf(":%d", valPort))
 	}(vm)
 	vm.handlers[rpc.WebSocketEndpoint] = pubsubServer
 	return nil

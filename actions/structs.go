@@ -13,14 +13,18 @@ type RollupInfo struct {
 	Namespace           []byte        `json:"namespace"`
 	AuthoritySEQAddress codec.Address `json:"authoritySEQAddress"`
 	SequencerPublicKey  []byte        `json:"sequencerPublicKey"`
+	StartEpoch          uint64        `json:"startEpoch"`
+	ExitEpoch           uint64        `json:"exitEpoch"`
 }
 
-func NewRollupInfo(namespace []byte, feeRecipient codec.Address, authoritySEQAddress codec.Address, sequencerPublicKey []byte) *RollupInfo {
+func NewRollupInfo(namespace []byte, feeRecipient codec.Address, authoritySEQAddress codec.Address, sequencerPublicKey []byte, startEpoch uint64) *RollupInfo {
 	return &RollupInfo{
 		FeeRecipient:        feeRecipient,
 		Namespace:           namespace,
 		AuthoritySEQAddress: authoritySEQAddress,
 		SequencerPublicKey:  sequencerPublicKey,
+		StartEpoch:          startEpoch,
+		ExitEpoch:           0,
 	}
 }
 
@@ -29,7 +33,15 @@ func (a *RollupInfo) ID() ids.ID {
 }
 
 func (a *RollupInfo) Size() int {
-	return 2*codec.AddressLen + codec.BytesLen(a.Namespace) + codec.BytesLen(a.SequencerPublicKey)
+	return 2*codec.AddressLen + codec.BytesLen(a.Namespace) + codec.BytesLen(a.SequencerPublicKey) + consts.Uint64Len
+}
+
+func (a *RollupInfo) ValidAtEpoch(epoch uint64) bool {
+	return !a.Exited(epoch) && epoch >= a.StartEpoch
+}
+
+func (a *RollupInfo) Exited(epoch uint64) bool {
+	return a.ExitEpoch != 0 && a.ExitEpoch <= epoch
 }
 
 func (a *RollupInfo) Marshal(p *codec.Packer) {
@@ -37,6 +49,8 @@ func (a *RollupInfo) Marshal(p *codec.Packer) {
 	p.PackAddress(a.FeeRecipient)
 	p.PackAddress(a.AuthoritySEQAddress)
 	p.PackBytes(a.SequencerPublicKey)
+	p.PackUint64(a.StartEpoch)
+	p.PackUint64(a.ExitEpoch)
 }
 
 func UnmarshalRollupInfo(p *codec.Packer) (*RollupInfo, error) {
@@ -46,6 +60,8 @@ func UnmarshalRollupInfo(p *codec.Packer) (*RollupInfo, error) {
 	p.UnpackAddress(&ret.FeeRecipient)
 	p.UnpackAddress(&ret.AuthoritySEQAddress)
 	p.UnpackBytes(48, true, &ret.SequencerPublicKey)
+	ret.StartEpoch = p.UnpackUint64(false)
+	ret.ExitEpoch = p.UnpackUint64(false)
 	if err := p.Err(); err != nil {
 		return nil, err
 	}

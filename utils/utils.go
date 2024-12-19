@@ -22,6 +22,11 @@ import (
 	"github.com/AnomalyFi/hypersdk/consts"
 )
 
+const (
+	MinPort = 1025
+	MaxPort = 65535
+)
+
 func ToID(bytes []byte) ids.ID {
 	return ids.ID(hashing.ComputeHash256Array(bytes))
 }
@@ -121,10 +126,10 @@ func LoadBytes(filename string, expectedSize int) ([]byte, error) {
 
 // Derive uint64 from nodeID
 // use uint64 to derive port.
-func GetPortFromNodeID(nodeID ids.NodeID) string {
+func GetPortFromNodeID(nodeID ids.NodeID) int {
 	nb := nodeID.Bytes()
 	np := binary.BigEndian.Uint32(nb[16:])
-	ps := strconv.FormatUint(uint64(uint16(np)), 10)
-	port := ":" + ps
-	return port
+
+	np = np%(MaxPort-MinPort) + MinPort
+	return int(np)
 }
