@@ -153,8 +153,8 @@ func (j *JSONRPCServer) GetCurrentEpoch(_ *http.Request, _ *struct{}, reply *uin
 }
 
 type Validator struct {
-	NodeID    ids.NodeID `json:"publicKey"`
-	PublicKey []byte     `json:"nodeID"`
+	NodeID    ids.NodeID `json:"nodeID"`
+	PublicKey []byte     `json:"publicKey"`
 	Weight    uint64     `json:"weight"`
 }
 
