@@ -59,10 +59,10 @@ type Arcadia struct {
 }
 
 const (
-	pingPath               = "/livez"                          // used to check if arcadia is up.
-	pathSubscribeValidator = "/arcadia/v1/validator/subscribe" // subscribes validator for registering rollup chunks from arcadia.
-	pathSendPreconf        = "/arcadia/v1/validator/preconf"   // validator sends preconf to arcadia.
-	pathGetArcadiaBlock    = "/arcadia/v1/validator/block"     // validator requests arcadia block.
+	pingPath               = "/livez"                              // used to check if arcadia is up.
+	pathSubscribeValidator = "/api/arcadia/v1/validator/subscribe" // subscribes validator for registering rollup chunks from arcadia.
+	pathSendPreconf        = "/api/arcadia/v1/validator/preconf"   // validator sends preconf to arcadia.
+	pathGetArcadiaBlock    = "/api/arcadia/v1/validator/block"     // validator requests arcadia block.
 )
 
 func NewArcadiaClient(url string, currEpoch uint64, currEpochBuilderPubKey *bls.PublicKey, availNs *[][]byte, vm VM) *Arcadia {
