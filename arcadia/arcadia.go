@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/big"
 	"net/http"
 	"strings"
 	"time"
@@ -59,10 +60,10 @@ type Arcadia struct {
 }
 
 const (
-	pingPath               = "/livez"                              // used to check if arcadia is up.
-	pathSubscribeValidator = "/api/arcadia/v1/validator/subscribe" // subscribes validator for registering rollup chunks from arcadia.
-	pathSendPreconf        = "/api/arcadia/v1/validator/preconf"   // validator sends preconf to arcadia.
-	pathGetArcadiaBlock    = "/api/arcadia/v1/validator/block"     // validator requests arcadia block.
+	pingPath               = "/livez"                             // used to check if arcadia is up.
+	pathSubscribeValidator = "/ws/arcadia/v1/validator/subscribe" // subscribes validator for registering rollup chunks from arcadia.
+	pathSendPreconf        = "/api/arcadia/v1/validator/preconf"  // validator sends preconf to arcadia.
+	pathGetArcadiaBlock    = "/api/arcadia/v1/validator/block"    // validator requests arcadia block.
 )
 
 func NewArcadiaClient(url string, currEpoch uint64, currEpochBuilderPubKey *bls.PublicKey, availNs *[][]byte, vm VM) *Arcadia {
@@ -212,7 +213,7 @@ func (cli *Arcadia) Subscribe() error {
 					cli.vm.Logger().Error("WebSocket connection closed", zap.Error(err))
 					// Attempt reconnect to arcadia.
 					cli.isConnected = false
-					go cli.Reconnect()
+					cli.Reconnect()
 					// Exit the current loop if connection is closed.
 					return
 				}
@@ -225,6 +226,7 @@ func (cli *Arcadia) Subscribe() error {
 		}
 	}()
 
+	cli.vm.Logger().Info("subscribed to Arcadia", zap.String("endpoint", cli.URL), zap.String("path", pathSubscribeValidator))
 	return nil
 }
 
@@ -238,11 +240,11 @@ func (cli *Arcadia) Run() {
 				select {
 				case chunk := <-cli.incomingChunks:
 					if cli.rejectedChunks.Has(chunk) {
-						cli.vm.Logger().Info("chunk already rejected", zap.String("chunk id", chunk.ChunkID.String()))
+						cli.vm.Logger().Info("chunk already rejected", zap.String("chunkID", chunk.ChunkID.String()))
 						continue
 					}
 					if cli.processedChunks.Has(chunk) {
-						cli.vm.Logger().Info("chunk already processed", zap.String("chunk id", chunk.ChunkID.String()))
+						cli.vm.Logger().Info("chunk already processed", zap.String("chunkID", chunk.ChunkID.String()))
 						cli.issuePreconf <- chunk
 						continue
 					}
@@ -250,7 +252,7 @@ func (cli *Arcadia) Run() {
 					err := cli.HandleRollupChunks(chunk)
 					cli.vm.RecordChunkProcessDuration(time.Since(t))
 					if err != nil {
-						cli.vm.Logger().Error("chunk processing error", zap.String("chunk id", chunk.ChunkID.String()), zap.Error(err))
+						cli.vm.Logger().Error("chunk processing error", zap.String("chunkID", chunk.ChunkID.String()), zap.Error(err))
 						cli.rejectedChunks.Add([]*ArcadiaToSEQChunkMessage{chunk})
 						cli.vm.RecordChunksRejected()
 						continue
@@ -331,7 +333,7 @@ func (cli *Arcadia) HandleRollupChunks(chunk *ArcadiaToSEQChunkMessage) error {
 	}
 
 	// signature verification.
-	msg := binary.BigEndian.AppendUint64(nil, chunk.Epoch)
+	msg := binary.LittleEndian.AppendUint64(nil, chunk.Epoch)
 	msg = append(msg, chunk.ChunkID[:]...)
 	builderSig, err := bls.SignatureFromBytes(chunk.BuilderSignature)
 	if err != nil {
@@ -351,10 +353,6 @@ func (cli *Arcadia) HandleRollupChunks(chunk *ArcadiaToSEQChunkMessage) error {
 			// if the tx is removed, skip the validation.
 			if chunk.removedBitSet.Test(uint(i)) {
 				continue
-			}
-			// tx should have atleast 2 actions defined.
-			if len(tx.Actions) < 2 {
-				return ErrLessThanTwoActions
 			}
 			if err := tx.Base.ArcadiaExecute(cli.vm.ChainID(), cli.vm.Rules(currTime), currTime); err != nil {
 				return fmt.Errorf("tx execution failed: %w, txID: %s", err, tx.ID().String())
@@ -384,8 +382,10 @@ func (cli *Arcadia) HandleRollupChunks(chunk *ArcadiaToSEQChunkMessage) error {
 			if err := tx.Base.ArcadiaExecute(cli.vm.ChainID(), cli.vm.Rules(currTime), currTime); err != nil {
 				return fmt.Errorf("tx execution failed: %w, txID: %s", err, tx.ID().String())
 			}
-			if chunk.Chunk.RoB.ChainID != string(tx.Actions[0].NMTNamespace()) {
-				return fmt.Errorf("namespace of tx not equal to namespace of chunk. tx namespace: %s, chunk namespace: %s", tx.Actions[0].NMTNamespace(), chunk.Chunk.RoB.ChainID)
+			chainIDu64 := binary.LittleEndian.Uint64(tx.Actions[0].NMTNamespace())
+			txChainID := hexutil.EncodeBig(big.NewInt(int64(chainIDu64)))
+			if chunk.Chunk.RoB.ChainID != txChainID {
+				return fmt.Errorf("chainID of tx not equal to chainID of chunk. tx chainID: %s, chunk chainID: %s", txChainID, chunk.Chunk.RoB.ChainID)
 			}
 			if !cli.isValidNamespaceForEpoch(tx.Actions[0].NMTNamespace()) {
 				return fmt.Errorf("unregistered rollup namespace %s found in action for epoch %d", hexutil.Encode(tx.Actions[0].NMTNamespace()), chunk.Epoch)

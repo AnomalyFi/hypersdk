@@ -15,28 +15,22 @@ func (cli *Arcadia) CurrEpochNameSpaces() *[][]byte {
 }
 
 func (cli *Arcadia) Reconnect() {
-	if cli.stopCalled {
-		cli.vm.Logger().Info("not attempting reconnect as shutdown is called on arcadia")
-		return
-	}
-	cli.vm.Logger().Info("reconnecting to arcadia")
-	if err := cli.Subscribe(); err != nil {
-		cli.vm.Logger().Error("failed to resubscribe to arcadia", zap.Error(err))
-		// wait 2 minutes before retrying.
-		cli.vm.Logger().Info("retrying to resubscribe to arcadia in 2 minutes")
-		time.Sleep(120 * time.Second)
-		if err := cli.Subscribe(); err != nil {
-			cli.vm.Logger().Error("failed to resubscribe to arcadia", zap.Error(err))
-			// wait 3 more minutes before retrying.
-			cli.vm.Logger().Info("retrying to resubscribe to arcadia in 3 minutes x2")
-			time.Sleep(180 * time.Second)
+	for {
+		select {
+		case <-cli.stop:
+			cli.vm.Logger().Info("receiving stop sig, stop subscribing")
+			return
+		default:
 			if err := cli.Subscribe(); err != nil {
-				cli.vm.Logger().Error("failed to resubscribe to arcadia", zap.Error(err))
+				time.Sleep(2 * time.Second)
+				cli.vm.Logger().Error("failed to resubscribe to arcadia, waiting 2s to retry", zap.Error(err))
+			} else {
+				cli.isConnected = true
+				cli.vm.Logger().Info("reconnected to arcadia")
 				return
 			}
 		}
 	}
-	cli.vm.Logger().Info("resubscribed to arcadia")
 }
 
 func (cli *Arcadia) ShutDown() {

@@ -453,28 +453,14 @@ func (vm *VM) ReplaceArcadia(url string) error {
 		}
 		builderPubKey = blderPubKey
 	}
-	vm.arcadia = arcadia.NewArcadiaClient(url, vm.GetCurrentEpoch(), builderPubKey, &rollupRegistry, vm)
+	arcadiaClient := arcadia.NewArcadiaClient(url, vm.GetCurrentEpoch(), builderPubKey, &rollupRegistry, vm)
+	if err := arcadiaClient.Subscribe(); err != nil {
+		return fmt.Errorf("unable to subscribe to Arcadia: %s", err.Error())
+	}
 
-	go func() {
-		if err := vm.arcadia.Subscribe(); err != nil {
-			vm.snowCtx.Log.Error("failed to subscribe to arcadia", zap.Error(err))
-			// wait 2 minutes before retrying.
-			vm.snowCtx.Log.Info("retrying to subscribe to arcadia in 2 minutes")
-			time.Sleep(120 * time.Second)
-			if err := vm.arcadia.Subscribe(); err != nil {
-				vm.snowCtx.Log.Error("failed to subscribe to arcadia", zap.Error(err))
-				// wait 3 more minutes before retrying.
-				vm.snowCtx.Log.Info("retrying to subscribe to arcadia in 3 minutes x2")
-				time.Sleep(180 * time.Second)
-				if err := vm.arcadia.Subscribe(); err != nil {
-					vm.snowCtx.Log.Error("failed to subscribe to arcadia", zap.Error(err))
-					return
-				}
-			}
-		}
-		vm.snowCtx.Log.Info("subscribed to arcadia")
-		go vm.arcadia.Run()
-	}()
+	// only the client that successfully subscribed to Arcadia can be assigned
+	vm.arcadia = arcadiaClient
+	go vm.arcadia.Run()
 
 	return nil
 }
