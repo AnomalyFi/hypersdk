@@ -8,9 +8,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"math/big"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -40,18 +42,24 @@ import (
 // Consider allocating arcadia its own authWorkers in future?
 
 type Arcadia struct {
-	URL                    string
-	vm                     VM
-	incomingChunks         chan *ArcadiaToSEQChunkMessage
-	issuePreconf           chan *ArcadiaToSEQChunkMessage
-	currEpoch              uint64
-	currEpochBuilderPubKey *bls.PublicKey
-	validatorPublicKey     *bls.PublicKey
-	AvailableNamespaces    *[][]byte
-	epochUpdatechan        chan *EpochUpdateInfo
+	URL string
+	vm  VM
+
+	validatorPublicKey *bls.PublicKey
+
+	incomingChunks chan *ArcadiaToSEQChunkMessage
+	issuePreconf   chan *ArcadiaToSEQChunkMessage
+
+	currEpoch uint64
+
+	epochUpdatechan chan *EpochUpdateInfo
+	epochInfo       map[uint64]*EpochUpdateInfo
+	epochInfoL      sync.RWMutex
 
 	processedChunks *emap.EMap[*ArcadiaToSEQChunkMessage]
 	rejectedChunks  *emap.EMap[*ArcadiaToSEQChunkMessage]
+
+	epochInfoStoringDepth int
 
 	conn        *websocket.Conn
 	isConnected bool
@@ -70,18 +78,18 @@ func NewArcadiaClient(url string, currEpoch uint64, currEpochBuilderPubKey *bls.
 	url = strings.TrimRight(url, "/")
 
 	cli := &Arcadia{
-		URL:                    url,
-		vm:                     vm,
-		incomingChunks:         make(chan *ArcadiaToSEQChunkMessage, vm.GetChunkProcessingBackLog()),
-		issuePreconf:           make(chan *ArcadiaToSEQChunkMessage, vm.GetChunkProcessingBackLog()),
-		currEpoch:              currEpoch,
-		currEpochBuilderPubKey: currEpochBuilderPubKey,
-		validatorPublicKey:     vm.Signer(),
-		AvailableNamespaces:    availNs,
-		epochUpdatechan:        make(chan *EpochUpdateInfo),
-		processedChunks:        emap.NewEMap[*ArcadiaToSEQChunkMessage](),
-		rejectedChunks:         emap.NewEMap[*ArcadiaToSEQChunkMessage](),
-		stop:                   make(chan struct{}),
+		URL:                   url,
+		vm:                    vm,
+		validatorPublicKey:    vm.Signer(),
+		incomingChunks:        make(chan *ArcadiaToSEQChunkMessage, vm.GetChunkProcessingBackLog()),
+		issuePreconf:          make(chan *ArcadiaToSEQChunkMessage, vm.GetChunkProcessingBackLog()),
+		currEpoch:             currEpoch,
+		epochUpdatechan:       make(chan *EpochUpdateInfo),
+		epochInfo:             make(map[uint64]*EpochUpdateInfo),
+		epochInfoStoringDepth: DefaultEpochInfoStoringDepth, // TODO: from config
+		processedChunks:       emap.NewEMap[*ArcadiaToSEQChunkMessage](),
+		rejectedChunks:        emap.NewEMap[*ArcadiaToSEQChunkMessage](),
+		stop:                  make(chan struct{}),
 	}
 
 	// update epoch on arcadia, when changes.
@@ -91,8 +99,15 @@ func NewArcadiaClient(url string, currEpoch uint64, currEpochBuilderPubKey *bls.
 			case newEpochInfo := <-cli.epochUpdatechan:
 				cli.vm.Logger().Debug("epoch update received", zap.Uint64("epoch", newEpochInfo.Epoch))
 				cli.currEpoch = newEpochInfo.Epoch
-				cli.currEpochBuilderPubKey = newEpochInfo.BuilderPubKey
-				cli.AvailableNamespaces = newEpochInfo.AvailableNamespaces
+
+				// store epoch info and GC
+				cli.epochInfoL.Lock()
+				cli.epochInfo[newEpochInfo.Epoch] = newEpochInfo
+				maps.DeleteFunc(cli.epochInfo, func(epoch uint64, _ *EpochUpdateInfo) bool {
+					return newEpochInfo.Epoch-epoch > uint64(cli.epochInfoStoringDepth)
+				})
+				cli.epochInfoL.Unlock()
+
 				cli.processedChunks.SetMin(int64(cli.currEpoch))
 				cli.rejectedChunks.SetMin(int64(cli.currEpoch))
 			case <-cli.stop:
@@ -305,12 +320,26 @@ func (cli *Arcadia) HandleRollupChunks(chunk *ArcadiaToSEQChunkMessage) error {
 	// TODO: handle edge cases.
 	// if a chunk is reached for a block that is just on the epoch transition boundary.
 
+	chunkEpoch := chunk.Epoch
+	cli.epochInfoL.RLock()
+	epochInfo := cli.epochInfo[chunkEpoch]
+	cli.epochInfoL.RUnlock()
+	if epochInfo == nil {
+		cli.vm.Logger().Warn("epoch info not found", zap.Uint64("chunkEpoch", chunkEpoch))
+		return fmt.Errorf("epoch info not found for epoch %d", chunkEpoch)
+	}
+
+	chainID := "ToB"
+	height := uint64(0)
+	if chunk.Chunk.RoB != nil {
+		chainID = chunk.Chunk.RoB.ChainID
+		height = chunk.Chunk.RoB.BlockNumber
+	}
+
+	cli.vm.Logger().Debug("handling chunk", zap.String("chunkID", chunk.ChunkID.String()), zap.Uint64("currentEpoch", cli.currEpoch), zap.Uint64("chunkEpoch", chunk.Epoch), zap.String("chainID", chainID), zap.Uint64("height", height))
+
 	// use the current time as timestamp for tx.Base.ArcadiaExecute.
 	currTime := time.Now().UnixMilli()
-	// Chunk built is for correct epoch.
-	if cli.currEpoch != chunk.Epoch {
-		return fmt.Errorf("received chunk for epoch %d, but current epoch is %d", chunk.Epoch, cli.currEpoch)
-	}
 	if err := chunk.Initialize(cli.vm); err != nil {
 		return fmt.Errorf("failed to initialize chunk: %w", err)
 	}
@@ -333,13 +362,13 @@ func (cli *Arcadia) HandleRollupChunks(chunk *ArcadiaToSEQChunkMessage) error {
 	}
 
 	// signature verification.
-	msg := binary.LittleEndian.AppendUint64(nil, chunk.Epoch)
+	msg := binary.LittleEndian.AppendUint64(nil, chunkEpoch)
 	msg = append(msg, chunk.ChunkID[:]...)
 	builderSig, err := bls.SignatureFromBytes(chunk.BuilderSignature)
 	if err != nil {
 		return fmt.Errorf("failed to parse builder signature: %w", err)
 	}
-	if !bls.Verify(msg, cli.currEpochBuilderPubKey, builderSig) {
+	if !bls.Verify(msg, epochInfo.BuilderPubKey, builderSig) {
 		return ErrBuilderSignature
 	}
 
@@ -359,7 +388,7 @@ func (cli *Arcadia) HandleRollupChunks(chunk *ArcadiaToSEQChunkMessage) error {
 			}
 			// the tx should have a namespace either from the available namespaces list or defaultnamespace
 			for _, action := range tx.Actions {
-				if !cli.isValidNamespaceForEpoch(action.NMTNamespace()) {
+				if !cli.isValidNamespaceForEpoch(chunkEpoch, action.NMTNamespace()) {
 					return fmt.Errorf("unregistered rollup namespace %s found in action for epoch %d", hexutil.Encode(action.NMTNamespace()), chunk.Epoch)
 				}
 				// Restrict ToB chunk transactions actions to only Transfer and SequencerMsg actions.
@@ -387,7 +416,7 @@ func (cli *Arcadia) HandleRollupChunks(chunk *ArcadiaToSEQChunkMessage) error {
 			if chunk.Chunk.RoB.ChainID != txChainID {
 				return fmt.Errorf("chainID of tx not equal to chainID of chunk. tx chainID: %s, chunk chainID: %s", txChainID, chunk.Chunk.RoB.ChainID)
 			}
-			if !cli.isValidNamespaceForEpoch(tx.Actions[0].NMTNamespace()) {
+			if !cli.isValidNamespaceForEpoch(chunkEpoch, tx.Actions[0].NMTNamespace()) {
 				return fmt.Errorf("unregistered rollup namespace %s found in action for epoch %d", hexutil.Encode(tx.Actions[0].NMTNamespace()), chunk.Epoch)
 			}
 			// Restrict RoB chunk transactions actions to only SequencerMsg action?
@@ -565,12 +594,20 @@ func verifyChunkID(chunkID ids.ID, chunk *ArcadiaChunk) (bool, error) {
 }
 
 // returns true, if namespace exists in the list of namespaces for the current epoch or default namespace.
-func (cli *Arcadia) isValidNamespaceForEpoch(namespace []byte) bool {
+func (cli *Arcadia) isValidNamespaceForEpoch(epoch uint64, namespace []byte) bool {
 	if bytes.Equal(namespace, DefaultNMTNamespace) {
 		return true
 	}
 
-	for _, ns := range *cli.AvailableNamespaces {
+	cli.epochInfoL.RLock()
+	epochInfo := cli.epochInfo[epoch]
+	cli.epochInfoL.RUnlock()
+	if epochInfo == nil {
+		cli.vm.Logger().Warn("epoch info not exists", zap.Uint64("epoch", epoch))
+		return false
+	}
+
+	for _, ns := range epochInfo.AvailableNamespaces {
 		if bytes.Equal(ns, namespace) {
 			return true
 		}

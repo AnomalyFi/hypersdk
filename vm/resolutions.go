@@ -266,7 +266,7 @@ func (vm *VM) processAcceptedBlocks() {
 	}
 }
 
-func (vm *VM) updateRollupRegistryAndGetBuilderPubKey(ctx context.Context, b *chain.StatelessBlock) (*[][]byte, *bls.PublicKey, error) {
+func (vm *VM) updateRollupRegistryAndGetBuilderPubKey(ctx context.Context, b *chain.StatelessBlock) ([][]byte, *bls.PublicKey, error) {
 	view, err := b.View(ctx, false)
 	if err != nil {
 		return nil, nil, err
@@ -290,7 +290,7 @@ func (vm *VM) updateRollupRegistryAndGetBuilderPubKey(ctx context.Context, b *ch
 		if err == database.ErrNotFound {
 			dnss := make([][]byte, 0)
 			vm.Logger().Debug("no rollups registered yet")
-			return &dnss, nil, nil
+			return dnss, nil, nil
 		}
 		return nil, nil, err
 	}
@@ -322,7 +322,7 @@ func (vm *VM) updateRollupRegistryAndGetBuilderPubKey(ctx context.Context, b *ch
 		vm.Logger().Debug("rollup info", zap.String("namespace", hex.EncodeToString(rollupInfo.Namespace)))
 	}
 
-	return &validNamespaces, builderPubKey, nil
+	return validNamespaces, builderPubKey, nil
 }
 
 func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
