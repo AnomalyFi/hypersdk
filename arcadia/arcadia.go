@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -62,8 +63,8 @@ type Arcadia struct {
 	epochInfoStoringDepth int
 
 	conn        *websocket.Conn
-	isConnected bool
-	stopCalled  bool
+	isConnected atomic.Bool
+	stopCalled  atomic.Bool
 	stop        chan struct{}
 }
 
@@ -90,6 +91,9 @@ func NewArcadiaClient(url string, currEpoch uint64, currEpochBuilderPubKey *bls.
 		processedChunks:       emap.NewEMap[*ArcadiaToSEQChunkMessage](),
 		rejectedChunks:        emap.NewEMap[*ArcadiaToSEQChunkMessage](),
 		stop:                  make(chan struct{}),
+
+		stopCalled:  atomic.Bool{},
+		isConnected: atomic.Bool{},
 	}
 
 	// update epoch on arcadia, when changes.
@@ -215,11 +219,16 @@ func (cli *Arcadia) Subscribe() error {
 
 	// Authentication successful. Now listen for rollup chunks from arcadia.
 	cli.conn = conn
-	cli.isConnected = true
+	cli.isConnected.Store(true)
 	// @todo handle the changes with retry for connection lost.
 	// Listen for rollup block chunks from arcadia.
 	go func() {
 		for {
+			if connected := cli.isConnected.Load(); !connected {
+				time.Sleep(1 * time.Second)
+				continue
+			}
+
 			var newChunk ArcadiaToSEQChunkMessage
 			err = conn.ReadJSON(&newChunk)
 			if err != nil {
@@ -227,7 +236,7 @@ func (cli *Arcadia) Subscribe() error {
 				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) || strings.Contains(err.Error(), "close 1006") {
 					cli.vm.Logger().Error("WebSocket connection closed", zap.Error(err))
 					// Attempt reconnect to arcadia.
-					cli.isConnected = false
+					cli.isConnected.Store(false)
 					cli.Reconnect()
 					// Exit the current loop if connection is closed.
 					return

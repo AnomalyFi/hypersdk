@@ -423,7 +423,9 @@ func (vm *VM) IsArcadiaAuthVerifiedTx(txID ids.ID) bool {
 
 func (vm *VM) ReplaceArcadia(url string) error {
 	ctx := context.Background()
-	vm.arcadia.ShutDown()
+	if vm.arcadia != nil {
+		vm.arcadia.ShutDown()
+	}
 	rollupRegistryKey := actions.RollupRegistryKey()
 	rollupRegistryBytes, err := vm.stateDB.GetValue(ctx, rollupRegistryKey)
 	// ignore database.ErrNotFound, as it is expected registry is empty on genesis and in some instances.

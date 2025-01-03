@@ -21,7 +21,7 @@ func (cli *Arcadia) Reconnect() {
 				time.Sleep(2 * time.Second)
 				cli.vm.Logger().Error("failed to resubscribe to arcadia, waiting 2s to retry", zap.Error(err))
 			} else {
-				cli.isConnected = true
+				cli.isConnected.Store(true)
 				cli.vm.Logger().Info("reconnected to arcadia")
 				return
 			}
@@ -30,8 +30,11 @@ func (cli *Arcadia) Reconnect() {
 }
 
 func (cli *Arcadia) ShutDown() {
-	cli.stopCalled = true
-	if cli.isConnected {
+	if shutdowned := cli.stopCalled.Swap(true); shutdowned {
+		return
+	}
+
+	if cli.isConnected.Load() {
 		cli.conn.Close()
 	}
 	close(cli.stop)
