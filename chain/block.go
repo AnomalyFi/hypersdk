@@ -175,8 +175,7 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) error {
 		go batchVerifier.Done(func() { sigVerifySpan.End() })
 	}()
 
-	// Confirm no transaction duplicates and setup
-	// AWM processing
+	// Confirm no transaction duplicates
 	b.txsSet = set.NewSet[ids.ID](len(b.Txs))
 	for _, tx := range b.Txs {
 		// Ensure there are no duplicate transactions
@@ -184,12 +183,14 @@ func (b *StatelessBlock) populateTxs(ctx context.Context) error {
 			return ErrDuplicateTx
 		}
 		b.txsSet.Add(tx.ID())
-
 		// Verify signature async
 		if b.vm.GetVerifyAuth() {
 			txDigest, err := tx.Digest()
 			if err != nil {
 				return err
+			}
+			if b.vm.IsArcadiaAuthVerifiedTx(tx.id) {
+				continue // already verified by arcadia
 			}
 			batchVerifier.Add(txDigest, tx.Auth)
 		}
@@ -963,7 +964,6 @@ func UnmarshalBlock(raw []byte, parser Parser) (*StatefulBlock, error) {
 	// unknown how much to allocate in advance
 	proofsBytes := make([]byte, 0, 1024)
 	p.UnpackBytes(consts.MaxNMTProofBytes, false, &proofsBytes)
-	fmt.Printf("nmt proofs bytes: %s", string(proofsBytes))
 	err := json.Unmarshal(proofsBytes, &proofs)
 	if err != nil {
 		return nil, fmt.Errorf("unable to json.unmarshal nmt proofs: %w", err)

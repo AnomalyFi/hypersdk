@@ -9,4 +9,5 @@ var (
 	ErrClosed         = errors.New("closed")
 	ErrExpired        = errors.New("expired")
 	ErrMessageMissing = errors.New("message missing")
+	ErrValSetNot      = errors.New("validator set not containing proposer")
 )

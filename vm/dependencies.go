@@ -17,6 +17,7 @@ import (
 	"github.com/AnomalyFi/hypersdk/chain"
 	"github.com/AnomalyFi/hypersdk/codec"
 	"github.com/AnomalyFi/hypersdk/gossiper"
+	"github.com/AnomalyFi/hypersdk/rpc"
 	"github.com/AnomalyFi/hypersdk/state"
 	"github.com/AnomalyFi/hypersdk/trace"
 
@@ -33,6 +34,9 @@ type Config interface {
 	GetVerifyAuth() bool
 	GetRootGenerationCores() int
 	GetTransactionExecutionCores() int
+	GetChunkCores() int
+	GetChunkProcessingBackLog() int
+	GetPreconfIssueCores() int
 	GetStateFetchConcurrency() int
 	GetMempoolSponsorSize() int
 	GetMempoolExemptSponsors() []codec.Address
@@ -57,8 +61,8 @@ type Config interface {
 	GetBlockCompactionFrequency() int
 	GetETHL1RPC() string
 	GetETHL1WS() string
-	GetAnchorURL() string
-	GetAnchorManager() string // 0x prefixed bls pubkey
+	GetArcadiaURL() string
+	GetValServerConfig() *rpc.JSONRPCValServerConfig
 }
 
 type Genesis interface {

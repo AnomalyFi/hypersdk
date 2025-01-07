@@ -17,7 +17,7 @@ services:
       - STORAGE_TYPE=elasticsearch
       - ES_HOSTS=elasticsearch:9200
       - JAVA_OPTS=-Xms128m -Xmx1024m -XX:+ExitOnOutOfMemoryError
-      - ZIPKIN_UI_DEPENDENCY_ENABLED=false # not used by our application
+      - ZIPKIN_UI_DEPENDENCY_ENABLED=true # not used by our application
     ports:
       - 9411:9411
     depends_on:

@@ -116,6 +116,18 @@ func (cli *JSONRPCClient) NameSpacesPrice(ctx context.Context, namespaces []stri
 	return resp.Price, err
 }
 
+// Returns the current Epoch Number.
+func (cli *JSONRPCClient) GetCurrentEpoch() (uint64, error) {
+	resp := new(uint64)
+	err := cli.requester.SendRequest(
+		context.Background(),
+		"getCurrentEpoch",
+		nil,
+		resp,
+	)
+	return *resp, err
+}
+
 func (cli *JSONRPCClient) SubmitTx(ctx context.Context, d []byte) (ids.ID, error) {
 	resp := new(SubmitTxReply)
 	err := cli.requester.SendRequest(
@@ -127,19 +139,8 @@ func (cli *JSONRPCClient) SubmitTx(ctx context.Context, d []byte) (ids.ID, error
 	return resp.TxID, err
 }
 
-func (cli *JSONRPCClient) ReplaceAnchor(ctx context.Context, url string) (bool, error) {
-	resp := new(ReplaceAnchorReply)
-	err := cli.requester.SendRequest(
-		ctx,
-		"replaceAnchor",
-		&ReplaceAnchorArgs{URL: url},
-		resp,
-	)
-	return resp.Success, err
-}
-
-func (cli *JSONRPCClient) NextProposer(ctx context.Context, height uint64) (*NextProposerReply, error) {
-	resp := new(NextProposerReply)
+func (cli *JSONRPCClient) NextProposer(ctx context.Context, height uint64) (*Validator, error) {
+	resp := new(Validator)
 	err := cli.requester.SendRequest(
 		ctx,
 		"nextProposer",
@@ -149,6 +150,32 @@ func (cli *JSONRPCClient) NextProposer(ctx context.Context, height uint64) (*Nex
 		resp,
 	)
 	return resp, err
+}
+
+// GetCurrentValidators returns the current validators of the SEQ chain.
+func (cli *JSONRPCClient) GetCurrentValidators(ctx context.Context) ([]*Validator, error) {
+	resp := new(GetCurrentValidatorsReply)
+	err := cli.requester.SendRequest(
+		ctx,
+		"getCurrentValidators",
+		nil,
+		resp,
+	)
+	return resp.Validators, err
+}
+
+func (cli *JSONRPCClient) GetProposer(ctx context.Context, diff, depth int) ([]*ids.NodeID, error) {
+	resp := new(GetProposerReply)
+	err := cli.requester.SendRequest(
+		ctx,
+		"getProposer",
+		&GetProposerArgs{
+			Diff:  diff,
+			Depth: depth,
+		},
+		resp,
+	)
+	return resp.NodeIDs, err
 }
 
 type Modifier interface {

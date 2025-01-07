@@ -27,6 +27,8 @@ const (
 	MaxKeyDependencies = 100_000_000
 )
 
+const sequencerMsgID uint8 = 1
+
 func HeightKey(prefix []byte) []byte {
 	return keys.EncodeChunks(prefix, HeightKeyChunks)
 }

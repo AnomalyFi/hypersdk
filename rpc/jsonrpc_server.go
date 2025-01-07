@@ -4,7 +4,6 @@
 package rpc
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -16,7 +15,6 @@ import (
 	"github.com/AnomalyFi/hypersdk/chain"
 	"github.com/AnomalyFi/hypersdk/codec"
 	"github.com/AnomalyFi/hypersdk/consts"
-	"github.com/AnomalyFi/hypersdk/crypto/bls"
 	"github.com/AnomalyFi/hypersdk/fees"
 
 	feemarket "github.com/AnomalyFi/hypersdk/fee_market"
@@ -149,38 +147,14 @@ func (j *JSONRPCServer) NameSpacesPrice(
 	return nil
 }
 
-type ReplaceAnchorArgs struct {
-	URL       string `json:"url"`
-	Pubkey    []byte `json:"pubkey"`
-	Signature []byte `json:"signature"`
-}
-
-type ReplaceAnchorReply struct {
-	Success bool `json:"success"`
-}
-
-// TODO: make it permissioned
-func (j *JSONRPCServer) ReplaceAnchor(req *http.Request, args *ReplaceAnchorArgs, reply *ReplaceAnchorReply) error {
-	pk, err := bls.PublicKeyFromBytes(args.Pubkey)
-	if err != nil {
-		return err
-	}
-	sig, err := bls.SignatureFromBytes(args.Signature)
-	if err != nil {
-		return err
-	}
-
-	replaced, err := j.vm.ReplaceAnchor(args.URL, pk, sig)
-	if err != nil {
-		return err
-	}
-	reply.Success = replaced
+func (j *JSONRPCServer) GetCurrentEpoch(_ *http.Request, _ *struct{}, reply *uint64) error {
+	*reply = j.vm.GetCurrentEpoch()
 	return nil
 }
 
 type Validator struct {
-	NodeID    ids.NodeID `json:"publicKey"`
-	PublicKey []byte     `json:"nodeID"`
+	NodeID    ids.NodeID `json:"nodeID"`
+	PublicKey []byte     `json:"publicKey"`
 	Weight    uint64     `json:"weight"`
 }
 
@@ -188,13 +162,14 @@ type NextProposerArgs struct {
 	Height uint64 `json:"height"`
 }
 type NextProposerReply struct {
-	PublicKey  []byte       `json:"publicKey"`
-	NodeID     ids.NodeID   `json:"nodeID"`
-	Validators []*Validator `json:"validators"`
+	PublicKey []byte     `json:"publicKey"`
+	NodeID    ids.NodeID `json:"nodeID"`
 }
 
-func (j *JSONRPCServer) NextProposer(req *http.Request, args *NextProposerArgs, reply *NextProposerReply) error {
-	ctx := context.TODO()
+// NextProposer returns the proposer at the given height.
+func (j *JSONRPCServer) NextProposer(req *http.Request, args *NextProposerArgs, reply *Validator) error {
+	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.NextProposer")
+	defer span.End()
 	validators, _ := j.vm.CurrentValidators(ctx)
 	nextProposer, err := j.vm.ProposerAtHeight(ctx, args.Height)
 	if err != nil {
@@ -203,25 +178,60 @@ func (j *JSONRPCServer) NextProposer(req *http.Request, args *NextProposerArgs, 
 
 	if _, ok := validators[nextProposer]; !ok {
 		j.vm.Logger().Debug("validator set not containing proposer")
-		return fmt.Errorf("validator set not containing proposer")
+		return ErrValSetNot
 	}
 
 	reply.NodeID = nextProposer
-	reply.PublicKey = validators[reply.NodeID].PublicKey.Compress()
+	v := validators[nextProposer]
+	reply.PublicKey = v.PublicKey.Compress()
+	reply.Weight = v.Weight
 
 	j.vm.Logger().Debug("proposer info returned", zap.Uint64("height", args.Height), zap.String("nodeID", reply.NodeID.String()), zap.String("pubkey", hexutil.Encode(reply.PublicKey)))
+	return nil
+}
 
-	// populate current validators
+type GetCurrentValidatorsReply struct {
+	Validators []*Validator `json:"validators"`
+}
+
+func (j *JSONRPCServer) GetCurrentValidators(req *http.Request, _ *struct{}, reply *GetCurrentValidatorsReply) error {
+	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.GetCurrentValidators")
+	defer span.End()
+	validators, _ := j.vm.CurrentValidators(ctx)
+
 	wValidators := make([]*Validator, 0, len(validators))
 	for _, validator := range validators {
 		wVal := new(Validator)
 		wVal.NodeID = validator.NodeID
 		wVal.PublicKey = validator.PublicKey.Compress()
 		wVal.Weight = validator.Weight
-
 		wValidators = append(wValidators, wVal)
 	}
 	reply.Validators = wValidators
+
+	return nil
+}
+
+type GetProposerArgs struct {
+	Diff  int `json:"diff"`
+	Depth int `json:"depth"`
+}
+
+type GetProposerReply struct {
+	NodeIDs []*ids.NodeID `json:"nodeIDs"`
+}
+
+func (j *JSONRPCServer) GetProposer(req *http.Request, args *GetProposerArgs, reply *GetProposerReply) error {
+	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.GetProposer")
+	defer span.End()
+	proposers, err := j.vm.Proposers(ctx, args.Diff, args.Depth)
+	if err != nil {
+		return err
+	}
+
+	for proposer := range proposers {
+		reply.NodeIDs = append(reply.NodeIDs, &proposer) //nolint:exportloopref
+	}
 
 	return nil
 }

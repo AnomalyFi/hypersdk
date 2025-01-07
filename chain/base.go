@@ -50,6 +50,24 @@ func (b *Base) Execute(chainID ids.ID, r Rules, timestamp int64) error {
 	}
 }
 
+func (b *Base) ArcadiaExecute(chainID ids.ID, r Rules, timestamp int64) error {
+	switch {
+	case b.Timestamp%consts.MillisecondsPerSecond != 0:
+		// TODO: make this modulus configurable
+		return fmt.Errorf("%w: timestamp=%d", ErrMisalignedTime, b.Timestamp)
+	case b.Timestamp < timestamp: // tx: 100 block: 110
+		return ErrTimestampTooLate
+	case b.Timestamp > timestamp+r.GetValidityWindow(): // tx: 100 block 10
+		return ErrTimestampTooEarly
+	case b.Timestamp < timestamp+r.GetValidityWindow()/2:
+		return ErrExpiryTooSoon
+	case b.ChainID != chainID:
+		return ErrInvalidChainID
+	default:
+		return nil
+	}
+}
+
 func (*Base) Size() int {
 	return BaseSize
 }

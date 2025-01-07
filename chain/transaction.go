@@ -333,6 +333,7 @@ func (t *Transaction) Execute(
 	r Rules,
 	ts *tstate.TStateView,
 	timestamp int64,
+	blockHeight uint64,
 ) (*Result, error) {
 	// Always charge fee first
 	units, err := t.Units(s, r)
@@ -387,7 +388,7 @@ func (t *Transaction) Execute(
 		resultOutputs = [][][]byte{}
 	)
 	for i, action := range t.Actions {
-		outputs, err := action.Execute(ctx, r, ts, timestamp, t.Auth.Actor(), CreateActionID(t.ID(), uint8(i)))
+		outputs, err := action.Execute(ctx, r, ts, timestamp, blockHeight, t.Auth.Actor(), CreateActionID(t.ID(), uint8(i)))
 		if err != nil {
 			ts.Rollback(ctx, actionStart)
 			return &Result{false, utils.ErrBytes(err), resultOutputs, units, fee}, nil

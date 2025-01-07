@@ -15,12 +15,10 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/ava-labs/avalanchego/utils/set"
-	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
-	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ava-labs/avalanchego/utils/units"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 
-	"github.com/AnomalyFi/hypersdk/anchor"
 	"github.com/AnomalyFi/hypersdk/executor"
 	"github.com/AnomalyFi/hypersdk/fees"
 	"github.com/AnomalyFi/hypersdk/keys"
@@ -85,7 +83,7 @@ func BuildBlock(
 		return nil, ErrTimestampTooEarly
 	}
 	b := NewBlock(vm, parent, nextTime)
-
+	nextHght := parent.Hght + 1
 	// Fetch view where we will apply block state transitions
 	//
 	// If the parent block is not yet verified, we will attempt to
@@ -153,42 +151,47 @@ func BuildBlock(
 
 		// stop is used to trigger that we should stop building, assuming we are no longer executing
 		stop bool
+
+		includedTxsSet = set.NewSet[ids.ID](len(b.Txs))
+
+		isArcadiaBuildSuccessful = false
 	)
 
 	// Batch fetch items from mempool to unblock incoming RPC/Gossip traffic
 	b.Txs = []*Transaction{}
 
-	actx, cancel := context.WithTimeout(ctx, 500*time.Millisecond) // make a const or configurable
-	anchorCli := vm.AnchorClient(actx)
-	if anchorCli != nil {
+	if vm.IsArcadiaConfigured() {
+		actx, cancel := context.WithTimeout(ctx, 500*time.Millisecond) // make a const or configurable
 		defer cancel()
-		txs, err := GetAnchorTxs(actx, vm, r, parent)
+		lbwUnits := maxUnits[fees.Bandwidth] - 50*units.KiB
+		txs, err := GetArcadiaTxs(actx, vm, r, lbwUnits, nextHght)
 		if err != nil {
-			goto skipAnchor
+			goto skipArcadia
 		}
 
-		ctx, executeSpan := vm.Tracer().Start(ctx, "chain.BuildBlock.ExecuteAnchor") //nolint:spancheck
-		anchorBatch := len(txs)
-		vm.Logger().Debug("anchor batch info", zap.Int("size", anchorBatch))
+		ctx, executeSpan := vm.Tracer().Start(ctx, "chain.BuildBlock.ExecuteArcadia")
+		ntxs := len(txs)
+		vm.Logger().Debug("arcadia batch info", zap.Int("size", ntxs))
 
-		// aggregate all the state keys used in the anchor chunk
-		anchorStateKeys := make(state.Keys)
+		arcadiaStateKeys := make(state.Keys)
 		for _, tx := range txs {
 			statekeys, err := tx.StateKeys(sm)
 			if err != nil {
 				vm.Logger().Error("unable to get statekeys of tx", zap.Error(err))
-				goto skipAnchor
+				executeSpan.End()
+				goto skipArcadia
 			}
 			for k, perm := range statekeys {
-				anchorStateKeys.Add(k, perm)
+				arcadiaStateKeys.Add(k, perm)
 			}
 		}
 		var (
-			storage  = make(map[string][]byte, len(anchorStateKeys))
-			toLookup = make([]string, 0, len(anchorStateKeys))
+			storage  = make(map[string][]byte, len(arcadiaStateKeys))
+			toLookup = make([]string, 0, len(arcadiaStateKeys))
 		)
+
 		cacheLock.RLock()
-		for k := range anchorStateKeys {
+		for k := range arcadiaStateKeys {
 			if v, ok := cache[k]; ok {
 				if v.exists {
 					storage[k] = v.v
@@ -210,14 +213,16 @@ func BuildBlock(
 					continue
 				} else if err != nil {
 					vm.Logger().Error("unable to get key", zap.String("key", k), zap.Error(err))
-					goto skipAnchor
+					executeSpan.End()
+					goto skipArcadia
 				}
 				// We verify that the [NumChunks] is already less than the number
 				// added on the write path, so we don't need to do so again here.
 				numChunks, ok := keys.NumChunks(v)
 				if !ok {
 					vm.Logger().Error("unable to calculate num of chunks for k", zap.String("key", k))
-					goto skipAnchor
+					executeSpan.End()
+					goto skipArcadia
 				}
 				toCache[k] = &fetchData{v, true, numChunks}
 				storage[k] = v
@@ -231,17 +236,16 @@ func BuildBlock(
 			cacheLock.Unlock()
 		}
 
-		var anchorL sync.Mutex
-		anchorTxs := make([]*Transaction, 0, len(txs))
-		anchorTxResults := make([]*Result, 0, len(results))
-		e := executor.New(anchorBatch, vm.GetTransactionExecutionCores(), MaxKeyDependencies, vm.GetExecutorBuildRecorder())
+		var arcadiaL sync.Mutex
+		arcadiaTxs := make([]*Transaction, 0, len(txs))
+		arcadiaTxResults := make([]*Result, 0, len(results))
+		e := executor.New(ntxs, vm.GetTransactionExecutionCores(), MaxKeyDependencies, vm.GetExecutorBuildRecorder())
 		// start a new view here, only commit when all txs succeed
-		tsv := ts.NewView(anchorStateKeys, storage)
+		tsv := ts.NewView(arcadiaStateKeys, storage)
 		for _, ltx := range txs {
 			txsAttempted++
 			tx := ltx
-			// TODO: parallem this, currently `TState` can't be rolled back while `TState_View` can
-			e.Run(anchorStateKeys, func() error {
+			e.Run(arcadiaStateKeys, func() error {
 				if err := tx.PreExecute(ctx, feeManager, feeMarket, sm, r, tsv, nextTime); err != nil {
 					return err
 				}
@@ -253,6 +257,7 @@ func BuildBlock(
 					r,
 					tsv,
 					nextTime,
+					nextHght,
 				)
 				if err != nil {
 					log.Warn("unexpected post-execution error", zap.Error(err))
@@ -277,11 +282,11 @@ func BuildBlock(
 					}
 				}
 
-				anchorL.Lock()
-				defer anchorL.Unlock()
+				arcadiaL.Lock()
+				defer arcadiaL.Unlock()
 
-				anchorTxs = append(anchorTxs, tx)
-				anchorTxResults = append(anchorTxResults, result)
+				arcadiaTxs = append(arcadiaTxs, tx)
+				arcadiaTxResults = append(arcadiaTxResults, result)
 
 				return nil
 			})
@@ -291,29 +296,51 @@ func BuildBlock(
 
 		// Handle execution result
 		if execErr != nil {
-			vm.Logger().Error("error executing anchor txs", zap.Error(err))
+			vm.Logger().Error("error executing arcadia txs", zap.Error(err))
 		} else {
-			vm.Logger().Info("anchor txs has been added", zap.Int("numTxs", len(anchorTxs)))
-			// only do state transition when all the txs in the anchor chunk have succeed
+			vm.Logger().Info("arcadia txs has been added", zap.Int("numTxs", len(arcadiaTxs)))
+			// only do state transition when all the txs in the arcadia chunk have succeed
 			tsv.Commit()
-			b.Txs = append(b.Txs, anchorTxs...)
-			results = append(results, anchorTxResults...)
+			b.Txs = append(b.Txs, arcadiaTxs...)
+			// Add txs from arcadia to the set, so we can skip them during local build process.
+			for _, tx := range b.Txs {
+				includedTxsSet.Add(tx.ID())
+			}
+			results = append(results, arcadiaTxResults...)
+			isArcadiaBuildSuccessful = true
 		}
 	}
-
-skipAnchor:
+skipArcadia:
 	// txs from mempool
 	mempool.StartStreaming(ctx)
 	for time.Since(start) < vm.GetTargetBuildDuration() && !stop {
+		var txs []*Transaction
 		prepareStreamLock.Lock()
-		txs := mempool.Stream(ctx, streamBatch)
+		mpooltxs := mempool.Stream(ctx, streamBatch)
 		prepareStreamLock.Unlock()
-		if len(txs) == 0 {
+		if len(mpooltxs) == 0 {
 			b.vm.RecordClearedMempool()
 			break
 		}
+		if isArcadiaBuildSuccessful {
+			// If txs from arcadia are accepted we can skip transactions with SequencerMsg.
+			for _, tx := range mpooltxs {
+				// TODO: this restricts any transaction other than ones containing SequencerMsg to contain only 1 action per transaction.
+				// Let transactions that contain SeqeucnerMsg only get excluded.
+				if len(tx.Actions) != 1 || tx.Actions[0].GetTypeID() == sequencerMsgID {
+					continue
+				}
+				txs = append(txs, tx)
+			}
+		} else {
+			// If arcadia build failed, we will proceed with local block building.
+			txs = mpooltxs
+		}
+
 		ctx, executeSpan := vm.Tracer().Start(ctx, "chain.BuildBlock.Execute") //nolint:spancheck
 
+		// Perform a check to see if the transaction is already included in the arcadia chunk.
+		adup := IsRepeatTxAsArcadiaTx(includedTxsSet, set.NewBits(), txs)
 		// Perform a batch repeat check
 		dup, err := parent.IsRepeat(ctx, oldestAllowed, txs, set.NewBits(), false)
 		if err != nil {
@@ -330,7 +357,7 @@ skipAnchor:
 			tx := ltx
 
 			// Skip any duplicates before going async
-			if dup.Contains(i) {
+			if dup.Contains(i) || adup.Contains(i) {
 				continue
 			}
 
@@ -442,6 +469,7 @@ skipAnchor:
 					r,
 					tsv,
 					nextTime,
+					nextHght,
 				)
 				if err != nil {
 					// Returning an error here should be avoided at all costs (can be a DoS). Rather,
@@ -611,86 +639,21 @@ skipAnchor:
 	return b, nil
 }
 
-func GetAnchorTxs(
-	ctx context.Context,
+func GetArcadiaTxs(
+	_ context.Context,
 	vm VM,
-	r Rules,
-	parent *StatelessBlock,
+	_ Rules,
+	maxBw uint64,
+	blocknumber uint64,
 ) ([]*Transaction, error) {
-	txsCh := make(chan []*Transaction)
-	errCh := make(chan error)
-	anchorCli := vm.AnchorClient(ctx)
-	slot := parent.Height() + 1
-	go func() {
-		header, err := anchorCli.GetHeader(int64(slot), parent.id.String(), *vm.Signer())
-		vm.Logger().Debug(fmt.Sprintf("producing block at height(%d)", slot), zap.String("anchor", anchorCli.Url), zap.String("nodeID", vm.NodeID().String()), zap.String("pubkey", hexutil.Encode(vm.Signer().Compress())))
-		if err != nil {
-			vm.Logger().Error("unable to get header from anchor", zap.Error(err))
-			errCh <- fmt.Errorf("unable to get header from anchor: %w", err)
-			return
-		}
-		vm.Logger().Debug("header received", zap.Uint64("slot", header.BlockInfo.Slot))
-		executionHeaderHash, err := anchor.HashExecHeaders(&header.ExecHeaders)
-		if err != nil {
-			vm.Logger().Error("unable to hash execution header", zap.Uint64("slot", header.BlockInfo.Slot), zap.Error(err))
-			errCh <- fmt.Errorf("unable to hash execution header: %w", err)
-			return
-		}
-		uwm, err := warp.NewUnsignedMessage(r.NetworkID(), r.ChainID(), executionHeaderHash[:])
-		if err != nil {
-			vm.Logger().Error("unable to create uwm", zap.Error(err))
-			errCh <- fmt.Errorf("unable to create uwm: %w", err)
-			return
-		}
-		sig, err := vm.Sign(uwm)
-		if err != nil {
-			vm.Logger().Error("unable to sign uwm of execution headers", zap.Uint64("slot", header.BlockInfo.Slot), zap.Error(err))
-			errCh <- fmt.Errorf("unable to sign uwm of execution headers: %w", err)
-			return
-		}
-		payloadReq := anchor.AnchorGetPayloadRequest{
-			Slot:           header.BlockInfo.Slot,
-			ProposerPubKey: vm.Signer().Compress(),
-			ParentHash:     parent.id.String(),
-			SignedHeaders:  sig,
-		}
-
-		payload, err := anchorCli.GetPayload(&payloadReq)
-		if err != nil {
-			vm.Logger().Error("unable to get payload from anchor", zap.Uint64("slot", header.BlockInfo.Slot), zap.Error(err))
-			errCh <- fmt.Errorf("unable to get payload from anchor: %w", err)
-			return
-		}
-		txs := make([]*Transaction, 0) // TODO: need a const to control initial txs volume
-		actionRegistry, authRegistry := vm.Registry()
-		if payload.ExecPayloads.ToBPayload != nil {
-			_, tobTxs, err := UnmarshalTxs(payload.ExecPayloads.ToBPayload.Transactions, 10, actionRegistry, authRegistry)
-			if err != nil {
-				vm.Logger().Error("unable to unmarshal txs from anchor", zap.Error(err))
-				errCh <- fmt.Errorf("unable to unmarshal txs from anchor: %w", err)
-				return
-			}
-			txs = append(txs, tobTxs...)
-		}
-		for _, execPayload := range payload.ExecPayloads.RoBPayloads {
-			_, robTxs, err := UnmarshalTxs(execPayload.Transactions, 10, actionRegistry, authRegistry)
-			if err != nil {
-				vm.Logger().Error("unable to unmarshal txs from anchor", zap.Error(err))
-				errCh <- fmt.Errorf("unable to unmarshal txs from anchor: %w", err)
-				return
-			}
-			txs = append(txs, robTxs...)
-		}
-
-		txsCh <- txs
-	}()
-
-	select {
-	case txs := <-txsCh:
-		return txs, nil
-	case err := <-errCh:
-		return nil, err
-	case <-ctx.Done():
-		return nil, fmt.Errorf("timeout on waiting anchor txs")
+	txsbytes, err := vm.GetBlockPayloadFromArcadia(maxBw, blocknumber)
+	if err != nil {
+		return nil, fmt.Errorf("unable to get block payload from arcadia: %w", err)
 	}
+	actionRegistry, authRegistry := vm.Registry()
+	_, txs, err := UnmarshalTxs(txsbytes, 10, actionRegistry, authRegistry)
+	if err != nil {
+		return nil, fmt.Errorf("unable to unmarshal txs from arcadia: %w", err)
+	}
+	return txs, nil
 }

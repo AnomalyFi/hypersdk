@@ -4,6 +4,7 @@
 package utils
 
 import (
+	"encoding/binary"
 	"fmt"
 	"math"
 	"net"
@@ -19,6 +20,11 @@ import (
 	"github.com/onsi/ginkgo/v2/formatter"
 
 	"github.com/AnomalyFi/hypersdk/consts"
+)
+
+const (
+	MinPort = 1025
+	MaxPort = 65535
 )
 
 func ToID(bytes []byte) ids.ID {
@@ -116,4 +122,14 @@ func LoadBytes(filename string, expectedSize int) ([]byte, error) {
 		return nil, ErrInvalidSize
 	}
 	return bytes, nil
+}
+
+// Derive uint64 from nodeID
+// use uint64 to derive port.
+func GetPortFromNodeID(nodeID ids.NodeID) int {
+	nb := nodeID.Bytes()
+	np := binary.BigEndian.Uint32(nb[16:])
+
+	np = np%(MaxPort-MinPort) + MinPort
+	return int(np)
 }

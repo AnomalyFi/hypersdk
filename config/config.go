@@ -12,15 +12,19 @@ import (
 	"github.com/ava-labs/avalanchego/utils/units"
 
 	"github.com/AnomalyFi/hypersdk/codec"
+	"github.com/AnomalyFi/hypersdk/rpc"
 	"github.com/AnomalyFi/hypersdk/trace"
 )
 
 type Config struct{}
 
 func (c *Config) GetLogLevel() logging.Level                { return logging.Info }
-func (c *Config) GetAuthVerificationCores() int             { return 1 }
-func (c *Config) GetRootGenerationCores() int               { return 1 }
-func (c *Config) GetTransactionExecutionCores() int         { return 1 }
+func (c *Config) GetAuthVerificationCores() int             { return 4 }
+func (c *Config) GetRootGenerationCores() int               { return 2 }
+func (c *Config) GetTransactionExecutionCores() int         { return 2 } // 2 cores for transaction execution.
+func (c *Config) GetChunkCores() int                        { return 4 } // 4 cores for arcadia chunk processing.
+func (c *Config) GetChunkProcessingBackLog() int            { return 1024 }
+func (c *Config) GetPreconfIssueCores() int                 { return 2 } // 2 cores for preconf issue processing.
 func (c *Config) GetStateFetchConcurrency() int             { return 1 }
 func (c *Config) GetMempoolSize() int                       { return 2_048 }
 func (c *Config) GetMempoolSponsorSize() int                { return 32 }
@@ -52,7 +56,9 @@ func (c *Config) GetTargetGossipDuration() time.Duration { return 20 * time.Mill
 func (c *Config) GetBlockCompactionFrequency() int       { return 32 } // 64 MB of deletion if 2 MB blocks
 func (c *Config) GetETHL1RPC() string                    { return "http://localhost:8545" }
 func (c *Config) GetETHL1WS() string                     { return "ws://localhost:8546" }
-func (c *Config) GetAnchorURL() string                   { return "" }
-func (c *Config) GetAnchorManager() string {
-	return "0x987647e360d340fa0224bf2c2c11919fd0d90e3797c9869994c22a52b4d901fd9450795a9a9aa9562639359ed0fdc19e"
-} // default bls pubkey for anchor manager
+func (c *Config) GetArcadiaURL() string                  { return "" }
+func (c *Config) GetValServerConfig() *rpc.JSONRPCValServerConfig {
+	return &rpc.JSONRPCValServerConfig{
+		DerivePort: true,
+	}
+}

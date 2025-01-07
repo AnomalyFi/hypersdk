@@ -4,7 +4,6 @@
 package vm
 
 import (
-	"bytes"
 	"context"
 	"encoding/hex"
 	"fmt"
@@ -24,7 +23,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/AnomalyFi/hypersdk/actions"
-	"github.com/AnomalyFi/hypersdk/anchor"
+	"github.com/AnomalyFi/hypersdk/arcadia"
 	"github.com/AnomalyFi/hypersdk/builder"
 	"github.com/AnomalyFi/hypersdk/chain"
 	"github.com/AnomalyFi/hypersdk/codec"
@@ -66,15 +65,23 @@ func (vm *VM) Registry() (chain.ActionRegistry, chain.AuthRegistry) {
 	return vm.actionRegistry, vm.authRegistry
 }
 
-func (vm *VM) AnchorClient(ctx context.Context) *anchor.AnchorClient {
-	vm.anchorCliL.Lock()
-	defer vm.anchorCliL.Unlock()
-
-	return vm.anchorCli
+func (vm *VM) Arcadia() *arcadia.Arcadia {
+	return vm.arcadia
 }
 
-func (vm *VM) AnchorRegistry() *anchor.AnchorRegistry {
-	return vm.anchorRegistry
+func (vm *VM) IsArcadiaConfigured() bool {
+	return vm.arcadia != nil
+}
+
+func (vm *VM) GetBlockPayloadFromArcadia(maxBw, blockNumber uint64) ([]byte, error) {
+	if vm.arcadia == nil {
+		return nil, ErrArcadiaCliNotInit
+	}
+	payload, err := vm.arcadia.GetBlockPayloadFromArcadia(maxBw, blockNumber)
+	if err != nil {
+		return nil, err
+	}
+	return payload.Transactions, nil
 }
 
 func (vm *VM) AuthVerifiers() workers.Workers {
@@ -116,30 +123,6 @@ func (vm *VM) State() (merkledb.MerkleDB, error) {
 
 func (vm *VM) Mempool() chain.Mempool {
 	return vm.mempool
-}
-
-func (vm *VM) ReplaceAnchor(url string, pk *bls.PublicKey, sig *bls.Signature) (bool, error) {
-	pkHex := vm.config.GetAnchorManager()
-	pkBytes, err := hexutil.Decode(pkHex)
-	if err != nil {
-		return false, err
-	}
-
-	if !bytes.Equal(pk.Compress(), pkBytes) {
-		return false, err
-	}
-
-	payload := []byte(url) // default encoding is utf-8
-	if verified := bls.Verify(payload, pk, sig); !verified {
-		return false, fmt.Errorf("invalid signature against payload")
-	}
-
-	vm.anchorCliL.Lock()
-	defer vm.anchorCliL.Unlock()
-	vm.anchorCli = anchor.NewAnchorClient(url)
-	vm.Logger().Debug("setting anchor url to", zap.String("url", url))
-
-	return true, nil
 }
 
 func (vm *VM) IsRepeat(ctx context.Context, txs []*chain.Transaction, marker set.Bits, stop bool) set.Bits {
@@ -283,45 +266,63 @@ func (vm *VM) processAcceptedBlocks() {
 	}
 }
 
-func (vm *VM) updateAnchorRegistry(ctx context.Context, b *chain.StatelessBlock) error {
+func (vm *VM) updateRollupRegistryAndGetBuilderPubKey(ctx context.Context, b *chain.StatelessBlock) (*[][]byte, *bls.PublicKey, error) {
 	view, err := b.View(ctx, false)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
-	registryKey := actions.AnchorRegistryKey()
+	arcadiaBidKey := actions.ArcadiaBidKey(vm.GetCurrentEpoch())
+	arcadiaBidBytes, err := view.GetValue(ctx, arcadiaBidKey)
+	if err != nil && err != database.ErrNotFound {
+		return nil, nil, err
+	}
+	var builderPubKey *bls.PublicKey
+	if arcadiaBidBytes != nil {
+		buldrPubKey, err := actions.UnpackBidderPublicKeyFromStateData(arcadiaBidBytes)
+		if err != nil && err != database.ErrNotFound {
+			return nil, nil, err
+		}
+		builderPubKey = buldrPubKey
+	}
+	registryKey := actions.RollupRegistryKey()
 	registryBytes, err := view.GetValue(ctx, registryKey)
 	if err != nil {
 		if err == database.ErrNotFound {
-			vm.Logger().Debug("no anchor registered yet")
-			return nil
+			dnss := make([][]byte, 0)
+			vm.Logger().Debug("no rollups registered yet")
+			return &dnss, nil, nil
 		}
-		return err
+		return nil, nil, err
 	}
 	namespaces, err := actions.UnpackNamespaces(registryBytes)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
-	anchors := make([]*actions.AnchorInfo, 0)
-	vm.Logger().Debug("anchor list")
+	vm.Logger().Debug("rollup lists")
+	currentEpoch := vm.GetCurrentEpoch()
+	validNamespaces := make([][]byte, 0)
 	for _, ns := range namespaces {
-		anchorKey := actions.AnchorKey(ns)
-		anchorBytes, err := view.GetValue(ctx, anchorKey)
+		rollupInfoKey := actions.RollupInfoKey(ns)
+		rollupInfoBytes, err := view.GetValue(ctx, rollupInfoKey)
 		if err != nil {
-			vm.Logger().Error("unable to get value of anchor", zap.String("namespace", hex.EncodeToString(ns)))
+			vm.Logger().Error("unable to get value of rollup", zap.String("namespace", hex.EncodeToString(ns)))
 			continue
 		}
-		p := codec.NewReader(anchorBytes, consts.NetworkSizeLimit)
-		anchor, err := actions.UnmarshalAnchorInfo(p)
+		p := codec.NewReader(rollupInfoBytes, consts.NetworkSizeLimit)
+		rollupInfo, err := actions.UnmarshalRollupInfo(p)
 		if err != nil {
-			vm.Logger().Error("unable to unmarshal anchor info", zap.Error(err))
+			vm.Logger().Error("unable to unmarshal rollup info", zap.Error(err))
 			continue
 		}
-		vm.Logger().Debug("anchor info", zap.String("namespace", hex.EncodeToString(anchor.Namespace)))
-		anchors = append(anchors, anchor)
+		if rollupInfo.ExitEpoch != 0 && rollupInfo.ExitEpoch == currentEpoch || currentEpoch < rollupInfo.StartEpoch {
+			vm.Logger().Debug("rollup no valid", zap.String("namespace", hexutil.Encode(rollupInfo.Namespace)), zap.Uint64("exitEpoch", rollupInfo.ExitEpoch), zap.Uint64("startEpoch", rollupInfo.StartEpoch))
+			continue
+		}
+		validNamespaces = append(validNamespaces, rollupInfo.Namespace)
+		vm.Logger().Debug("rollup info", zap.String("namespace", hex.EncodeToString(rollupInfo.Namespace)))
 	}
 
-	vm.anchorRegistry.Update(anchors)
-	return nil
+	return &validNamespaces, builderPubKey, nil
 }
 
 func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
@@ -352,10 +353,22 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
 	vm.Logger().Debug("txs evicted from seen", zap.Int("len", len(evicted)))
 	vm.seen.Add(b.Txs)
 
-	if err := vm.updateAnchorRegistry(ctx, b); err != nil {
+	aevicted := vm.arcadiaAuthVerifiedTxs.SetMin(blkTime)
+	vm.Logger().Debug("txs evicted from arcadia auth verified txs", zap.Int("len", len(aevicted)))
+
+	nss, bldrPubKey, err := vm.updateRollupRegistryAndGetBuilderPubKey(ctx, b)
+	if err != nil {
 		vm.Logger().Error("unable to update registry", zap.Error(err))
 	}
-
+	if vm.IsArcadiaConfigured() {
+		if b.Height()%uint64(vm.Rules(b.Tmstmp).GetEpochLength()) == 0 {
+			vm.arcadia.EpochUpdateChan() <- &arcadia.EpochUpdateInfo{
+				Epoch:               b.Height() / uint64(vm.Rules(b.Tmstmp).GetEpochLength()),
+				BuilderPubKey:       bldrPubKey,
+				AvailableNamespaces: nss,
+			}
+		}
+	}
 	// Verify if emap is now sufficient (we need a consecutive run of blocks with
 	// timestamps of at least [ValidityWindow] for this to occur).
 	if !vm.isReady() {
@@ -400,6 +413,72 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
 	)
 }
 
+func (vm *VM) AddToArcadiaAuthVerifiedTxs(txs []*chain.Transaction) {
+	vm.arcadiaAuthVerifiedTxs.Add(txs)
+}
+
+func (vm *VM) IsArcadiaAuthVerifiedTx(txID ids.ID) bool {
+	return vm.arcadiaAuthVerifiedTxs.HasID(txID)
+}
+
+func (vm *VM) ReplaceArcadia(url string) error {
+	ctx := context.Background()
+	vm.arcadia.ShutDown()
+	rollupRegistryKey := actions.RollupRegistryKey()
+	rollupRegistryBytes, err := vm.stateDB.GetValue(ctx, rollupRegistryKey)
+	// ignore database.ErrNotFound, as it is expected registry is empty on genesis and in some instances.
+	if err != nil && err != database.ErrNotFound {
+		return fmt.Errorf("unable to get rollup registry from statedb: %w", err)
+	}
+	var rollupRegistry [][]byte
+	if err == database.ErrNotFound {
+		rollupRegistry = make([][]byte, 0)
+	} else {
+		rollupRegistry, err = actions.UnpackNamespaces(rollupRegistryBytes)
+		if err != nil {
+			return fmt.Errorf("unable to unpack rollup registry: %w", err)
+		}
+	}
+	arcadiaBidKey := actions.ArcadiaBidKey(vm.GetCurrentEpoch())
+	arcadiaBidBytes, err := vm.stateDB.GetValue(ctx, arcadiaBidKey)
+	// ignore database.ErrNotFound, as it is expected bid is empty on genesis and in some instances.
+	if err != nil && err != database.ErrNotFound {
+		return fmt.Errorf("unable to get arcadia bid from statedb: %w", err)
+	}
+	var builderPubKey *bls.PublicKey
+	if arcadiaBidBytes != nil {
+		blderPubKey, err := actions.UnpackBidderPublicKeyFromStateData(arcadiaBidBytes)
+		if err != nil {
+			return fmt.Errorf("unable to unpack arcadia bid: %w", err)
+		}
+		builderPubKey = blderPubKey
+	}
+	vm.arcadia = arcadia.NewArcadiaClient(url, vm.GetCurrentEpoch(), builderPubKey, &rollupRegistry, vm)
+
+	go func() {
+		if err := vm.arcadia.Subscribe(); err != nil {
+			vm.snowCtx.Log.Error("failed to subscribe to arcadia", zap.Error(err))
+			// wait 2 minutes before retrying.
+			vm.snowCtx.Log.Info("retrying to subscribe to arcadia in 2 minutes")
+			time.Sleep(120 * time.Second)
+			if err := vm.arcadia.Subscribe(); err != nil {
+				vm.snowCtx.Log.Error("failed to subscribe to arcadia", zap.Error(err))
+				// wait 3 more minutes before retrying.
+				vm.snowCtx.Log.Info("retrying to subscribe to arcadia in 3 minutes x2")
+				time.Sleep(180 * time.Second)
+				if err := vm.arcadia.Subscribe(); err != nil {
+					vm.snowCtx.Log.Error("failed to subscribe to arcadia", zap.Error(err))
+					return
+				}
+			}
+		}
+		vm.snowCtx.Log.Info("subscribed to arcadia")
+		go vm.arcadia.Run()
+	}()
+
+	return nil
+}
+
 func (vm *VM) IsValidator(ctx context.Context, nid ids.NodeID) (bool, error) {
 	return vm.proposerMonitor.IsValidator(ctx, nid)
 }
@@ -431,6 +510,10 @@ func (vm *VM) Signer() *bls.PublicKey {
 
 func (vm *VM) Sign(msg *warp.UnsignedMessage) ([]byte, error) {
 	return vm.snowCtx.WarpSigner.Sign(msg)
+}
+
+func (vm *VM) GetCurrentEpoch() uint64 {
+	return vm.lastAccepted.Hght / uint64(vm.c.Rules(0).GetEpochLength())
 }
 
 func (vm *VM) PreferredBlock(ctx context.Context) (*chain.StatelessBlock, error) {
@@ -569,6 +652,26 @@ func (vm *VM) RecordClearedMempool() {
 	vm.metrics.clearedMempool.Inc()
 }
 
+func (vm *VM) RecordChunksReceived() {
+	vm.metrics.chunksReceived.Inc()
+}
+
+func (vm *VM) RecordChunksRejected() {
+	vm.metrics.chunksRejected.Inc()
+}
+
+func (vm *VM) RecordChunksAccepted() {
+	vm.metrics.chunksAccepted.Inc()
+}
+
+func (vm *VM) RecordValidTxsInChunksReceived(c int) {
+	vm.metrics.validTxsInChunksReceived.Add(float64(c))
+}
+
+func (vm *VM) RecordChunkProcessDuration(t time.Duration) {
+	vm.metrics.chunkProcess.Observe(float64(t))
+}
+
 func (vm *VM) UnitPrices(context.Context) (fees.Dimensions, error) {
 	v, err := vm.stateDB.Get(chain.FeeKey(vm.StateManager().FeeKey()))
 	if err != nil {
@@ -596,6 +699,18 @@ func (vm *VM) NameSpacesPrice(_ context.Context, namespaces []string) ([]uint64,
 
 func (vm *VM) GetTransactionExecutionCores() int {
 	return vm.config.GetTransactionExecutionCores()
+}
+
+func (vm *VM) GetChunkCores() int {
+	return vm.config.GetChunkCores()
+}
+
+func (vm *VM) GetChunkProcessingBackLog() int {
+	return vm.config.GetChunkProcessingBackLog()
+}
+
+func (vm *VM) GetPreconfIssueCores() int {
+	return vm.config.GetPreconfIssueCores()
 }
 
 func (vm *VM) GetStateFetchConcurrency() int {

@@ -16,7 +16,6 @@ import (
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 
-	"github.com/AnomalyFi/hypersdk/anchor"
 	"github.com/AnomalyFi/hypersdk/codec"
 	"github.com/AnomalyFi/hypersdk/crypto/bls"
 	"github.com/AnomalyFi/hypersdk/executor"
@@ -66,8 +65,10 @@ type VM interface {
 	AuthVerifiers() workers.Workers
 	GetAuthBatchVerifier(authTypeID uint8, cores int, count int) (AuthBatchVerifier, bool)
 	GetVerifyAuth() bool
+	IsArcadiaAuthVerifiedTx(txID ids.ID) bool
 
-	AnchorClient(context.Context) *anchor.AnchorClient
+	GetBlockPayloadFromArcadia(uint64, uint64) ([]byte, error)
+	IsArcadiaConfigured() bool
 
 	IsBootstrapped() bool
 	LastAcceptedBlock() *StatelessBlock
@@ -136,6 +137,7 @@ type Rules interface {
 
 	GetMinBlockGap() int64      // in milliseconds
 	GetMinEmptyBlockGap() int64 // in milliseconds
+	GetEpochLength() int64      // in number of SEQ blocks
 	GetValidityWindow() int64   // in milliseconds
 
 	GetMaxActionsPerTx() uint8
@@ -256,6 +258,7 @@ type Action interface {
 		r Rules,
 		mu state.Mutable,
 		timestamp int64,
+		blockHeight uint64,
 		actor codec.Address,
 		actionID ids.ID,
 	) (outputs [][]byte, err error)

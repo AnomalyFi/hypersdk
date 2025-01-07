@@ -28,7 +28,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 
-	"github.com/AnomalyFi/hypersdk/anchor"
+	"github.com/AnomalyFi/hypersdk/actions"
+	"github.com/AnomalyFi/hypersdk/arcadia"
 	"github.com/AnomalyFi/hypersdk/builder"
 	"github.com/AnomalyFi/hypersdk/cache"
 	"github.com/AnomalyFi/hypersdk/chain"
@@ -76,10 +77,9 @@ type VM struct {
 	tracer  avatrace.Tracer
 	mempool *mempool.Mempool[*chain.Transaction]
 
-	// anchor
-	anchorCliL     sync.Mutex
-	anchorCli      *anchor.AnchorClient
-	anchorRegistry *anchor.AnchorRegistry
+	// Arcadia
+	arcadia                *arcadia.Arcadia
+	arcadiaAuthVerifiedTxs *emap.EMap[*chain.Transaction]
 
 	// track all accepted but still valid txs (replay protection)
 	seen                   *emap.EMap[*chain.Transaction]
@@ -161,6 +161,7 @@ func (vm *VM) Initialize(
 	vm.startSeenTime = -1
 	// Init seen for tracking transactions that have been accepted on-chain
 	vm.seen = emap.NewEMap[*chain.Transaction]()
+	vm.arcadiaAuthVerifiedTxs = emap.NewEMap[*chain.Transaction]()
 	vm.seenValidityWindow = make(chan struct{})
 	vm.ready = make(chan struct{})
 	vm.stop = make(chan struct{})
@@ -262,14 +263,6 @@ func (vm *VM) Initialize(
 		vm.config.GetMempoolSponsorSize(),
 		vm.config.GetMempoolExemptSponsors(),
 	)
-
-	if vm.config.GetAnchorURL() == "" {
-		snowCtx.Log.Info("no anchor configured")
-		vm.anchorCli = nil
-	} else {
-		vm.anchorCli = anchor.NewAnchorClient(vm.config.GetAnchorURL())
-	}
-	vm.anchorRegistry = anchor.NewAnchorRegistry()
 
 	// Try to load last accepted
 	has, err := vm.HasLastAccepted()
@@ -431,6 +424,63 @@ func (vm *VM) Initialize(
 	go vm.gossiper.Run(gossipSender)
 
 	go vm.ETHL1HeadSubscribe()
+	if vm.config.GetArcadiaURL() == "" {
+		vm.Logger().Info("no arcadia configured")
+		vm.arcadia = nil
+	} else {
+		rollupRegistryKey := actions.RollupRegistryKey()
+		rollupRegistryBytes, err := vm.stateDB.GetValue(ctx, rollupRegistryKey)
+		// ignore database.ErrNotFound, as it is expected registry is empty on genesis and in some instances.
+		if err != nil && err != database.ErrNotFound {
+			return fmt.Errorf("unable to get rollup registry from statedb: %w", err)
+		}
+		var rollupRegistry [][]byte
+		if err == database.ErrNotFound {
+			rollupRegistry = make([][]byte, 0)
+		} else {
+			rollupRegistry, err = actions.UnpackNamespaces(rollupRegistryBytes)
+			if err != nil {
+				return fmt.Errorf("unable to unpack rollup registry: %w", err)
+			}
+		}
+		arcadiaBidKey := actions.ArcadiaBidKey(vm.GetCurrentEpoch())
+		arcadiaBidBytes, err := vm.stateDB.GetValue(ctx, arcadiaBidKey)
+		// ignore database.ErrNotFound, as it is expected bid is empty on genesis and in some instances.
+		if err != nil && err != database.ErrNotFound {
+			return fmt.Errorf("unable to get arcadia bid from statedb: %w", err)
+		}
+		var builderPubKey *bls.PublicKey
+		if arcadiaBidBytes != nil {
+			blderPubKey, err := actions.UnpackBidderPublicKeyFromStateData(arcadiaBidBytes)
+			if err != nil {
+				return fmt.Errorf("unable to unpack arcadia bid: %w", err)
+			}
+			builderPubKey = blderPubKey
+		}
+
+		vm.arcadia = arcadia.NewArcadiaClient(vm.config.GetArcadiaURL(), vm.GetCurrentEpoch(), builderPubKey, &rollupRegistry, vm)
+
+		go func() {
+			if err := vm.arcadia.Subscribe(); err != nil {
+				vm.snowCtx.Log.Error("failed to subscribe to arcadia", zap.Error(err))
+				// wait 2 minutes before retrying.
+				vm.snowCtx.Log.Info("retrying to subscribe to arcadia in 2 minutes")
+				time.Sleep(120 * time.Second)
+				if err := vm.arcadia.Subscribe(); err != nil {
+					vm.snowCtx.Log.Error("failed to subscribe to arcadia", zap.Error(err))
+					// wait 3 more minutes before retrying.
+					vm.snowCtx.Log.Info("retrying to subscribe to arcadia in 3 minutes x2")
+					time.Sleep(180 * time.Second)
+					if err := vm.arcadia.Subscribe(); err != nil {
+						vm.snowCtx.Log.Error("failed to subscribe to arcadia", zap.Error(err))
+						return
+					}
+				}
+			}
+			vm.snowCtx.Log.Info("subscribed to arcadia")
+			go vm.arcadia.Run()
+		}()
+	}
 
 	// Wait until VM is ready and then send a state sync message to engine
 	go vm.markReady()
@@ -449,6 +499,24 @@ func (vm *VM) Initialize(
 	}
 	webSocketServer, pubsubServer := rpc.NewWebSocketServer(vm, vm.config.GetStreamingBacklogSize())
 	vm.webSocketServer = webSocketServer
+
+	valServerCfg := vm.config.GetValServerConfig()
+	var valPort int
+	if valServerCfg.DerivePort {
+		valPort = utils.GetPortFromNodeID(snowCtx.NodeID)
+	} else {
+		if valServerCfg.Port < utils.MinPort || valServerCfg.Port > utils.MaxPort {
+			return fmt.Errorf("invalid port provided: %d", valServerCfg.Port)
+		}
+		valPort = valServerCfg.Port
+	}
+
+	vm.snowCtx.Log.Info(fmt.Sprintf("starting val server for node(%s) at port: %d", snowCtx.NodeID, valPort))
+
+	go func(v *VM) {
+		valServer := rpc.NewJSONRPCValServer(v)
+		valServer.Serve(fmt.Sprintf(":%d", valPort))
+	}(vm)
 	vm.handlers[rpc.WebSocketEndpoint] = pubsubServer
 	return nil
 }
