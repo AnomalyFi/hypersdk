@@ -11,7 +11,7 @@ import (
 type EpochUpdateInfo struct {
 	Epoch               uint64
 	BuilderPubKey       *bls.PublicKey
-	AvailableNamespaces *[][]byte
+	AvailableNamespaces [][]byte
 }
 
 type SubscribeValidatorSignatureCallback struct {

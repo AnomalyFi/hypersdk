@@ -266,7 +266,7 @@ func (vm *VM) processAcceptedBlocks() {
 	}
 }
 
-func (vm *VM) updateRollupRegistryAndGetBuilderPubKey(ctx context.Context, b *chain.StatelessBlock) (*[][]byte, *bls.PublicKey, error) {
+func (vm *VM) updateRollupRegistryAndGetBuilderPubKey(ctx context.Context, b *chain.StatelessBlock) ([][]byte, *bls.PublicKey, error) {
 	view, err := b.View(ctx, false)
 	if err != nil {
 		return nil, nil, err
@@ -290,7 +290,7 @@ func (vm *VM) updateRollupRegistryAndGetBuilderPubKey(ctx context.Context, b *ch
 		if err == database.ErrNotFound {
 			dnss := make([][]byte, 0)
 			vm.Logger().Debug("no rollups registered yet")
-			return &dnss, nil, nil
+			return dnss, nil, nil
 		}
 		return nil, nil, err
 	}
@@ -322,7 +322,7 @@ func (vm *VM) updateRollupRegistryAndGetBuilderPubKey(ctx context.Context, b *ch
 		vm.Logger().Debug("rollup info", zap.String("namespace", hex.EncodeToString(rollupInfo.Namespace)))
 	}
 
-	return &validNamespaces, builderPubKey, nil
+	return validNamespaces, builderPubKey, nil
 }
 
 func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
@@ -423,7 +423,9 @@ func (vm *VM) IsArcadiaAuthVerifiedTx(txID ids.ID) bool {
 
 func (vm *VM) ReplaceArcadia(url string) error {
 	ctx := context.Background()
-	vm.arcadia.ShutDown()
+	if vm.arcadia != nil {
+		vm.arcadia.ShutDown()
+	}
 	rollupRegistryKey := actions.RollupRegistryKey()
 	rollupRegistryBytes, err := vm.stateDB.GetValue(ctx, rollupRegistryKey)
 	// ignore database.ErrNotFound, as it is expected registry is empty on genesis and in some instances.
@@ -453,28 +455,14 @@ func (vm *VM) ReplaceArcadia(url string) error {
 		}
 		builderPubKey = blderPubKey
 	}
-	vm.arcadia = arcadia.NewArcadiaClient(url, vm.GetCurrentEpoch(), builderPubKey, &rollupRegistry, vm)
+	arcadiaClient := arcadia.NewArcadiaClient(url, vm.GetCurrentEpoch(), builderPubKey, &rollupRegistry, vm)
+	if err := arcadiaClient.Subscribe(); err != nil {
+		return fmt.Errorf("unable to subscribe to Arcadia: %s", err.Error())
+	}
 
-	go func() {
-		if err := vm.arcadia.Subscribe(); err != nil {
-			vm.snowCtx.Log.Error("failed to subscribe to arcadia", zap.Error(err))
-			// wait 2 minutes before retrying.
-			vm.snowCtx.Log.Info("retrying to subscribe to arcadia in 2 minutes")
-			time.Sleep(120 * time.Second)
-			if err := vm.arcadia.Subscribe(); err != nil {
-				vm.snowCtx.Log.Error("failed to subscribe to arcadia", zap.Error(err))
-				// wait 3 more minutes before retrying.
-				vm.snowCtx.Log.Info("retrying to subscribe to arcadia in 3 minutes x2")
-				time.Sleep(180 * time.Second)
-				if err := vm.arcadia.Subscribe(); err != nil {
-					vm.snowCtx.Log.Error("failed to subscribe to arcadia", zap.Error(err))
-					return
-				}
-			}
-		}
-		vm.snowCtx.Log.Info("subscribed to arcadia")
-		go vm.arcadia.Run()
-	}()
+	// only the client that successfully subscribed to Arcadia can be assigned
+	vm.arcadia = arcadiaClient
+	go vm.arcadia.Run()
 
 	return nil
 }
