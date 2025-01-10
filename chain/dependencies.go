@@ -67,7 +67,7 @@ type VM interface {
 	GetVerifyAuth() bool
 	IsArcadiaAuthVerifiedTx(txID ids.ID) bool
 
-	GetBlockPayloadFromArcadia(uint64, uint64) ([]byte, error)
+	GetBlockPayloadFromArcadia(context.Context, uint64, uint64) ([]byte, error)
 	IsArcadiaConfigured() bool
 
 	IsBootstrapped() bool

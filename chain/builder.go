@@ -640,13 +640,13 @@ skipArcadia:
 }
 
 func GetArcadiaTxs(
-	_ context.Context,
+	ctx context.Context,
 	vm VM,
 	_ Rules,
 	maxBw uint64,
 	blocknumber uint64,
 ) ([]*Transaction, error) {
-	txsbytes, err := vm.GetBlockPayloadFromArcadia(maxBw, blocknumber)
+	txsbytes, err := vm.GetBlockPayloadFromArcadia(ctx, maxBw, blocknumber)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get block payload from arcadia: %w", err)
 	}

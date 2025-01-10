@@ -530,7 +530,7 @@ func (cli *Arcadia) IssuePreconfs(chunk *ArcadiaToSEQChunkMessage) error {
 	return nil
 }
 
-func (cli *Arcadia) GetBlockPayloadFromArcadia(maxBw, blockNumber uint64) (*ArcadiaBlockPayload, error) {
+func (cli *Arcadia) GetBlockPayloadFromArcadia(ctx context.Context, maxBw, blockNumber uint64) (*ArcadiaBlockPayload, error) {
 	var client http.Client
 
 	url := cli.URL + pathGetArcadiaBlock
@@ -544,8 +544,6 @@ func (cli *Arcadia) GetBlockPayloadFromArcadia(maxBw, blockNumber uint64) (*Arca
 		return nil, err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(reqRaw))
 	if err != nil {
 		return nil, err
