@@ -166,6 +166,7 @@ func BuildBlock(
 		lbwUnits := maxUnits[fees.Bandwidth] - 50*units.KiB
 		txs, err := GetArcadiaTxs(actx, vm, r, lbwUnits, nextHght)
 		if err != nil {
+			vm.Logger().Warn("unable to get arcadia txs", zap.Error(err))
 			goto skipArcadia
 		}
 
