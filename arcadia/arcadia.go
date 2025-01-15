@@ -62,10 +62,11 @@ type Arcadia struct {
 
 	epochInfoStoringDepth int
 
-	conn        *websocket.Conn
-	isConnected atomic.Bool
-	stopCalled  atomic.Bool
-	stop        chan struct{}
+	lastReconnect time.Time
+	conn          *websocket.Conn
+	isConnected   atomic.Bool
+	stopCalled    atomic.Bool
+	stop          chan struct{}
 }
 
 const (
@@ -92,8 +93,9 @@ func NewArcadiaClient(url string, currEpoch uint64, currEpochBuilderPubKey *bls.
 		rejectedChunks:        emap.NewEMap[*ArcadiaToSEQChunkMessage](),
 		stop:                  make(chan struct{}),
 
-		stopCalled:  atomic.Bool{},
-		isConnected: atomic.Bool{},
+		lastReconnect: time.Now(),
+		stopCalled:    atomic.Bool{},
+		isConnected:   atomic.Bool{},
 	}
 
 	// update epoch on arcadia, when changes.
@@ -103,6 +105,10 @@ func NewArcadiaClient(url string, currEpoch uint64, currEpochBuilderPubKey *bls.
 			case newEpochInfo := <-cli.epochUpdatechan:
 				cli.vm.Logger().Debug("epoch update received", zap.Uint64("epoch", newEpochInfo.Epoch))
 				cli.currEpoch = newEpochInfo.Epoch
+
+				if newEpochInfo.BuilderPubKey == nil {
+					cli.vm.Logger().Warn("builder pubkey not exists", zap.Any("epochInfo", newEpochInfo))
+				}
 
 				// store epoch info and GC
 				cli.epochInfoL.Lock()
@@ -229,11 +235,10 @@ func (cli *Arcadia) Subscribe() error {
 				continue
 			}
 
-			var newChunk ArcadiaToSEQChunkMessage
-			err = conn.ReadJSON(&newChunk)
+			msgType, rawMsg, err := conn.ReadMessage()
 			if err != nil {
 				// Handle WebSocket closure.
-				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) || strings.Contains(err.Error(), "close 1006") {
+				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) || strings.Contains(err.Error(), "close 1006") || websocket.IsCloseError(err) {
 					cli.vm.Logger().Error("WebSocket connection closed", zap.Error(err))
 					// Attempt reconnect to arcadia.
 					cli.isConnected.Store(false)
@@ -241,12 +246,30 @@ func (cli *Arcadia) Subscribe() error {
 					// Exit the current loop if connection is closed.
 					return
 				}
-				cli.vm.Logger().Error("Failed to read chunk from arcadia", zap.Error(err))
+				cli.vm.Logger().Error("Failed to read raw message from arcadia", zap.Error(err))
 				continue
 			}
-			cli.vm.Logger().Info("Received chunk from arcadia", zap.String("chunk id", newChunk.ChunkID.String()))
-			cli.vm.RecordChunksReceived()
-			cli.incomingChunks <- &newChunk
+			cli.vm.Logger().Info("received message from arcadia", zap.Int("msgType", msgType), zap.String("rawMsg", string(rawMsg)))
+
+			if msgType == websocket.TextMessage {
+				var newChunk ArcadiaToSEQChunkMessage
+				err := json.Unmarshal(rawMsg, &newChunk)
+				if err != nil {
+					cli.vm.Logger().Warn("unable to parse chunk", zap.Error(err))
+					continue
+				}
+				l2ChainID := "tob"
+				height := uint64(0)
+				if newChunk.Chunk.RoB != nil {
+					l2ChainID = newChunk.Chunk.RoB.ChainID
+					height = newChunk.Chunk.RoB.BlockNumber
+				}
+				cli.vm.Logger().Info("Received chunk from arcadia", zap.String("chunk id", newChunk.ChunkID.String()), zap.String("chainID", l2ChainID), zap.Uint64("height", height))
+				cli.vm.RecordChunksReceived()
+				cli.incomingChunks <- &newChunk
+			} else {
+				continue
+			}
 		}
 	}()
 
@@ -334,9 +357,14 @@ func (cli *Arcadia) HandleRollupChunks(chunk *ArcadiaToSEQChunkMessage) error {
 	epochInfo := cli.epochInfo[chunkEpoch]
 	cli.epochInfoL.RUnlock()
 	if epochInfo == nil {
-		cli.vm.Logger().Warn("epoch info not found", zap.Uint64("chunkEpoch", chunkEpoch))
+		cli.vm.Logger().Warn("epoch info not found or builder pubkey not exist", zap.Uint64("chunkEpoch", chunkEpoch))
 		return fmt.Errorf("epoch info not found for epoch %d", chunkEpoch)
 	}
+
+	// there's a situation that builder pubkey to be nil but there's still chunks coming in
+	// since that the auction tx didn't get included but the best auction bid declared on Arcadia
+	// this situation that Arcadia will keep accepting chunks from the winning builder but SEQ nodes won't be able to verify it
+	verifySig := epochInfo.BuilderPubKey != nil
 
 	chainID := "ToB"
 	height := uint64(0)
@@ -345,7 +373,7 @@ func (cli *Arcadia) HandleRollupChunks(chunk *ArcadiaToSEQChunkMessage) error {
 		height = chunk.Chunk.RoB.BlockNumber
 	}
 
-	cli.vm.Logger().Debug("handling chunk", zap.String("chunkID", chunk.ChunkID.String()), zap.Uint64("currentEpoch", cli.currEpoch), zap.Uint64("chunkEpoch", chunk.Epoch), zap.String("chainID", chainID), zap.Uint64("height", height))
+	cli.vm.Logger().Debug("handling chunk", zap.String("chunkID", chunk.ChunkID.String()), zap.Uint64("currentEpoch", cli.currEpoch), zap.Uint64("chunkEpoch", chunk.Epoch), zap.String("chainID", chainID), zap.Uint64("height", height), zap.String("epochBuilder", hexutil.Encode(epochInfo.BuilderPubKey.Compress())))
 
 	// use the current time as timestamp for tx.Base.ArcadiaExecute.
 	currTime := time.Now().UnixMilli()
@@ -371,14 +399,16 @@ func (cli *Arcadia) HandleRollupChunks(chunk *ArcadiaToSEQChunkMessage) error {
 	}
 
 	// signature verification.
-	msg := binary.LittleEndian.AppendUint64(nil, chunkEpoch)
-	msg = append(msg, chunk.ChunkID[:]...)
-	builderSig, err := bls.SignatureFromBytes(chunk.BuilderSignature)
-	if err != nil {
-		return fmt.Errorf("failed to parse builder signature: %w", err)
-	}
-	if !bls.Verify(msg, epochInfo.BuilderPubKey, builderSig) {
-		return ErrBuilderSignature
+	if verifySig {
+		msg := binary.LittleEndian.AppendUint64(nil, chunkEpoch)
+		msg = append(msg, chunk.ChunkID[:]...)
+		builderSig, err := bls.SignatureFromBytes(chunk.BuilderSignature)
+		if err != nil {
+			return fmt.Errorf("failed to parse builder signature: %w", err)
+		}
+		if !bls.Verify(msg, epochInfo.BuilderPubKey, builderSig) {
+			return ErrBuilderSignature
+		}
 	}
 
 	// santiy checks passed, signature verificaton passed -> Chunk belongs to the current epoch and is signed by the correct builder.

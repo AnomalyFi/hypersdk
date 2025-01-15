@@ -17,6 +17,9 @@ func (cli *Arcadia) Reconnect() {
 			cli.vm.Logger().Info("receiving stop sig, stop subscribing")
 			return
 		default:
+			if time.Since(cli.lastReconnect) < 2*time.Second {
+				time.Sleep(2 * time.Second)
+			}
 			if err := cli.Subscribe(); err != nil {
 				time.Sleep(2 * time.Second)
 				cli.vm.Logger().Error("failed to resubscribe to arcadia, waiting 2s to retry", zap.Error(err))
