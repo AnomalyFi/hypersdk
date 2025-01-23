@@ -238,7 +238,11 @@ func (cli *Arcadia) Subscribe() error {
 			msgType, rawMsg, err := conn.ReadMessage()
 			if err != nil {
 				// Handle WebSocket closure.
-				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) || strings.Contains(err.Error(), "close 1006") || websocket.IsCloseError(err) {
+				if websocket.IsCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) ||
+					websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) ||
+					strings.Contains(err.Error(), "close 1006") ||
+					strings.Contains(err.Error(), "use of closed network connection") {
+
 					cli.vm.Logger().Error("WebSocket connection closed", zap.Error(err))
 					// Attempt reconnect to arcadia.
 					cli.isConnected.Store(false)

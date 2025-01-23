@@ -501,6 +501,7 @@ func (vm *VM) Initialize(
 	vm.webSocketServer = webSocketServer
 
 	valServerCfg := vm.config.GetValServerConfig()
+	vm.snowCtx.Log.Info(fmt.Sprintf("val server config, derivePort: %t, port: %d", valServerCfg.DerivePort, valServerCfg.Port))
 	var valPort int
 	if valServerCfg.DerivePort {
 		valPort = utils.GetPortFromNodeID(snowCtx.NodeID)
