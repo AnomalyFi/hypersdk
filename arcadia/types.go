@@ -29,10 +29,7 @@ type CrossRollupBundle struct {
 }
 
 type ToBChunk struct {
-	Bundles               []*CrossRollupBundle `json:"bundles"`
-	RollupIDToBlockNumber map[string]uint64    `json:"blockNumber"`
-
-	// rollupIDs []string
+	Bundles []*CrossRollupBundle `json:"bundles"`
 }
 
 type RoBChunk struct {

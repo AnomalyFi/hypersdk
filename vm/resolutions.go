@@ -314,8 +314,8 @@ func (vm *VM) updateRollupRegistryAndGetBuilderPubKey(ctx context.Context, b *ch
 			vm.Logger().Error("unable to unmarshal rollup info", zap.Error(err))
 			continue
 		}
-		if rollupInfo.ExitEpoch != 0 && rollupInfo.ExitEpoch == currentEpoch || currentEpoch < rollupInfo.StartEpoch {
-			vm.Logger().Debug("rollup no valid", zap.String("namespace", hexutil.Encode(rollupInfo.Namespace)), zap.Uint64("exitEpoch", rollupInfo.ExitEpoch), zap.Uint64("startEpoch", rollupInfo.StartEpoch))
+		if rollupInfo.ExitEpoch != 0 && rollupInfo.ExitEpoch <= currentEpoch || rollupInfo.StartEpoch > currentEpoch {
+			vm.Logger().Debug("rollup not valid", zap.String("namespace", hexutil.Encode(rollupInfo.Namespace)), zap.Uint64("exitEpoch", rollupInfo.ExitEpoch), zap.Uint64("startEpoch", rollupInfo.StartEpoch), zap.Uint64("currentEpoch", currentEpoch))
 			continue
 		}
 		validNamespaces = append(validNamespaces, rollupInfo.Namespace)
