@@ -22,7 +22,7 @@ func (chunk *ArcadiaToSEQChunkMessage) Initialize(parser chain.Parser) error {
 		for _, bundle := range chunk.Chunk.ToB.Bundles {
 			err := bundle.Initialize(actionReg, authReg)
 			if err != nil {
-				return err
+				return fmt.Errorf("unable to initialize bundle: %s", bundle.BundleHash)
 			}
 			chunk.sTxs = append(chunk.sTxs, bundle.seqTx)
 			chunk.authCounts[bundle.authType] += 1
@@ -31,7 +31,7 @@ func (chunk *ArcadiaToSEQChunkMessage) Initialize(parser chain.Parser) error {
 		buf := bytes.NewBuffer(chunk.RemovedBitSet)
 		_, err := bs.ReadFrom(buf)
 		if err != nil {
-			return err
+			return fmt.Errorf("unable to parse remove bitset, raw: %+v, err: %s", chunk.removedBitSet, err)
 		}
 		chunk.removedBitSet = *bs
 		return nil
@@ -40,7 +40,7 @@ func (chunk *ArcadiaToSEQChunkMessage) Initialize(parser chain.Parser) error {
 		for _, tx := range chunk.Chunk.RoB.Txs {
 			_, stx, err := chain.UnmarshalTxs(tx, 1, actionReg, authReg)
 			if err != nil {
-				return err
+				return fmt.Errorf("unable to unmarshal txs")
 			}
 			if len(stx) == 0 {
 				return ErrNoTxsInRoB
@@ -55,7 +55,7 @@ func (chunk *ArcadiaToSEQChunkMessage) Initialize(parser chain.Parser) error {
 		buf := bytes.NewBuffer(chunk.RemovedBitSet)
 		_, err := bs.ReadFrom(buf)
 		if err != nil {
-			return err
+			return fmt.Errorf("unable to parse remove bitset, raw: %+v, err: %s", chunk.removedBitSet, err)
 		}
 		chunk.removedBitSet = *bs
 	}
