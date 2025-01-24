@@ -20,6 +20,7 @@ func (cli *Arcadia) Reconnect() {
 			if time.Since(cli.lastReconnect) < 2*time.Second {
 				time.Sleep(2 * time.Second)
 			}
+			cli.lastReconnect = time.Now()
 			if err := cli.Subscribe(); err != nil {
 				time.Sleep(2 * time.Second)
 				cli.vm.Logger().Error("failed to resubscribe to arcadia, waiting 2s to retry", zap.Error(err))
