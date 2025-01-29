@@ -20,4 +20,5 @@ var (
 	ErrMoreThanOneAction                = errors.New("tx with more than 1 actions found in RoB chunk")
 	ErrNonSequencerMessage              = errors.New("RoB chunk transaction with non-sequencer action found")
 	ErrNoTxsInRoB                       = errors.New("no txs found in rob chunk tx")
+	ErrStateReadReturnNotCorrect        = errors.New("read state returns not match")
 )

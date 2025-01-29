@@ -5,13 +5,10 @@ import (
 	"github.com/bits-and-blooms/bitset"
 
 	"github.com/AnomalyFi/hypersdk/chain"
-	"github.com/AnomalyFi/hypersdk/crypto/bls"
 )
 
 type EpochUpdateInfo struct {
-	Epoch               uint64
-	BuilderPubKey       *bls.PublicKey
-	AvailableNamespaces [][]byte
+	Epoch uint64
 }
 
 type SubscribeValidatorSignatureCallback struct {

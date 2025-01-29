@@ -1,5 +1,7 @@
 package actions
 
+import "errors"
+
 const (
 	RollupRegisterComputeUnits = 5
 )
@@ -25,4 +27,13 @@ const RollupInfoChunks uint16 = 4
 const (
 	TransferID uint8 = 0
 	MsgID      uint8 = 1
+)
+
+const (
+	BLSPubkeyLength    = 48
+	BLSSignatureLength = 96
+)
+
+var (
+	ErrAuctionWinnerValueNotCorrect = errors.New("auction winner value not correct, wanted: 152")
 )
