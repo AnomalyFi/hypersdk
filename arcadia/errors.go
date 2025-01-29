@@ -21,4 +21,6 @@ var (
 	ErrNonSequencerMessage              = errors.New("RoB chunk transaction with non-sequencer action found")
 	ErrNoTxsInRoB                       = errors.New("no txs found in rob chunk tx")
 	ErrStateReadReturnNotCorrect        = errors.New("read state returns not match")
+	ErrTheSameEpoch                     = errors.New("the same epoch not updating")
+	ErrEpochNotUpdated                  = errors.New("epoch not updated")
 )

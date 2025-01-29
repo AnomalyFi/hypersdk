@@ -55,20 +55,17 @@ type Arcadia struct {
 	incomingChunks chan *ArcadiaToSEQChunkMessage
 	issuePreconf   chan *ArcadiaToSEQChunkMessage
 
+	epochL    sync.RWMutex
 	currEpoch uint64
+	// chainID -> rollupInfo
+	rollups map[string]*actions.RollupInfo
 
 	epochUpdatechan chan *EpochUpdateInfo
-
-	// chainID -> rollupInfo
-	rollups  map[string]*actions.RollupInfo
-	rollupsL sync.RWMutex
 
 	builders *avacache.LRU[uint64, *bls.PublicKey]
 
 	processedChunks *emap.EMap[*ArcadiaToSEQChunkMessage]
 	rejectedChunks  *emap.EMap[*ArcadiaToSEQChunkMessage]
-
-	epochInfoStoringDepth int
 
 	lastReconnect time.Time
 	conn          *websocket.Conn
@@ -112,16 +109,12 @@ func NewArcadiaClient(url string, currEpoch uint64, currEpochBuilderPubKey *bls.
 			select {
 			case newEpochInfo := <-cli.epochUpdatechan:
 				cli.vm.Logger().Debug("epoch update received", zap.Uint64("epoch", newEpochInfo.Epoch))
-
-				if cli.currEpoch != newEpochInfo.Epoch {
-					ctx := context.Background()
-					ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
-					if err := cli.epochUpdate(ctx); err != nil {
-						cli.vm.Logger().Error("unable to conduct epoch update", zap.Error(err))
-					}
-					cancel()
+				ctx := context.Background()
+				ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
+				if err := cli.epochUpdate(ctx, newEpochInfo.Epoch); err != nil {
+					cli.vm.Logger().Error("unable to conduct epoch update", zap.Error(err))
 				}
-				cli.currEpoch = newEpochInfo.Epoch
+				cancel()
 
 				cli.processedChunks.SetMin(int64(cli.currEpoch))
 				cli.rejectedChunks.SetMin(int64(cli.currEpoch))
@@ -310,6 +303,12 @@ func (cli *Arcadia) Run() {
 					err := cli.HandleRollupChunks(ctx, chunk)
 					cancel()
 					cli.vm.RecordChunkProcessDuration(time.Since(t))
+					if err == ErrEpochNotUpdated {
+						// put back and waiting for epoch update
+						cli.incomingChunks <- chunk
+						continue
+					}
+
 					if err != nil {
 						cli.vm.Logger().Error("chunk processing error", zap.String("chunkID", chunk.ChunkID.String()), zap.Error(err))
 						cli.rejectedChunks.Add([]*ArcadiaToSEQChunkMessage{chunk})
@@ -364,7 +363,11 @@ func (cli *Arcadia) HandleRollupChunks(ctx context.Context, chunk *ArcadiaToSEQC
 	// TODO: handle edge cases.
 	// if a chunk is reached for a block that is just on the epoch transition boundary.
 
+	cliEpoch := cli.EpochNumber()
 	chunkEpoch := chunk.Epoch
+	if cliEpoch < chunkEpoch {
+		return ErrEpochNotUpdated
+	}
 
 	builderPubkey, err := cli.auctionWinnerAtEpoch(ctx, chunkEpoch)
 	if err != nil && err != database.ErrNotFound {
@@ -642,8 +645,8 @@ func verifyChunkID(chunkID ids.ID, chunk *ArcadiaChunk) (bool, error) {
 
 // returns true, if namespace exists in the list of namespaces for the current epoch or default namespace.
 func (cli *Arcadia) isValidNamespaceForEpoch(epoch uint64, namespace []byte) bool {
-	cli.rollupsL.RLock()
-	defer cli.rollupsL.RUnlock()
+	cli.epochL.RLock()
+	defer cli.epochL.RUnlock()
 
 	if bytes.Equal(namespace, DefaultNMTNamespace) {
 		return true
@@ -700,18 +703,27 @@ func (cli *Arcadia) auctionWinnerAtEpoch(ctx context.Context, epoch uint64) (*bl
 }
 
 // epochUpdate should be called at block basis to reduce reads
-func (cli *Arcadia) epochUpdate(ctx context.Context) error {
-	cli.rollupsL.Lock()
-	defer cli.rollupsL.Unlock()
+func (cli *Arcadia) epochUpdate(ctx context.Context, newEpoch uint64) error {
+	cli.epochL.Lock()
+	defer cli.epochL.Unlock()
+
+	if newEpoch == cli.currEpoch {
+		return ErrTheSameEpoch
+	}
+
+	cli.currEpoch = newEpoch
 
 	rollupRegistryKey := actions.RollupRegistryKey()
 	values, errs := cli.vm.ReadState(ctx, [][]byte{rollupRegistryKey})
-	if len(errs) != 1 || len(errs) != len(values) {
-		return ErrStateReadReturnNotCorrect
+	if len(values) != 1 {
+		// return ErrStateReadReturnNotCorrect
+		return fmt.Errorf("values length not match, wanted: %d, actual: %d", 1, len(values))
 	}
 
-	if errs[0] != nil {
-		return errs[0]
+	for _, err := range errs {
+		if err != nil {
+			return fmt.Errorf("err querying key: %+v, err: %w", rollupRegistryKey, err)
+		}
 	}
 
 	value := values[0]
@@ -725,9 +737,10 @@ func (cli *Arcadia) epochUpdate(ctx context.Context) error {
 		rollupInfoKeys = append(rollupInfoKeys, actions.RollupInfoKey(ns))
 	}
 
-	values, errs = cli.vm.ReadState(ctx, [][]byte{rollupRegistryKey})
-	if len(errs) != len(rollupInfoKeys) || len(errs) != len(values) {
-		return ErrStateReadReturnNotCorrect
+	values, errs = cli.vm.ReadState(ctx, rollupInfoKeys)
+	if len(values) != len(rollupInfoKeys) {
+		// return ErrStateReadReturnNotCorrect
+		return fmt.Errorf("values length not match, wanted: %d, actual: %d", len(rollupInfoKeys), len(values))
 	}
 
 	for i, err := range errs {
