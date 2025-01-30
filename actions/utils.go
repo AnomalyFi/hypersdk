@@ -45,22 +45,22 @@ func UnpackEpochExitsInfo(raw []byte) (*EpochExitInfo, error) {
 }
 
 func PackArcadiaAuctionWinner(bidPrice uint64, winnerPubkey []byte, winnerSig []byte) []byte {
-	v := make([]byte, consts.Uint64Len+BLSPubkeyLength+BLSSignatureLength)
+	v := make([]byte, consts.Uint64Len+bls.PublicKeyLen+bls.SignatureLen)
 	binary.BigEndian.PutUint64(v, bidPrice)
 	copy(v[consts.Uint64Len:], winnerPubkey)
-	copy(v[consts.Uint64Len+BLSPubkeyLength:], winnerSig)
+	copy(v[consts.Uint64Len+bls.PublicKeyLen:], winnerSig)
 
 	return v
 }
 
 func UnpackArcadiaAuctionWinner(value []byte) (uint64, []byte, []byte, error) {
-	if len(value) != consts.Uint64Len+BLSPubkeyLength+BLSSignatureLength {
-		return 0, nil, nil, ErrAuctionWinnerValueNotCorrect
+	if len(value) != consts.Uint64Len+bls.PublicKeyLen+bls.SignatureLen {
+		return 0, nil, nil, ErrAuctionWinnerValueWrongLength
 	}
 
 	bidPrice := binary.BigEndian.Uint64(value[:consts.Uint64Len])
-	pubkey := value[consts.Uint64Len : consts.Uint64Len+BLSPubkeyLength]
-	sig := value[consts.Uint64Len+BLSPubkeyLength:]
+	pubkey := value[consts.Uint64Len : consts.Uint64Len+bls.PublicKeyLen]
+	sig := value[consts.Uint64Len+bls.PublicKeyLen:]
 
 	return bidPrice, pubkey, sig, nil
 }

@@ -23,7 +23,6 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/AnomalyFi/hypersdk/actions"
 	"github.com/AnomalyFi/hypersdk/chain"
 	"github.com/AnomalyFi/hypersdk/codec"
 	"github.com/AnomalyFi/hypersdk/consts"
@@ -58,7 +57,7 @@ type Arcadia struct {
 	epochL    sync.RWMutex
 	currEpoch uint64
 	// chainID -> rollupInfo
-	rollups map[string]*actions.RollupInfo
+	rollups map[string]*hactions.RollupInfo
 
 	epochUpdatechan chan *EpochUpdateInfo
 
@@ -664,7 +663,7 @@ func (cli *Arcadia) isValidNamespaceForEpoch(epoch uint64, namespace []byte) boo
 		valid = false
 	}
 
-	if rollup.ExitEpoch != 0 && rollup.ExitEpoch < epoch {
+	if rollup.ExitEpoch != 0 && rollup.ExitEpoch <= epoch {
 		valid = false
 	}
 
@@ -677,7 +676,7 @@ func (cli *Arcadia) auctionWinnerAtEpoch(ctx context.Context, epoch uint64) (*bl
 		return winner, nil
 	}
 
-	auctionKey := actions.ArcadiaBidKey(epoch)
+	auctionKey := hactions.ArcadiaBidKey(epoch)
 	values, errs := cli.vm.ReadState(ctx, [][]byte{auctionKey})
 	if len(errs) != 1 || len(errs) != len(values) {
 		return nil, ErrStateReadReturnNotCorrect
@@ -688,7 +687,7 @@ func (cli *Arcadia) auctionWinnerAtEpoch(ctx context.Context, epoch uint64) (*bl
 	}
 
 	value := values[0]
-	_, pubkeyBytes, _, err := actions.UnpackArcadiaAuctionWinner(value)
+	_, pubkeyBytes, _, err := hactions.UnpackArcadiaAuctionWinner(value)
 	if err != nil {
 		return nil, err
 	}
@@ -713,7 +712,7 @@ func (cli *Arcadia) epochUpdate(ctx context.Context, newEpoch uint64) error {
 
 	cli.currEpoch = newEpoch
 
-	rollupRegistryKey := actions.RollupRegistryKey()
+	rollupRegistryKey := hactions.RollupRegistryKey()
 	values, errs := cli.vm.ReadState(ctx, [][]byte{rollupRegistryKey})
 	if len(values) != 1 {
 		// return ErrStateReadReturnNotCorrect
@@ -727,14 +726,14 @@ func (cli *Arcadia) epochUpdate(ctx context.Context, newEpoch uint64) error {
 	}
 
 	value := values[0]
-	namespaces, err := actions.UnpackNamespaces(value)
+	namespaces, err := hactions.UnpackNamespaces(value)
 	if err != nil {
 		return err
 	}
 
 	rollupInfoKeys := make([][]byte, 0, len(namespaces))
 	for _, ns := range namespaces {
-		rollupInfoKeys = append(rollupInfoKeys, actions.RollupInfoKey(ns))
+		rollupInfoKeys = append(rollupInfoKeys, hactions.RollupInfoKey(ns))
 	}
 
 	values, errs = cli.vm.ReadState(ctx, rollupInfoKeys)
@@ -749,10 +748,10 @@ func (cli *Arcadia) epochUpdate(ctx context.Context, newEpoch uint64) error {
 		}
 	}
 
-	newRollupInfo := make(map[string]*actions.RollupInfo)
+	newRollupInfo := make(map[string]*hactions.RollupInfo)
 	for _, value := range values {
 		p := codec.NewReader(value, consts.NetworkSizeLimit)
-		rollupInfo, err := actions.UnmarshalRollupInfo(p)
+		rollupInfo, err := hactions.UnmarshalRollupInfo(p)
 		if err != nil {
 			return err
 		}

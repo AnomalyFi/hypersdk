@@ -29,11 +29,6 @@ const (
 	MsgID      uint8 = 1
 )
 
-const (
-	BLSPubkeyLength    = 48
-	BLSSignatureLength = 96
-)
-
 var (
-	ErrAuctionWinnerValueNotCorrect = errors.New("auction winner value not correct, wanted: 152")
+	ErrAuctionWinnerValueWrongLength = errors.New("got auction winner value with wrong length, wanted: 152")
 )
