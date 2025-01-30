@@ -385,7 +385,11 @@ func (cli *Arcadia) HandleRollupChunks(ctx context.Context, chunk *ArcadiaToSEQC
 		height = chunk.Chunk.RoB.BlockNumber
 	}
 
-	cli.vm.Logger().Debug("handling chunk", zap.String("chunkID", chunk.ChunkID.String()), zap.Uint64("currentEpoch", cli.currEpoch), zap.Uint64("chunkEpoch", chunk.Epoch), zap.String("chainID", chainID), zap.Uint64("height", height), zap.String("epochBuilder", hexutil.Encode(builderPubkey.Compress())))
+	epochBuilder := "0xnotfound"
+	if builderPubkey != nil {
+		epochBuilder = hexutil.Encode(builderPubkey.Compress())
+	}
+	cli.vm.Logger().Debug("handling chunk", zap.String("chunkID", chunk.ChunkID.String()), zap.Uint64("currentEpoch", cli.currEpoch), zap.Uint64("chunkEpoch", chunk.Epoch), zap.String("chainID", chainID), zap.Uint64("height", height), zap.String("epochBuilder", epochBuilder))
 
 	// use the current time as timestamp for tx.Base.ArcadiaExecute.
 	currTime := time.Now().UnixMilli()
