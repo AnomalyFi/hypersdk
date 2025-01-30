@@ -43,3 +43,10 @@ func (cli *Arcadia) ShutDown() {
 	}
 	close(cli.stop)
 }
+
+func (cli *Arcadia) EpochNumber() uint64 {
+	cli.epochL.RLock()
+	defer cli.epochL.RUnlock()
+
+	return cli.currEpoch
+}

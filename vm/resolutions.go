@@ -19,15 +19,12 @@ import (
 	"github.com/ava-labs/avalanchego/utils/set"
 	"github.com/ava-labs/avalanchego/vms/platformvm/warp"
 	"github.com/ava-labs/avalanchego/x/merkledb"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"go.uber.org/zap"
 
 	"github.com/AnomalyFi/hypersdk/actions"
 	"github.com/AnomalyFi/hypersdk/arcadia"
 	"github.com/AnomalyFi/hypersdk/builder"
 	"github.com/AnomalyFi/hypersdk/chain"
-	"github.com/AnomalyFi/hypersdk/codec"
-	"github.com/AnomalyFi/hypersdk/consts"
 	"github.com/AnomalyFi/hypersdk/crypto/bls"
 	"github.com/AnomalyFi/hypersdk/executor"
 	"github.com/AnomalyFi/hypersdk/fees"
@@ -266,65 +263,6 @@ func (vm *VM) processAcceptedBlocks() {
 	}
 }
 
-func (vm *VM) updateRollupRegistryAndGetBuilderPubKey(ctx context.Context, b *chain.StatelessBlock) ([][]byte, *bls.PublicKey, error) {
-	view, err := b.View(ctx, false)
-	if err != nil {
-		return nil, nil, err
-	}
-	arcadiaBidKey := actions.ArcadiaBidKey(vm.GetCurrentEpoch())
-	arcadiaBidBytes, err := view.GetValue(ctx, arcadiaBidKey)
-	if err != nil && err != database.ErrNotFound {
-		return nil, nil, err
-	}
-	var builderPubKey *bls.PublicKey
-	if arcadiaBidBytes != nil {
-		buldrPubKey, err := actions.UnpackBidderPublicKeyFromStateData(arcadiaBidBytes)
-		if err != nil && err != database.ErrNotFound {
-			return nil, nil, err
-		}
-		builderPubKey = buldrPubKey
-	}
-	registryKey := actions.RollupRegistryKey()
-	registryBytes, err := view.GetValue(ctx, registryKey)
-	if err != nil {
-		if err == database.ErrNotFound {
-			dnss := make([][]byte, 0)
-			vm.Logger().Debug("no rollups registered yet")
-			return dnss, nil, nil
-		}
-		return nil, nil, err
-	}
-	namespaces, err := actions.UnpackNamespaces(registryBytes)
-	if err != nil {
-		return nil, nil, err
-	}
-	vm.Logger().Debug("rollup lists")
-	currentEpoch := vm.GetCurrentEpoch()
-	validNamespaces := make([][]byte, 0)
-	for _, ns := range namespaces {
-		rollupInfoKey := actions.RollupInfoKey(ns)
-		rollupInfoBytes, err := view.GetValue(ctx, rollupInfoKey)
-		if err != nil {
-			vm.Logger().Error("unable to get value of rollup", zap.String("namespace", hex.EncodeToString(ns)))
-			continue
-		}
-		p := codec.NewReader(rollupInfoBytes, consts.NetworkSizeLimit)
-		rollupInfo, err := actions.UnmarshalRollupInfo(p)
-		if err != nil {
-			vm.Logger().Error("unable to unmarshal rollup info", zap.Error(err))
-			continue
-		}
-		if rollupInfo.ExitEpoch != 0 && rollupInfo.ExitEpoch <= currentEpoch || rollupInfo.StartEpoch > currentEpoch {
-			vm.Logger().Debug("rollup not valid", zap.String("namespace", hexutil.Encode(rollupInfo.Namespace)), zap.Uint64("exitEpoch", rollupInfo.ExitEpoch), zap.Uint64("startEpoch", rollupInfo.StartEpoch), zap.Uint64("currentEpoch", currentEpoch))
-			continue
-		}
-		validNamespaces = append(validNamespaces, rollupInfo.Namespace)
-		vm.Logger().Debug("rollup info", zap.String("namespace", hex.EncodeToString(rollupInfo.Namespace)))
-	}
-
-	return validNamespaces, builderPubKey, nil
-}
-
 func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
 	ctx, span := vm.tracer.Start(ctx, "VM.Accepted")
 	defer span.End()
@@ -356,16 +294,10 @@ func (vm *VM) Accepted(ctx context.Context, b *chain.StatelessBlock) {
 	aevicted := vm.arcadiaAuthVerifiedTxs.SetMin(blkTime)
 	vm.Logger().Debug("txs evicted from arcadia auth verified txs", zap.Int("len", len(aevicted)))
 
-	nss, bldrPubKey, err := vm.updateRollupRegistryAndGetBuilderPubKey(ctx, b)
-	if err != nil {
-		vm.Logger().Error("unable to update registry", zap.Error(err))
-	}
 	if vm.IsArcadiaConfigured() {
 		if b.Height()%uint64(vm.Rules(b.Tmstmp).GetEpochLength()) == 0 {
 			vm.arcadia.EpochUpdateChan() <- &arcadia.EpochUpdateInfo{
-				Epoch:               b.Height() / uint64(vm.Rules(b.Tmstmp).GetEpochLength()),
-				BuilderPubKey:       bldrPubKey,
-				AvailableNamespaces: nss,
+				Epoch: b.Height() / uint64(vm.Rules(b.Tmstmp).GetEpochLength()),
 			}
 		}
 	}

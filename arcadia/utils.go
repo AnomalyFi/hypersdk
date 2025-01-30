@@ -2,11 +2,14 @@ package arcadia
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
+	"math/big"
 	"strings"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/bits-and-blooms/bitset"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 
 	"github.com/AnomalyFi/hypersdk/chain"
 	"github.com/AnomalyFi/hypersdk/emap"
@@ -91,4 +94,11 @@ func replaceHTTPWithWS(url string) string {
 		return "wss://" + strings.TrimPrefix(url, "https://")
 	}
 	return url // Return as-is if no match
+}
+
+func namespaceToChainIDStr(ns []byte) string {
+	chainIDu64 := binary.LittleEndian.Uint64(ns)
+	chainID := big.NewInt(int64(chainIDu64))
+
+	return hexutil.EncodeBig(chainID)
 }
