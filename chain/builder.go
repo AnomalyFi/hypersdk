@@ -273,6 +273,7 @@ func BuildBlock(
 						zap.Uint64("tx", result.Units[dimension]),
 						zap.Uint64("block units", feeManager.LastConsumed(dimension)),
 						zap.Uint64("max block units", maxUnits[dimension]),
+						zap.String("txID", tx.id.String()),
 					)
 					// If we are above the target for the dimension we can't consume, we will
 					// stop building. This prevents a full mempool iteration looking for the
@@ -306,6 +307,7 @@ func BuildBlock(
 			// Add txs from arcadia to the set, so we can skip them during local build process.
 			for _, tx := range b.Txs {
 				includedTxsSet.Add(tx.ID())
+				vm.Logger().Info("adding arcadia tx", zap.String("txID", tx.id.String()))
 			}
 			results = append(results, arcadiaTxResults...)
 			isArcadiaBuildSuccessful = true
