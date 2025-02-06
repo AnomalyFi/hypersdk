@@ -1,6 +1,8 @@
 package arcadia
 
 import (
+	"encoding/json"
+
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/bits-and-blooms/bitset"
 
@@ -67,6 +69,10 @@ type ArcadiaBlockPayload struct {
 type GetBlockPayloadFromArcadia struct {
 	MaxBandwidth uint64 `json:"maxBandwidth"` // TODO: remove this field?
 	BlockNumber  uint64 `json:"blockNumber"`
+}
+
+func (req *GetBlockPayloadFromArcadia) Payload() ([]byte, error) {
+	return json.Marshal(req)
 }
 
 type ChunkInterface interface {

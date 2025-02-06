@@ -585,10 +585,22 @@ func (cli *Arcadia) GetBlockPayloadFromArcadia(ctx context.Context, maxBw, block
 		MaxBandwidth: maxBw,
 		BlockNumber:  blockNumber,
 	}
-	reqRaw, err := json.Marshal(reqr)
+	reqRaw, err := reqr.Payload()
 	if err != nil {
 		return nil, err
 	}
+
+	uwm, err := warp.NewUnsignedMessage(cli.vm.NetworkID(), cli.vm.ChainID(), reqRaw)
+	if err != nil {
+		return nil, err
+	}
+	sig, err := cli.vm.Sign(uwm)
+	if err != nil {
+		return nil, err
+	}
+	sigStr := hexutil.Encode(sig)
+
+	cli.vm.Logger().Debug("signing GetArcadiaBlock request with", zap.String("pubkey", hexutil.Encode(cli.vm.Signer().Compress())), zap.Uint64("height", blockNumber), zap.String("chainID", cli.vm.ChainID().String()), zap.Uint32("networkID", cli.vm.NetworkID()))
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(reqRaw))
 	if err != nil {
@@ -596,6 +608,7 @@ func (cli *Arcadia) GetBlockPayloadFromArcadia(ctx context.Context, maxBw, block
 	}
 
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(GetArcadiaBlockSignatureHeader, sigStr)
 
 	resp, err := client.Do(req)
 	if err != nil {
