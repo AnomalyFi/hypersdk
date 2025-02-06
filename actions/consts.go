@@ -1,5 +1,7 @@
 package actions
 
+import "errors"
+
 const (
 	RollupRegisterComputeUnits = 5
 )
@@ -25,4 +27,8 @@ const RollupInfoChunks uint16 = 4
 const (
 	TransferID uint8 = 0
 	MsgID      uint8 = 1
+)
+
+var (
+	ErrAuctionWinnerValueWrongLength = errors.New("got auction winner value with wrong length, wanted: 152")
 )

@@ -2,11 +2,14 @@ package arcadia
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
+	"math/big"
 	"strings"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/bits-and-blooms/bitset"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 
 	"github.com/AnomalyFi/hypersdk/chain"
 	"github.com/AnomalyFi/hypersdk/emap"
@@ -22,7 +25,7 @@ func (chunk *ArcadiaToSEQChunkMessage) Initialize(parser chain.Parser) error {
 		for _, bundle := range chunk.Chunk.ToB.Bundles {
 			err := bundle.Initialize(actionReg, authReg)
 			if err != nil {
-				return err
+				return fmt.Errorf("unable to initialize bundle: %s", bundle.BundleHash)
 			}
 			chunk.sTxs = append(chunk.sTxs, bundle.seqTx)
 			chunk.authCounts[bundle.authType] += 1
@@ -31,7 +34,7 @@ func (chunk *ArcadiaToSEQChunkMessage) Initialize(parser chain.Parser) error {
 		buf := bytes.NewBuffer(chunk.RemovedBitSet)
 		_, err := bs.ReadFrom(buf)
 		if err != nil {
-			return err
+			return fmt.Errorf("unable to parse remove bitset, raw: %+v, err: %s", chunk.removedBitSet, err)
 		}
 		chunk.removedBitSet = *bs
 		return nil
@@ -40,7 +43,7 @@ func (chunk *ArcadiaToSEQChunkMessage) Initialize(parser chain.Parser) error {
 		for _, tx := range chunk.Chunk.RoB.Txs {
 			_, stx, err := chain.UnmarshalTxs(tx, 1, actionReg, authReg)
 			if err != nil {
-				return err
+				return fmt.Errorf("unable to unmarshal txs")
 			}
 			if len(stx) == 0 {
 				return ErrNoTxsInRoB
@@ -55,7 +58,7 @@ func (chunk *ArcadiaToSEQChunkMessage) Initialize(parser chain.Parser) error {
 		buf := bytes.NewBuffer(chunk.RemovedBitSet)
 		_, err := bs.ReadFrom(buf)
 		if err != nil {
-			return err
+			return fmt.Errorf("unable to parse remove bitset, raw: %+v, err: %s", chunk.removedBitSet, err)
 		}
 		chunk.removedBitSet = *bs
 	}
@@ -91,4 +94,11 @@ func replaceHTTPWithWS(url string) string {
 		return "wss://" + strings.TrimPrefix(url, "https://")
 	}
 	return url // Return as-is if no match
+}
+
+func namespaceToChainIDStr(ns []byte) string {
+	chainIDu64 := binary.LittleEndian.Uint64(ns)
+	chainID := big.NewInt(int64(chainIDu64))
+
+	return hexutil.EncodeBig(chainID)
 }
