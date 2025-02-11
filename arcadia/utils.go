@@ -97,7 +97,9 @@ func replaceHTTPWithWS(url string) string {
 }
 
 func namespaceToChainIDStr(ns []byte) string {
-	chainIDu64 := binary.LittleEndian.Uint64(ns)
+	nsPadded := make([]byte, 8)
+	copy(nsPadded[:], ns)
+	chainIDu64 := binary.LittleEndian.Uint64(nsPadded)
 	chainID := big.NewInt(int64(chainIDu64))
 
 	return hexutil.EncodeBig(chainID)
