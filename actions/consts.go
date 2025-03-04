@@ -18,11 +18,11 @@ const (
 const (
 	RollupRegistryChunks uint16 = 3 * 16
 	EpochExitsChunks     uint16 = 3 * 16
-	ArcadiaBidChunks     uint16 = 3
+	ArcadiaBidChunks     uint16 = 16
 )
 
 // 2 * AddressLen(33) + 1 MaxNamespaceLen(32) + BLS Pubkey Length(48) + 2*Epoch(8) = 162
-const RollupInfoChunks uint16 = 4
+const RollupInfoChunks uint16 = 16
 
 const (
 	TransferID uint8 = 0
